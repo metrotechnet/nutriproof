@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutriss OCR - Gestion des projets</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .table-actions button { margin-right: 5px; }
+        .top-bar {  margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+<div class="container mt-5" style="max-width: 90vw; width: 90%; min-width: 320px; margin: 0 auto;">
+    <div class="top-bar">
+        <div class="d-flex w-100 align-items-center justify-content-between mb-2">
+            <h2 class="mb-0">NutriProof - Gestion des fichiers</h2>
+            <div class="d-flex align-items-center" style="gap: 12px;">
+                <a href="https://www.cimmi.ca/" target="_blank" rel="noopener">
+                    <img src="/static/image/logo-cimmi.png" alt="Logo CIMMI" style="height:40px;">
+                </a>
+                <a href="https://nutriss.ulaval.ca/" target="_blank" rel="noopener">
+                    <img src="/static/image/logo-nutriss.png" alt="Logo Nutriss" style="height:40px;">
+                </a>
+            </div>
+        </div>
+        <div class="d-flex w-100 align-items-center justify-content-between mb-3" style="gap: 16px;">
+            <div class="d-flex w-100" style="justify-content: space-between; align-items: flex-end;">
+                <div class="text-muted small">
+                    <b>Instructions :</b> 
+                    <br>&emsp;1) Sélectionnez un nouveau document pour démarrer l’analyse.
+                    <br>&emsp;2) Après l'analyse, cliquez sur l'icône "Visualiser" pour examiner les résultats.
+                    <br>&emsp;3) Cocher la colonne V1 ou V2 après avoir terminé la validation.
+                    <br>&emsp;4) Après validation, téléchargez le document.
+                    <br>Télécharger <a href="/static/doc/NutrissProof-Manuel_usager_V1.pdf" target="_blank" rel="noopener">le manuel de l'usager</a>  pour en savoir plus .
+                    <br>Pour toute assistance, <a href="mailto:dboulanger@cimmi.ca">contactez le support technique</a>.
+                </div>
+                <div class="ms-3" style="align-self: flex-end;">
+                    <button class="btn btn-success" id="btn-new-file">Nouveau Document</button>
+                    <input type="file" id="file-browser-main" style="display:none;" multiple />
+                </div>
+            </div>
+        </div>
+    </div>
+    <table class="table table-bordered table-hover" id="projects-table">
+        <thead class="table-light">
+            <tr>
+                <th class="text-center">ID Document</th>
+                <th class="text-center">Nom du fichier</th>
+                <th class="text-center">Date</th>
+                <th class="text-center"># pages</th>
+                <th class="text-center">Visualiser</th>
+                <th class="text-center">Télécharger</th>
+                <th class="text-center">Effacer</th>
+                <th class="text-center">Statut</th>
+                <th class="text-center">V1</th>
+                <th class="text-center">V2</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Les lignes seront ajoutées dynamiquement -->
+        </tbody>
+    </table>
+</div>
+<script src="/static/js/projectManager.js"></script>
+<script src="/static/js/ocrManager.js"></script>
+<script src="/static/js/filemanager.js"></script>
+<script src="https://kit.fontawesome.com/715ca51745.js" crossorigin="anonymous"></script>
+</body>
+</html>

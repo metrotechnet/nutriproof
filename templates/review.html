@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriProof</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/static/css/docReview.css">
+</head>
+<body>
+
+    <h2 style="margin:10px;" id="ocr-demo-title">Analyse OCR de document </h2>
+    <div id="app">
+        <div id="section-info" class="container-fluid">
+            <div class="row" style="width:100%;">
+                <!-- Colonne gauche : Table -->
+                <div id="table-container" class="col-6 d-flex flex-column" style="position:relative;">
+                </div>
+                <!-- Colonne droite : Viewer -->
+                <div id="viewer-container" class="col-6 d-flex flex-column" style="position:relative;">
+                    <!-- Section viewer-controls -->
+                    <div id="viewer-controls" style="width:100%;z-index:2;display:flex;justify-content:flex-end;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px 8px 8px;">
+                        <button id="btn-reset" class="btn btn-sm btn-outline-secondary btn-square" title="Réinitialiser"><i class="bi bi-bootstrap-reboot"></i></button>
+                        <button id="btn-rotate" class="btn btn-sm btn-outline-primary btn-square" title="Rotation 90°" ><i class="bi bi-arrow-clockwise"></i></button>
+                        <button id="btn-zoom-in" class="btn btn-sm btn-outline-primary btn-square" title="Zoom +" ><i class="bi bi-zoom-in"></i></button>
+                        <button id="btn-zoom-out" class="btn btn-sm btn-outline-primary btn-square" title="Zoom -" ><i class="bi bi-zoom-out"></i></button>
+                    </div>
+                    <!-- Section viewer-container -->
+                    <div id="viewer-image-frame" >
+                        <div id="viewer-image" >
+                            <img id="page-image" src="" alt="Page Image" style="width:100%;  display:none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/projectManager.js"></script>
+    <script src="/static/js/ocrManager.js"></script>
+    <script src="/static/js/docReview.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://kit.fontawesome.com/715ca51745.js" crossorigin="anonymous"></script>
+
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutriss Parser - Maintenance</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .maintenance-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 60px 40px;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .logo-container {
+            margin-bottom: 40px;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .logo svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+        
+        .brand-name {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: #666;
+            font-weight: 400;
+        }
+        
+        .maintenance-icon {
+            font-size: 64px;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .maintenance-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .maintenance-message {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .status-info {
+            background: #f8f9ff;
+            border: 2px solid #e3e8ff;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .status-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #4c51bf;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .status-description {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+        
+        .contact-info {
+            background: #fff7ed;
+            border: 2px solid #fed7aa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .contact-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #c2410c;
+            margin-bottom: 8px;
+        }
+        
+        .contact-text {
+            font-size: 13px;
+            color: #9a3412;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+        
+        .loading-dots {
+            display: inline-block;
+            margin-left: 4px;
+        }
+        
+        .loading-dots span {
+            animation: blink 1.4s infinite both;
+            font-size: 20px;
+        }
+        
+        .loading-dots span:nth-child(2) {
+            animation-delay: .2s;
+        }
+        
+        .loading-dots span:nth-child(3) {
+            animation-delay: .4s;
+        }
+        
+        @keyframes blink {
+            0%, 80%, 100% {
+                opacity: 0;
+            }
+            40% {
+                opacity: 1;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .maintenance-container {
+                padding: 40px 30px;
+                margin: 20px;
+            }
+            
+            .brand-name {
+                font-size: 28px;
+            }
+            
+            .maintenance-title {
+                font-size: 24px;
+            }
+            
+            .maintenance-message {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="maintenance-container">
+        <div class="logo-container">
+            <div class="logo">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+            </div>
+            <div class="brand-name">NutriProof</div>
+            <div class="subtitle">Analyseur de documents médicaux</div>
+        </div>
+        
+        <div class="maintenance-icon">🔧</div>
+        
+        <h1 class="maintenance-title">Service temporairement indisponible</h1>
+        
+        <p class="maintenance-message">
+            Notre système est actuellement en cours de maintenance pour vous offrir une meilleure expérience. 
+            Nous travaillons activement pour rétablir le service dans les plus brefs délais.
+        </p>
+        
+        
+        <div class="contact-info">
+            <div class="contact-title">📧 Besoin d'aide urgente ?</div>
+            <div class="contact-text">
+                Pour toute urgence, veuillez contacter l'équipe technique à l'adresse : <strong>dboulanger@cimmi.ca</strong>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 CIMMI - Tous droits réservés</p>
+            <p>Merci de votre patience et de votre compréhension</p>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-refresh every 5 minutes to check if service is back
+        setTimeout(function() {
+            window.location.reload();
+        }, 300000); // 5 minutes
+        
+        // Optional: Add a manual refresh button functionality
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
+                window.location.reload();
+            }
+        });
+    </script>
+</body>
+</html>
