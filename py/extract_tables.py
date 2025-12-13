@@ -17,8 +17,8 @@ import pandas as pd
 import xlwt
 
 from py.config import (
-    PROJECT_ID, LOCATION,
-    OCR_PROCESSOR_ID
+    get_project_id, get_location,
+    get_ocr_processor_id
 )
 GEMINI_MODEL = 'gemini-2.5-flash-lite'
 
@@ -26,7 +26,7 @@ class OCRDocument:
     
     def __init__(self,_storage_manager):
         self.client_ocr = documentai.DocumentProcessorServiceClient()
-        vertexai.init(project=PROJECT_ID, location="us-east1")
+        vertexai.init(project=get_project_id(), location="us-east1")
         self.model = GenerativeModel(GEMINI_MODEL)
         self.storage_manager = _storage_manager
 
@@ -155,7 +155,7 @@ class OCRDocument:
                 file_content = file.read()
 
             raw_document = documentai.RawDocument(content=file_content, mime_type=mime_type)
-            processor_name = f"projects/{PROJECT_ID}/locations/{LOCATION}/processors/{OCR_PROCESSOR_ID}"
+            processor_name = f"projects/{get_project_id()}/locations/{get_location()}/processors/{get_ocr_processor_id()}"
             request = documentai.ProcessRequest(name=processor_name, raw_document=raw_document)
             result = self.client_ocr.process_document(request=request)
             return self.extract_blocks(result.document)

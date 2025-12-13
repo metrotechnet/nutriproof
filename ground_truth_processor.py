@@ -25,7 +25,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from py.extract_tables import OCRDocument
 from py.gstorage import GSStorage
-from py.config import PROJECT_ID, LOCATION, OCR_PROCESSOR_ID
+from py.config import get_project_id, get_location, get_ocr_processor_id
 
 # Configuration
 GROUND_TRUTH_ROOT = r"D:\Nutriss\ground_truth"

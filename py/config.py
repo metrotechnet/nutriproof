@@ -33,28 +33,77 @@ Args:
     secret_id (str): The secret name in Secret Manager.
     credentials_path (str): Local path to credentials (used in local dev).
 """
-secret_id = 'nutriproof-secrets'
-credentials_path = "..//nuriproof-c5b89f17bf69.json"
-project_id="nutriproof"
+def get_config():
+    """Load configuration from Secret Manager or environment variables."""
+    secret_id = 'nutriproof-secrets'
+    credentials_path = "..//nutriproof-29d95359dc1f.json"
+    project_id = "nutriproof"
 
-# if this is running locally then GOOGLE_APPLICATION_CREDENTIALS should be defined
-if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-    with open(os.environ['GOOGLE_APPLICATION_CREDENTIALS'], 'r') as fp:
-        credentialsVal = json.load(fp)
-    project_id = credentialsVal['project_id']
+    # if this is running locally then GOOGLE_APPLICATION_CREDENTIALS should be defined
+    if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
+        if os.path.exists(credentials_path):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+            with open(os.environ['GOOGLE_APPLICATION_CREDENTIALS'], 'r') as fp:
+                credentialsVal = json.load(fp)
+            project_id = credentialsVal['project_id']
 
-config = load_secret(project_id,secret_id)
-print("ProjectID: "+project_id)
-         
-# Store secret values as attributes
-PROJECT_ID = config.get("project_id")
-LOCATION = config.get("location")
-LAYOUT_PROCESSOR_ID = config.get("layout_processor_id")
-OCR_PROCESSOR_ID = config.get("ocr_processor_id")
-OPENAI_API_KEY = config.get("openai_api_key")
-SSL_KEY = config.get("sslkey")
-DOK2U_API_KEY = config.get("dok2u_editor_api_key")
-GEMINI_API_KEY = config.get("gemini_api_key")
+    try:
+        config = load_secret(project_id, secret_id)
+        print("ProjectID: " + project_id)
+        return config
+    except Exception as e:
+        print(f"Warning: Could not load secrets: {e}")
+        return {}
+
+# Initialize config lazily
+_config = None
+
+def get_project_id():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("project_id", "nutriproof")
+
+def get_location():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("location", "us-central1")
+
+def get_layout_processor_id():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("layout_processor_id", "")
+
+def get_ocr_processor_id():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("ocr_processor_id", "")
+
+def get_openai_api_key():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("openai_api_key", "")
+
+def get_ssl_key():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("sslkey", "")
+
+def get_dok2u_api_key():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("dok2u_editor_api_key", "")
+
+def get_gemini_api_key():
+    global _config
+    if _config is None:
+        _config = get_config()
+    return _config.get("gemini_api_key", "")
 
  

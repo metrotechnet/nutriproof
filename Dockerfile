@@ -8,26 +8,26 @@
 # FROM python:3-slim
 #
 # python:3-alpine builds a 97 MB image - 33.2 MB in Google Container Registry
-FROM python:latest
+FROM python:3.11-slim
 
-# RUN apt-get update -y
-# RUN apt-get install -y python-pip
-
-COPY . /app
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
 
 # Create and change to the app directory.
 WORKDIR /app
 
-# RUN pip install --no-cache-dir numpy==1.18 pandas
+# Copy requirements first for better caching
+COPY requirements.txt .
 
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# RUN chmod 444 app.py
-# RUN chmod 444 requirements.txt
+# Copy application code
+COPY . .
 
-# Service must listen to $PORT environment variable.
-# This default value facilitates local development.
-# ENV PORT 8080
+# Expose the port the app runs on
+EXPOSE 8080
 
 # Run the web service on container startup.
-CMD [ "python", "app.py" ]
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app

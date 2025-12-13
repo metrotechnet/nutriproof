@@ -37,7 +37,7 @@ def is_running_on_cloud():
         return any(os.getenv(var) for var in cloud_env_vars)
 
 # Set GCS folder based on environment
-GCS_FOLDER = "nutriproof-db" 
+GCS_FOLDER = "nutriproof-dbase" 
 CONFIG_PATH = "dbase/bilan_lipidique.json"
 PROJECT_ID = "main"
 LOCAL_FOLDER = "uploads"
@@ -488,11 +488,11 @@ def create_app():
     return app
 
 
+# Create app instance for gunicorn
+app = create_app()
+
 # Start  web server
 if __name__ == '__main__':
-
-    # Create app
-    app = create_app()
-
-    # Production server
-    serve(app, host='0.0.0.0', port=8080)
+    # For local development
+    port = int(os.environ.get('PORT', 8080))
+    serve(app, host='0.0.0.0', port=port)
