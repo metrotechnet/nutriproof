@@ -35,7 +35,7 @@ Args:
 """
 secret_id = 'nutriproof-secrets'
 credentials_path = "..//nuriproof-c5b89f17bf69.json"
-project_id="nutriproof-1723"
+project_id="nutriproof"
 
 # if this is running locally then GOOGLE_APPLICATION_CREDENTIALS should be defined
 if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
