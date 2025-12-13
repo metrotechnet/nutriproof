@@ -44,9 +44,9 @@ if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
         credentialsVal = json.load(fp)
     project_id = credentialsVal['project_id']
 
-print("ProjectID: "+project_id)
 config = load_secret(project_id,secret_id)
-        
+print("ProjectID: "+project_id)
+         
 # Store secret values as attributes
 PROJECT_ID = config.get("project_id")
 LOCATION = config.get("location")
