@@ -8,32 +8,10 @@ from waitress import serve
 from datetime import datetime
 
 
-from py.extract_tables import OCRDocument
-from py.task_mngr import AsyncTaskManager
-from py.clean_mngr import CleanManager
+from api.extract_tables import OCRDocument
+from api.task_mngr import AsyncTaskManager
+from api.clean_mngr import CleanManager
 
-
-# Detect if running on Google Cloud Platform
-def is_running_on_cloud():
-    """Check if the application is running on Google Cloud Platform."""
-    try:
-        # Check for Google Cloud metadata server
-        import requests
-        response = requests.get(
-            'http://metadata.google.internal/computeMetadata/v1/instance/',
-            headers={'Metadata-Flavor': 'Google'},
-            timeout=1
-        )
-        return response.status_code == 200
-    except:
-        # Also check for common cloud environment variables
-        cloud_env_vars = [
-            'GAE_APPLICATION',  # Google App Engine
-            'GOOGLE_CLOUD_PROJECT',  # Google Cloud
-            'K_SERVICE',  # Google Cloud Run
-            'FUNCTION_TARGET'  # Google Cloud Functions
-        ]
-        return any(os.getenv(var) for var in cloud_env_vars)
 
 CONFIG_PATH = "dbase/bilan_lipidique.json"
 PROJECT_ID = "main"
@@ -64,11 +42,8 @@ def create_app():
 
     # Initialisation de l'application Flask
     app = Flask(__name__)
-
-    # @app.get("/")
-    # def home():
-    #     """API root endpoint - frontend is hosted on Firebase"""
-    #     return {"status": "ok", "message": "IMX NutriProof API"}
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
+    app.jinja_env.auto_reload = True
 
 
     @app.get("/health")
@@ -207,7 +182,6 @@ def create_app():
     # Upload PDF
     @app.route('/upload_pdf', methods=['POST'])
     def upload_pdf():
-        # Upload to GCS
         try:
             project_name = request.form.get("projectName")
             if not project_name:
@@ -309,8 +283,7 @@ def create_app():
                         with open(layout_json_path, "w", encoding="utf-8") as f:
                             json.dump(layout, f, indent=4, ensure_ascii=False)
 
-                        # Extract tables with Gemini
-                        # ocr_document.extract_tables_with_gemini(CONFIG_PATH, layout_json_path, local_path,  pageid)
+                        # Extract tables
                         ocr_document.extract_tables(CONFIG_PATH, layout_json_path, local_path,  pageid)
 
                         # Save page index in project info
