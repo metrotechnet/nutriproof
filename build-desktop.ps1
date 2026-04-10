@@ -87,8 +87,51 @@ if (-not $SkipElectron) {
     if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed" }
 
     if ($Installer) {
+        # Disable code signing (avoids winCodeSign symlink errors on Windows)
+        $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
+
+        # Pre-populate winCodeSign cache to avoid symlink extraction errors.
+        # Windows cannot create symlinks without Developer Mode; the archive
+        # contains macOS symlinks that fail on standard Windows setups.
+        $wcsCacheDir = Join-Path $env:LOCALAPPDATA "electron-builder\Cache\winCodeSign\winCodeSign-2.6.0"
+        if (-not (Test-Path $wcsCacheDir)) {
+            Write-Host "Pre-populating winCodeSign cache..." -ForegroundColor Gray
+            $wcsUrl = "https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z"
+            $wcsParent = Split-Path $wcsCacheDir -Parent
+            New-Item -ItemType Directory -Force -Path $wcsParent | Out-Null
+            $wcs7z = Join-Path $wcsParent "winCodeSign-2.6.0.7z"
+            Invoke-WebRequest -Uri $wcsUrl -OutFile $wcs7z
+            $sevenZip = Join-Path $ProjectRoot "electron\node_modules\7zip-bin\win\x64\7za.exe"
+            # 7z will warn about macOS symlinks it cannot create on Windows; ignore those warnings
+            $ErrorActionPreference = "Continue"
+            & $sevenZip x -bd $wcs7z "-o$wcsCacheDir" 2>$null
+            $ErrorActionPreference = "Stop"
+            # Fix macOS symlinks that could not be created (copy real files over 0-byte placeholders)
+            $darwinLib = Join-Path $wcsCacheDir "darwin\10.12\lib"
+            if (Test-Path $darwinLib) {
+                Copy-Item (Join-Path $darwinLib "libcrypto.1.0.0.dylib") (Join-Path $darwinLib "libcrypto.dylib") -Force -ErrorAction SilentlyContinue
+                Copy-Item (Join-Path $darwinLib "libssl.1.0.0.dylib") (Join-Path $darwinLib "libssl.dylib") -Force -ErrorAction SilentlyContinue
+            }
+            Remove-Item $wcs7z -ErrorAction SilentlyContinue
+            Write-Host "winCodeSign cache ready." -ForegroundColor Green
+        }
+
         # Build with electron-builder (NSIS installer + auto-update support)
         if ($Publish) {
+            # Load GH_TOKEN from .env if not already set
+            if (-not $env:GH_TOKEN) {
+                $envFile = Join-Path $ProjectRoot ".env"
+                if (Test-Path $envFile) {
+                    Get-Content $envFile | ForEach-Object {
+                        if ($_ -match '^\s*([^#][^=]+?)\s*=\s*(.+)$') {
+                            [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim(), "Process")
+                        }
+                    }
+                }
+            }
+            if (-not $env:GH_TOKEN) {
+                Write-Error "GH_TOKEN not found. Set it in .env or run: `$env:GH_TOKEN = 'ghp_...'"
+            }
             Write-Host "Building installer + publishing to GitHub Releases..." -ForegroundColor Cyan
             npm run dist-publish
         } else {

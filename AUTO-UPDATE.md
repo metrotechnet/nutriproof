@@ -79,7 +79,7 @@ Cela va :
 
 ### Étape 3 : Vérifier sur GitHub
 
-Aller sur `https://github.com/dboulanger363/nutriproof/releases` et confirmer que :
+Aller sur `https://github.com/metrotechnet/nutriproof/releases` et confirmer que :
 - La release correspond à la bonne version
 - Les fichiers `.exe` et `latest.yml` sont présents
 
