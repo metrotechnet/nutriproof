@@ -1,11 +1,60 @@
 {
-  "name": "nutriss-ocr-desktop",
+  "name": "nutriproof",
   "version": "1.0.0",
   "main": "main.js",
+  "author": "NutriProof",
+  "description": "NutriProof Desktop Application",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "npx @electron/packager . NutriProof --platform=win32 --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.nutriproof.app",
+    "productName": "NutriProof",
+    "directories": {
+      "output": "../dist/electron"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../tesseract-bundle",
+        "to": "tesseract-bundle",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   },
   "devDependencies": {
-    "electron": "^28.2.3"
+    "@electron/packager": "^19.1.0",
+    "electron": "^28.2.3",
+    "electron-builder": "^25.1.8"
   }
 }

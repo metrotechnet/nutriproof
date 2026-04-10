@@ -1,4 +1,4 @@
-# nutriss-parser
+# NutriProof
 
 Application serveur pour le traitement automatisé de documents PDF (INAF).
 
@@ -14,8 +14,8 @@ Ce projet permet de téléverser un PDF, d’extraire et d’analyser les tablea
 ## Installation
 1. Cloner le dépôt :
     ```
-    git clone https://github.com/dboulanger363/nutriss-parser.git
-    cd nutriss-parser
+    git clone https://github.com/dboulanger363/nutriproof.git
+    cd nutriproof
     ```
 2. Installer les dépendances Python :
     ```

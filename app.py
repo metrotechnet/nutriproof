@@ -2,20 +2,25 @@
 from flask import jsonify, request
 
 from flask import Flask, request, jsonify, send_file, render_template
-import os, json, mimetypes, uuid
+import os, sys, json, mimetypes, uuid
 import random
 from waitress import serve
 from datetime import datetime
 
+# When running as a PyInstaller bundle, resolve paths relative to the bundle
+if getattr(sys, 'frozen', False):
+    _bundle_dir = sys._MEIPASS
+else:
+    _bundle_dir = os.path.dirname(os.path.abspath(__file__))
 
 from api.extract_tables import OCRDocument
 from api.task_mngr import AsyncTaskManager
 from api.clean_mngr import CleanManager
 
 
-CONFIG_PATH = "dbase/bilan_lipidique.json"
+CONFIG_PATH = os.path.join(_bundle_dir, "dbase", "bilan_lipidique.json")
 PROJECT_ID = "main"
-LOCAL_FOLDER = "uploads"
+LOCAL_FOLDER = os.path.join(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else '.', "uploads")
 APP_ENABLED = True  # Default to True, can be overridden by env variable
 
 def create_app():
@@ -41,7 +46,9 @@ def create_app():
     key_order = [item.get("label") for item in config if "label" in item]
 
     # Initialisation de l'application Flask
-    app = Flask(__name__)
+    app = Flask(__name__,
+                template_folder=os.path.join(_bundle_dir, 'templates'),
+                static_folder=os.path.join(_bundle_dir, 'static'))
     app.config['TEMPLATES_AUTO_RELOAD'] = True
     app.jinja_env.auto_reload = True
 

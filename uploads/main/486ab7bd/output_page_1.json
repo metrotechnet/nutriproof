@@ -1,0 +1,876 @@
+[
+    {
+        "page": 1,
+        "text": "CHU Laboratoire du CHUL Dossier CHUL\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                167,
+                83
+            ],
+            [
+                1947,
+                83
+            ],
+            [
+                1947,
+                146
+            ],
+            [
+                167,
+                146
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "de Québec 2705, boulevard Laurier, Québec, G1V 4G2\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                163,
+                151
+            ],
+            [
+                1265,
+                151
+            ],
+            [
+                1265,
+                197
+            ],
+            [
+                163,
+                197
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Tél: 418 525-4444 Référence:\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                461,
+                206
+            ],
+            [
+                1853,
+                206
+            ],
+            [
+                1853,
+                244
+            ],
+            [
+                461,
+                244
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Provenance : Projet: TEST\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                212,
+                514
+            ],
+            [
+                841,
+                514
+            ],
+            [
+                841,
+                557
+            ],
+            [
+                212,
+                557
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Requérant : A/S Projet, de recherche\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                212,
+                565
+            ],
+            [
+                1057,
+                565
+            ],
+            [
+                1057,
+                606
+            ],
+            [
+                212,
+                606
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": ": DR COUTURE, Patrick\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                582,
+                616
+            ],
+            [
+                1043,
+                616
+            ],
+            [
+                1043,
+                653
+            ],
+            [
+                582,
+                653
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Enregistré le 2025/06/11 à 12h56m _ Prélevé le 2025/06/11 à O9hN00M _ Imprimé le 2025/06/12 à 15h35m\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                210,
+                720
+            ],
+            [
+                2258,
+                720
+            ],
+            [
+                2258,
+                760
+            ],
+            [
+                210,
+                760
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "RCO : VISITE D44 Ak N°LABO:\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                212,
+                818
+            ],
+            [
+                2003,
+                818
+            ],
+            [
+                2003,
+                932
+            ],
+            [
+                212,
+                932
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Bilan lipidique\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                235,
+                923
+            ],
+            [
+                605,
+                923
+            ],
+            [
+                605,
+                958
+            ],
+            [
+                235,
+                958
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Patient à jeun Non spécifié(e)\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                259,
+                972
+            ],
+            [
+                1423,
+                972
+            ],
+            [
+                1423,
+                1007
+            ],
+            [
+                259,
+                1007
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Cholestérol total 3,81 mmol/L ( <6,00 )\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1022
+            ],
+            [
+                2044,
+                1022
+            ],
+            [
+                2044,
+                1055
+            ],
+            [
+                260,
+                1055
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Triglycérides 1,54 mmol/L ( <1,70\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1069
+            ],
+            [
+                1927,
+                1069
+            ],
+            [
+                1927,
+                1106
+            ],
+            [
+                260,
+                1106
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Cholestérol-HDL (direct) B 0,97 mmol/L ( >1,00 }\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1120
+            ],
+            [
+                2044,
+                1120
+            ],
+            [
+                2044,
+                1155
+            ],
+            [
+                260,
+                1155
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Cholestérol-LDL (calc.) Zales mmol/L ( )\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1167
+            ],
+            [
+                2044,
+                1167
+            ],
+            [
+                2044,
+                1210
+            ],
+            [
+                260,
+                1210
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Cholestérol non-HDL (calc.) 2,84 mmol/L\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1220
+            ],
+            [
+                1480,
+                1220
+            ],
+            [
+                1480,
+                1256
+            ],
+            [
+                260,
+                1256
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Ratio Chol tot./Chol-HDL 3,93 ( <6,00 )\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1269
+            ],
+            [
+                2044,
+                1269
+            ],
+            [
+                2044,
+                1303
+            ],
+            [
+                260,
+                1303
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Risque Seuil OBJECTIFS PRINCIPAUX\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                384,
+                1369
+            ],
+            [
+                1928,
+                1369
+            ],
+            [
+                1928,
+                1404
+            ],
+            [
+                384,
+                1404
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "cardiovasculaire d'initiation C-LDL Apo B C-Non HDL\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                261,
+                1419
+            ],
+            [
+                2178,
+                1419
+            ],
+            [
+                2178,
+                1453
+            ],
+            [
+                261,
+                1453
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "de Framingham de traitement (mmol/L) (g/L) (mmol/L)\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                285,
+                1468
+            ],
+            [
+                2168,
+                1468
+            ],
+            [
+                2168,
+                1503
+            ],
+            [
+                285,
+                1503
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "PREV. PRIMAIRE\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1563
+            ],
+            [
+                605,
+                1563
+            ],
+            [
+                605,
+                1597
+            ],
+            [
+                260,
+                1597
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Faible (<10%) * C-LDL >=5,0 ou <2,5 ou <0,85 <3,2\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                260,
+                1619
+            ],
+            [
+                2100,
+                1619
+            ],
+            [
+                2100,
+                1651
+            ],
+            [
+                260,
+                1651
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Apo-B >=1,45 ou baisse >50%\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                706,
+                1669
+            ],
+            [
+                1476,
+                1669
+            ],
+            [
+                1476,
+                1704
+            ],
+            [
+                706,
+                1704
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "C-Non HDL >=5,8\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                708,
+                1722
+            ],
+            [
+                1077,
+                1722
+            ],
+            [
+                1077,
+                1751
+            ],
+            [
+                708,
+                1751
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Moyen (10-19%) * C-LDL >=3,5 ou <2,0 <0,80 <2,6\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                257,
+                1816
+            ],
+            [
+                2100,
+                1816
+            ],
+            [
+                2100,
+                1852
+            ],
+            [
+                257,
+                1852
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Apo B >=1,05 ou\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                707,
+                1869
+            ],
+            [
+                1079,
+                1869
+            ],
+            [
+                1079,
+                1901
+            ],
+            [
+                707,
+                1901
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "C-Non HDL >=4,2\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                708,
+                1918
+            ],
+            [
+                1076,
+                1918
+            ],
+            [
+                1076,
+                1948
+            ],
+            [
+                708,
+                1948
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Elevé (>=20%) C-LDL >=2,0 ou <2,0 <0,80 <2,6\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                258,
+                2010
+            ],
+            [
+                2100,
+                2010
+            ],
+            [
+                2100,
+                2047
+            ],
+            [
+                258,
+                2047
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Apo B >= 0,80 ou\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                705,
+                2069
+            ],
+            [
+                1102,
+                2069
+            ],
+            [
+                1102,
+                2101
+            ],
+            [
+                705,
+                2101
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "C-Non HDL >=2,6\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                707,
+                2118
+            ],
+            [
+                1075,
+                2118
+            ],
+            [
+                1075,
+                2147
+            ],
+            [
+                707,
+                2147
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "PREV. SECONDAIRE Tous <1,8 <0,70 <2,4\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                257,
+                2205
+            ],
+            [
+                2098,
+                2205
+            ],
+            [
+                2098,
+                2243
+            ],
+            [
+                257,
+                2243
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "*D'autres facteurs ou marqueurs métabcliques peuvent moduler le\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                257,
+                2368
+            ],
+            [
+                1322,
+                2368
+            ],
+            [
+                1322,
+                2393
+            ],
+            [
+                257,
+                2393
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "risque CV (Can J Cardiol 2021)\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                259,
+                2417
+            ],
+            [
+                756,
+                2417
+            ],
+            [
+                756,
+                2442
+            ],
+            [
+                259,
+                2442
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "VALIDATION TECHNIQUE Edition finale par département\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                203,
+                2743
+            ],
+            [
+                2392,
+                2743
+            ],
+            [
+                2392,
+                2796
+            ],
+            [
+                203,
+                2796
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Directeur Médical : Yves Giguére,M.D.,Ph.D,FRCPC\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                255,
+                2806
+            ],
+            [
+                1140,
+                2806
+            ],
+            [
+                1140,
+                2843
+            ],
+            [
+                255,
+                2843
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Biochimie : Francois Rousseau,M.D.,FRCPC Page 002 /\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                268,
+                2854
+            ],
+            [
+                2276,
+                2854
+            ],
+            [
+                2276,
+                2900
+            ],
+            [
+                268,
+                2900
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Hématologie : Olivier Larochelle M.D. COPIE MEDECIN\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                264,
+                2897
+            ],
+            [
+                2364,
+                2897
+            ],
+            [
+                2364,
+                2948
+            ],
+            [
+                264,
+                2948
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Microbiologie : Nathalie Turgeon M.D. POUR VOTRE DOSSIER\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                264,
+                2950
+            ],
+            [
+                2368,
+                2950
+            ],
+            [
+                2368,
+                2995
+            ],
+            [
+                264,
+                2995
+            ]
+        ]
+    },
+    {
+        "page": 1,
+        "text": "Génétique : Yves Giguère,M.D.,Ph.D,FRCPC\n",
+        "type": "paragraph",
+        "bounding_box": [
+            [
+                262,
+                2999
+            ],
+            [
+                1140,
+                2999
+            ],
+            [
+                1140,
+                3044
+            ],
+            [
+                262,
+                3044
+            ]
+        ]
+    }
+]

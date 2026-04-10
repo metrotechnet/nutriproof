@@ -1,4 +1,4 @@
-# Nutriss OCR Desktop
+# NutriProof Desktop
 
 Ce dossier contient l'intégration Electron pour lancer l'application Flask en mode bureau.
 
