@@ -1,17 +1,22 @@
 <#
 .SYNOPSIS
-    Build script for NutriProof Electron desktop app (Windows installer).
+    Build script for NutriProof Electron desktop app (Windows).
 .DESCRIPTION
     1. Bundles the Python/Flask backend with PyInstaller
     2. Copies Tesseract OCR into a bundle folder
     3. Creates uploads/ folder in the backend dist
-    4. Packages everything into a Windows installer with electron-builder
+    4. Packages the app:
+       - Default: portable folder with electron-packager
+       - -Installer: NSIS installer with electron-builder (supports auto-update)
+       - -Publish: also uploads to GitHub Releases for auto-update
 #>
 
 param(
     [string]$TesseractSource = "C:\Program Files\Tesseract-OCR",
     [switch]$SkipBackend,
-    [switch]$SkipElectron
+    [switch]$SkipElectron,
+    [switch]$Installer,
+    [switch]$Publish
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,9 +86,20 @@ if (-not $SkipElectron) {
     npm install
     if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed" }
 
-    # Package the app with electron-packager
-    npm run pack
-    if ($LASTEXITCODE -ne 0) { Write-Error "electron-packager failed" }
+    if ($Installer) {
+        # Build with electron-builder (NSIS installer + auto-update support)
+        if ($Publish) {
+            Write-Host "Building installer + publishing to GitHub Releases..." -ForegroundColor Cyan
+            npm run dist-publish
+        } else {
+            Write-Host "Building installer (local only)..." -ForegroundColor Cyan
+            npm run dist
+        }
+    } else {
+        # Package with electron-packager (portable folder)
+        npm run pack
+    }
+    if ($LASTEXITCODE -ne 0) { Write-Error "Electron build failed" }
 
     Pop-Location
     Write-Host "Electron build complete." -ForegroundColor Green
@@ -92,11 +108,25 @@ if (-not $SkipElectron) {
 # -------------------------------------------------------------------
 # Done
 # -------------------------------------------------------------------
-$outputDir = Join-Path $ProjectRoot "dist\electron\NutriProof-win32-x64"
-Write-Host "`n=== Build finished ===" -ForegroundColor Cyan
-Write-Host "Package output: $outputDir"
-if (Test-Path $outputDir) {
-    $totalMB = [math]::Round((Get-ChildItem $outputDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-    Write-Host "  Total size: $totalMB MB"
-    Write-Host "  Executable: NutriProof.exe"
+if ($Installer) {
+    $outputDir = Join-Path $ProjectRoot "dist\electron"
+    Write-Host "`n=== Build finished ===" -ForegroundColor Cyan
+    Write-Host "Installer output: $outputDir"
+    $nsis = Get-ChildItem $outputDir -Filter "*.exe" -File | Where-Object { $_.Name -match "Setup" } | Select-Object -First 1
+    if ($nsis) {
+        $sizeMB = [math]::Round($nsis.Length / 1MB, 1)
+        Write-Host "  Installer: $($nsis.Name) ($sizeMB MB)"
+    }
+    if ($Publish) {
+        Write-Host "  Published to GitHub Releases" -ForegroundColor Green
+    }
+} else {
+    $outputDir = Join-Path $ProjectRoot "dist\electron\NutriProof-win32-x64"
+    Write-Host "`n=== Build finished ===" -ForegroundColor Cyan
+    Write-Host "Package output: $outputDir"
+    if (Test-Path $outputDir) {
+        $totalMB = [math]::Round((Get-ChildItem $outputDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+        Write-Host "  Total size: $totalMB MB"
+        Write-Host "  Executable: NutriProof.exe"
+    }
 }
