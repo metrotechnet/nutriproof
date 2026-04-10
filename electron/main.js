@@ -62,16 +62,21 @@ app.whenReady().then(() => {
 
   if (isPackaged()) {
     // Packaged mode: use PyInstaller-bundled backend
-    backendExe = getResourcePath('backend', 'app.exe');
+    const exeName = process.platform === 'win32' ? 'app.exe' : 'app';
+    backendExe = getResourcePath('backend', exeName);
     backendCwd = getResourcePath('backend');
     const tesseractDir = getResourcePath('tesseract-bundle');
+    const tesseractBin = process.platform === 'win32'
+      ? tesseractDir
+      : path.join(tesseractDir, 'bin');
     envVars = {
       ...process.env,
       PYTHONUNBUFFERED: '1',
-      TESSERACT_PATH: tesseractDir
+      TESSERACT_PATH: tesseractBin,
+      TESSDATA_PREFIX: path.join(tesseractDir, 'share', 'tessdata')
     };
     console.log(`Backend exe: ${backendExe}`);
-    console.log(`Tesseract dir: ${tesseractDir}`);
+    console.log(`Tesseract dir: ${tesseractBin}`);
 
     flaskProcess = spawn(backendExe, [], {
       cwd: backendCwd,

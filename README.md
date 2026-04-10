@@ -42,7 +42,7 @@ Pour toute question : Denis Boulanger, dboulanger@cimmi.ca
 Les contributions sont les bienvenues ! Veuillez ouvrir une issue ou soumettre une pull request.
 
 ## Auteur
-Denis Boulanger, CIMMI (2025)
+Denis Boulanger, IMX Technologie (2026)
 
 ## Licence
 Ce projet est sous licence MIT.

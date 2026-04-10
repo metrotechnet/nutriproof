@@ -1,5 +1,6 @@
    
 import os
+import sys
 import re
 import io
 import csv
@@ -14,7 +15,13 @@ import pandas as pd
 import xlwt
 
 # Add Tesseract to PATH if not already there
-_tesseract_path = os.environ.get("TESSERACT_PATH", r"C:\Program Files\Tesseract-OCR")
+if sys.platform == "win32":
+    _default_tesseract = r"C:\Program Files\Tesseract-OCR"
+elif sys.platform == "darwin":
+    _default_tesseract = "/opt/homebrew/bin"
+else:
+    _default_tesseract = "/usr/bin"
+_tesseract_path = os.environ.get("TESSERACT_PATH", _default_tesseract)
 if _tesseract_path not in os.environ.get("PATH", ""):
     os.environ["PATH"] += os.pathsep + _tesseract_path
 
