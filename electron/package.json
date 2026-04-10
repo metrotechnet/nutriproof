@@ -6,9 +6,9 @@
   "description": "NutriProof Desktop Application",
   "scripts": {
     "start": "electron .",
-    "pack": "npx @electron/packager . NutriProof --platform=win32 --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar",
-    "pack-mac": "npx @electron/packager . NutriProof --platform=darwin --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar",
-    "pack-mac-arm64": "npx @electron/packager . NutriProof --platform=darwin --arch=arm64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar",
+    "pack": "npx @electron/packager . NutriProof --platform=win32 --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.ico",
+    "pack-mac": "npx @electron/packager . NutriProof --platform=darwin --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
+    "pack-mac-arm64": "npx @electron/packager . NutriProof --platform=darwin --arch=arm64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
     "dist": "electron-builder"
   },
   "build": {

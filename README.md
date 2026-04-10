@@ -140,7 +140,7 @@ NutriProof-win32-x64/          # ou NutriProof-darwin-arm64/
 - `static/` : fichiers CSS, JS, images
 
 ## Support
-Pour toute question : Denis Boulanger, dboulanger@cimmi.ca
+Pour toute question : Denis Boulanger, info@imxtech.ca
 
 ## Auteur
 Denis Boulanger, IMX Technologie (2026)
