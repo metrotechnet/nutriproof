@@ -9,7 +9,10 @@
     "pack": "npx @electron/packager . NutriProof --platform=win32 --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.ico",
     "pack-mac": "npx @electron/packager . NutriProof --platform=darwin --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
     "pack-mac-arm64": "npx @electron/packager . NutriProof --platform=darwin --arch=arm64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
-    "dist": "electron-builder"
+    "dist": "electron-builder --win",
+    "dist-mac": "electron-builder --mac",
+    "dist-publish": "electron-builder --win --publish always",
+    "dist-publish-mac": "electron-builder --mac --publish always"
   },
   "build": {
     "appId": "com.nutriproof.app",
@@ -19,7 +22,9 @@
     },
     "files": [
       "main.js",
-      "package.json"
+      "package.json",
+      "icon.png",
+      "icon.ico"
     ],
     "extraResources": [
       {
@@ -37,6 +42,11 @@
         ]
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "dboulanger363",
+      "repo": "nutriproof"
+    },
     "win": {
       "target": [
         {
@@ -45,7 +55,21 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "category": "public.app-category.productivity"
     },
     "nsis": {
       "oneClick": false,
@@ -58,5 +82,8 @@
     "@electron/packager": "^19.1.0",
     "electron": "^28.2.3",
     "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

@@ -1,10 +1,11 @@
 
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
 
 let flaskProcess;
 
@@ -53,6 +54,62 @@ function createWindow () {
   win.setMenuBarVisibility(false);
   win.webContents.session.clearCache();
   win.loadURL('http://127.0.0.1:8080');
+  return win;
+}
+
+// --- Auto-update ---
+function setupAutoUpdater() {
+  if (!isPackaged()) {
+    console.log('[Updater] Skipping auto-update in dev mode');
+    return;
+  }
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = console;
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[Updater] Checking for updates...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`[Updater] Update available: ${info.version}`);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[Updater] App is up to date');
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[Updater] Download: ${Math.round(progress.percent)}%`);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`[Updater] Update downloaded: ${info.version}`);
+    const win = BrowserWindow.getFocusedWindow();
+    dialog.showMessageBox(win, {
+      type: 'info',
+      title: 'Mise à jour disponible',
+      message: `La version ${info.version} a été téléchargée.\nL'application va redémarrer pour appliquer la mise à jour.`,
+      buttons: ['Redémarrer maintenant', 'Plus tard'],
+      defaultId: 0,
+    }).then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[Updater] Error:', err.message);
+  });
+
+  // Check for updates after a short delay
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch(err => {
+      console.error('[Updater] Check failed:', err.message);
+    });
+  }, 5000);
 }
 
 app.whenReady().then(() => {
@@ -126,6 +183,7 @@ app.whenReady().then(() => {
   // Attendre que le serveur Flask soit prêt
   waitForServer('http://127.0.0.1:8080').then(() => {
     createWindow();
+    setupAutoUpdater();
   }).catch((err) => {
     console.error('Le serveur Flask n\'a pas démarré à temps:', err);
     app.quit();
