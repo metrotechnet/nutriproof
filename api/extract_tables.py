@@ -14,7 +14,7 @@ import pandas as pd
 import xlwt
 
 # Add Tesseract to PATH if not already there
-_tesseract_path = r"C:\Program Files\Tesseract-OCR"
+_tesseract_path = os.environ.get("TESSERACT_PATH", r"C:\Program Files\Tesseract-OCR")
 if _tesseract_path not in os.environ.get("PATH", ""):
     os.environ["PATH"] += os.pathsep + _tesseract_path
 

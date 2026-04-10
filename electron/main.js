@@ -5,9 +5,21 @@ const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
-const pathUp = require('path');
 
 let flaskProcess;
+
+function isPackaged() {
+  return app.isPackaged;
+}
+
+function getResourcePath(...parts) {
+  if (isPackaged()) {
+    return path.join(process.resourcesPath, ...parts);
+  }
+  // Dev mode: project root is one level up from electron/
+  const projectRoot = path.resolve(__dirname, '..');
+  return path.join(projectRoot, ...parts);
+}
 
 function waitForServer(url, timeout = 120000) {
   return new Promise((resolve, reject) => {
@@ -43,33 +55,51 @@ function createWindow () {
 }
 
 app.whenReady().then(() => {
-  // Lancer le serveur Flask
   console.log("Starting Flask server...");
-  console.log(`Current working directory: ${__dirname}`);
-  // Trouve le dossier racine du projet (là où se trouve app.py)
-  let projectRoot = __dirname;
-  while (!fs.existsSync(pathUp.join(projectRoot, 'app.py')) && projectRoot !== pathUp.dirname(projectRoot)) {
-    projectRoot = pathUp.dirname(projectRoot);
-  }
-  console.log(`Project root detected: ${projectRoot}`);
-  
-  // Utilise le Python de l'environnement virtuel si présent
-  let pythonCmd = 'python';
-  const isWin = process.platform === 'win32';
-  const venvPython = isWin
-    ? path.join(projectRoot, '.venv', 'Scripts', 'python.exe')
-    : path.join(projectRoot, '.venv', 'bin', 'python');
-  if (fs.existsSync(venvPython)) {
-    pythonCmd = venvPython;
-    console.log('Using virtualenv python:', pythonCmd);
+  console.log(`Packaged: ${isPackaged()}`);
+
+  let backendExe, backendCwd, envVars;
+
+  if (isPackaged()) {
+    // Packaged mode: use PyInstaller-bundled backend
+    backendExe = getResourcePath('backend', 'app.exe');
+    backendCwd = getResourcePath('backend');
+    const tesseractDir = getResourcePath('tesseract-bundle');
+    envVars = {
+      ...process.env,
+      PYTHONUNBUFFERED: '1',
+      TESSERACT_PATH: tesseractDir
+    };
+    console.log(`Backend exe: ${backendExe}`);
+    console.log(`Tesseract dir: ${tesseractDir}`);
+
+    flaskProcess = spawn(backendExe, [], {
+      cwd: backendCwd,
+      env: envVars
+    });
   } else {
-    console.log('Using system python:', pythonCmd);
+    // Dev mode: run Python directly
+    let projectRoot = __dirname;
+    while (!fs.existsSync(path.join(projectRoot, 'app.py')) && projectRoot !== path.dirname(projectRoot)) {
+      projectRoot = path.dirname(projectRoot);
+    }
+    console.log(`Project root: ${projectRoot}`);
+
+    let pythonCmd = 'python';
+    const venvPython = process.platform === 'win32'
+      ? path.join(projectRoot, '.venv', 'Scripts', 'python.exe')
+      : path.join(projectRoot, '.venv', 'bin', 'python');
+    if (fs.existsSync(venvPython)) {
+      pythonCmd = venvPython;
+      console.log('Using venv python:', pythonCmd);
+    }
+
+    flaskProcess = spawn(pythonCmd, ['-u', 'app.py'], {
+      cwd: projectRoot,
+      shell: true,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
   }
-  flaskProcess = spawn(pythonCmd, ['-u', 'app.py'], {
-    cwd: projectRoot,
-    shell: true,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' }
-  });
 
   flaskProcess.stdout.on('data', (data) => {
     console.log(`[Flask] ${data}`);

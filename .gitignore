@@ -3,5 +3,10 @@ __pycache__/
 node_modules/
 .env
 .vscode/
-config/
+
+# Build artifacts
+dist/
+build/
+tesseract-bundle/
+*.spec
 
