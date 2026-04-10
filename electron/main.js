@@ -69,14 +69,20 @@ app.whenReady().then(() => {
     const tesseractBin = process.platform === 'win32'
       ? tesseractDir
       : path.join(tesseractDir, 'bin');
+    // Windows: tessdata is at tesseract-bundle/tessdata
+    // macOS:   tessdata is at tesseract-bundle/share/tessdata
+    const tessDataDir = process.platform === 'win32'
+      ? path.join(tesseractDir, 'tessdata')
+      : path.join(tesseractDir, 'share', 'tessdata');
     envVars = {
       ...process.env,
       PYTHONUNBUFFERED: '1',
       TESSERACT_PATH: tesseractBin,
-      TESSDATA_PREFIX: path.join(tesseractDir, 'share', 'tessdata')
+      TESSDATA_PREFIX: tessDataDir
     };
     console.log(`Backend exe: ${backendExe}`);
-    console.log(`Tesseract dir: ${tesseractBin}`);
+    console.log(`Tesseract bin: ${tesseractBin}`);
+    console.log(`Tessdata: ${tessDataDir}`);
 
     flaskProcess = spawn(backendExe, [], {
       cwd: backendCwd,
