@@ -31,11 +31,14 @@ function createWindow () {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true
     }
   });
+  win.setMenuBarVisibility(false);
+  win.webContents.session.clearCache();
   win.loadURL('http://127.0.0.1:8080');
 }
 

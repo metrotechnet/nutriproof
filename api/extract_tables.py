@@ -4,29 +4,29 @@ import re
 import io
 import csv
 import json
-from unittest import result
 import fitz
 from datetime import datetime
-from google.cloud import documentai_v1beta3 as documentai
-from google.protobuf.json_format import MessageToDict
-import vertexai
-from vertexai.generative_models import GenerativeModel
+from PIL import Image
+import pyocr
+import pyocr.builders
 from typing import List, Dict
 import pandas as pd
 import xlwt
 
-from py.config import (
-    get_project_id, get_location,
-    get_ocr_processor_id
-)
-GEMINI_MODEL = 'gemini-2.5-flash-lite'
+# Add Tesseract to PATH if not already there
+_tesseract_path = r"C:\Program Files\Tesseract-OCR"
+if _tesseract_path not in os.environ.get("PATH", ""):
+    os.environ["PATH"] += os.pathsep + _tesseract_path
 
 class OCRDocument:
     
     def __init__(self):
-        self.client_ocr = documentai.DocumentProcessorServiceClient()
-        vertexai.init(project=get_project_id(), location="us-east1")
-        self.model = GenerativeModel(GEMINI_MODEL)
+        # Initialize pyocr tool (Tesseract)
+        tools = pyocr.get_available_tools()
+        if not tools:
+            raise RuntimeError("No OCR tool found. Please install Tesseract.")
+        self.ocr_tool = tools[0]
+        print(f"Using OCR tool: {self.ocr_tool.get_name()}")
 
     def _can_convert_to_float(self, val):
         """Helper method to safely check if a value can be converted to float."""
@@ -143,118 +143,40 @@ class OCRDocument:
     # Récupère la mise en page d'un document
     def get_document_layout(self, file_path, mime_type="application/pdf"):
         try:
-            with open(file_path, "rb") as file:
-                file_content = file.read()
+            image = Image.open(file_path)
+            lang = "fra+eng"
 
-            raw_document = documentai.RawDocument(content=file_content, mime_type=mime_type)
-            processor_name = f"projects/{get_project_id()}/locations/{get_location()}/processors/{get_ocr_processor_id()}"
-            request = documentai.ProcessRequest(name=processor_name, raw_document=raw_document)
-            result = self.client_ocr.process_document(request=request)
-            return self.extract_blocks(result.document)
+            # Use LineBoxBuilder to get lines with bounding boxes
+            line_boxes = self.ocr_tool.image_to_string(
+                image,
+                lang=lang,
+                builder=pyocr.builders.LineBoxBuilder()
+            )
+
+            block_vector = []
+            for line_box in line_boxes:
+                text = line_box.content.strip()
+                if not text:
+                    continue
+                # line_box.position is ((x1, y1), (x2, y2))
+                pos = line_box.position
+                bbox = [
+                    [pos[0][0], pos[0][1]],  # top-left
+                    [pos[1][0], pos[0][1]],  # top-right
+                    [pos[1][0], pos[1][1]],  # bottom-right
+                    [pos[0][0], pos[1][1]],  # bottom-left
+                ]
+                block_vector.append({
+                    "page": 1,
+                    "text": text + "\n",
+                    "type": "paragraph",
+                    "bounding_box": bbox
+                })
+
+            return block_vector
         except Exception as e:
             return {"error": str(e)}
     
-    def extract_words_from_document(self, document, page_offset=0):
-        """
-        Extract word-level blocks directly from Document AI response.
-        This provides more accurate word positioning than estimating from blocks.
-        """
-        word_vector = []
-        
-        for page in document.pages:
-            page_number = page.page_number + page_offset
-            
-            # print(document.text)
-            # Extract words from tokens (Document AI's word-level elements)
-            if hasattr(page, 'tokens'):
-                for token in page.tokens:
-                    # Get token text from the document text
-                    token_text = ""
-                    if token.layout.text_anchor and token.layout.text_anchor.text_segments:
-                        for segment in token.layout.text_anchor.text_segments:
-                            start_idx = int(segment.start_index) if segment.start_index else 0
-                            end_idx = int(segment.end_index) if segment.end_index else start_idx
-                            token_text += document.text[start_idx:end_idx]
-                            # print(f"Token text segment: { document.text[start_idx:end_idx]}")
-                    
-                    # Get token bounding box
-                    if token.layout.bounding_poly and token.layout.bounding_poly.vertices:
-                        token_bbox = [(v.x, v.y) for v in token.layout.bounding_poly.vertices]
-                    else:
-                        token_bbox = []
-                    
-                    # Get confidence score if available
-                    confidence = token.layout.confidence if hasattr(token.layout, 'confidence') else None
-                    
-                    if token_text.strip():  # Only add non-empty tokens
-                        word_vector.append({
-                            "page": page_number,
-                            "text": token_text.strip(),
-                            "type": "word",
-                            "bounding_box": token_bbox,
-                            "confidence": confidence
-                        })
-            
-        
-        return word_vector
-    
-    # Extrait les blocs de texte d'un document
-    def extract_blocks(self, document, page_offset=0):
-        block_vector = []
-        text = document.text
-
-        for page in document.pages:
-            page_number = page.page_number + page_offset
-            for block in page.blocks:
-                block_text = ""
-                for segment in block.layout.text_anchor.text_segments:
-                    block_text += text[int(segment.start_index):int(segment.end_index)]
-
-                # Get the original bounding box
-                original_bbox = [(v.x, v.y) for v in block.layout.bounding_poly.vertices]
-                
-                # Split text by newlines
-                lines = block_text.split('\n')
-                
-                # Filter out empty lines
-                non_empty_lines = [line for line in lines if line.strip()]
-                
-                if len(non_empty_lines) > 1:
-                    # Multiple lines: split into separate blocks
-                    # Calculate height per line
-                    total_height = original_bbox[2][1] - original_bbox[0][1]
-                    line_height = total_height / len(non_empty_lines)
-                    
-                    for i, line in enumerate(non_empty_lines):
-                        # Calculate bounding box for this line
-                        top_y = original_bbox[0][1] + (i * line_height)
-                        bottom_y = top_y + line_height -4  # slight adjustment to avoid overlap
-                        
-                        line_bbox = [
-                            [original_bbox[0][0], top_y],      # top-left
-                            [original_bbox[1][0], top_y],      # top-right
-                            [original_bbox[2][0], bottom_y],   # bottom-right
-                            [original_bbox[3][0], bottom_y]    # bottom-left
-                        ]
-                        
-                        block_vector.append({
-                            "page": page_number,
-                            "text": line.strip() + '\n',
-                            "type": "paragraph",
-                            "bounding_box": line_bbox
-                        })
-                elif len(non_empty_lines) == 1:
-                    # Single line: keep as is
-                    block_vector.append({
-                        "page": page_number,
-                        "text": non_empty_lines[0] + '\n',
-                        "type": "paragraph",
-                        "bounding_box": original_bbox
-                    })
-                # If no non-empty lines, don't add the block
-
-        return block_vector
-
   # Extrait les tableaux d'un document
     def extract_tables(self, config_json_path, ocr_json_path, project_path,  pageid ):
         try:
@@ -324,127 +246,131 @@ class OCRDocument:
 
     def find_next_value(self, blocks, label_block, label_text, format_instructions=None):
         """
-        Finds the next numerical value by merging the label block with the next 3 blocks
-        and using Gemini to extract the value based on format description.«
+        Finds the next numerical value near the label block using spatial proximity.
+        Looks for blocks to the right of or just below the label, then extracts
+        the first number found.
         
         Args:
             blocks: List of OCR blocks
             label_block: The block containing the label
-            label_text: The text of the label to search for in the block
+            label_text: The text of the label to search for
+            format_instructions: Parse hint from config (e.g. "a number", "a string with digits")
             
         Returns:
-            dict: {
-                'value': extracted numerical value (float/int or None),
-                'value_block': the block containing the value (or None),
-                'value_bbox': bounding box of the value block (or None)
-            }
+            dict with 'value' and 'value_bbox'
         """
         if not label_block:
-            return {'value': None, 'value_block': None, 'value_bbox': None}
-        
-        # Find the index of the label block in the blocks list
+            return {'value': None, 'value_bbox': None}
+
         try:
-            label_block_index = blocks.index(label_block)
+            label_idx = blocks.index(label_block)
         except ValueError:
-            # If label block is not found in the list, return None
-            return {'value': None, 'value_block': None, 'value_bbox': None}
-        
-        # Merge the label block with the next 3 blocks
-        # merged_blocks = [label_block]
-        # for i in range(1, 4):  # Next 3 blocks
-        #     next_block_index = label_block_index + i
-        #     if next_block_index < len(blocks):
-        #         merged_blocks.append(blocks[next_block_index])
-        
-        # Create merged text for Gemini analysis
-        merged_text = " ".join([block['text'] for block in blocks])
+            return {'value': None, 'value_bbox': None}
 
-        
-        
-        # Use Gemini to extract the numerical value
-        try:
-            # Build format instruction text
-            
-            prompt = f"""
-                You are a data extraction assistant. Analyze the following text and extract the requested information.
+        # Get label bounding box center Y and right edge X
+        label_bbox = label_block['bounding_box']
+        label_cy = (label_bbox[0][1] + label_bbox[2][1]) / 2
+        label_right = label_bbox[1][0]
+        label_height = abs(label_bbox[2][1] - label_bbox[0][1])
 
-                TEXT TO ANALYZE:
-                "{merged_text}"
+        # Determine parsing mode from format_instructions
+        parse_mode = "number"  # default
+        allowed_values = None
+        if format_instructions:
+            fi = format_instructions.lower()
+            if "string" in fi and "digit" in fi:
+                parse_mode = "digits_string"
+            if "one of" in fi:
+                # Extract allowed values like "one of 0, 6, 18"
+                match = re.search(r'one of\s+([\d,\s\-]+)', fi)
+                if match:
+                    allowed_values = [v.strip() for v in match.group(1).split(',')]
 
-                EXTRACTION TASK:
-                - Find the label "{label_text}" in the text (case-insensitive, allow minor typos)
-                - Extract the next value that follows this label according to these format instructions: "{format_instructions}"
-                - Apply OCR error corrections: O→0, I→1, S→5, G→6
-                - Return the exact text string that matched the value
+        # OCR error corrections
+        ocr_corrections = {'O': '0', 'I': '1', 'S': '5', 'G': '6'}
 
-                IMPORTANT: 
-                - Do NOT write code or explanations
-                - Return ONLY a valid JSON object
-                - If no value found, use "null" for both value and value_string
+        def apply_ocr_fixes(text):
+            result = text
+            for wrong, correct in ocr_corrections.items():
+                result = result.replace(wrong, correct)
+            return result
 
-                REQUIRED JSON FORMAT:
-                {{"label": "{label_text}", "value": extracted_value, "value_string": "exact_matched_text"}}
-            """
-            # Send request to Gemini
-            
-            response = self.model.generate_content(prompt)
-            raw_response = response.text.strip()
+        def extract_number(text):
+            """Extract a number (float or int) from text."""
+            # Try to find a number pattern (supports comma and period as decimal)
+            numbers = re.findall(r'-?\d+[.,]\d+|-?\d+', text)
+            if numbers:
+                num_str = numbers[0].replace(',', '.')
+                try:
+                    val = float(num_str)
+                    return int(val) if val == int(val) else val
+                except ValueError:
+                    pass
+            return None
 
-            #Remove code fences
-            if raw_response.startswith("```json"):
-                raw_response = raw_response[7:]
-            if raw_response.endswith("```"):
-                raw_response = raw_response[:-3]
+        def extract_digits_string(text):
+            """Extract a string of 3-4 consecutive digits."""
+            match = re.search(r'\d{3,4}', apply_ocr_fixes(text))
+            return match.group(0) if match else None
 
-            #Convert string JSON to dict
-            result = json.loads(raw_response.replace("\n", ""))
-            
-            # Parse Gemini response
-            if not result or result['value'] == "null" :
-                return {'value': None, 'value_bbox': None}
-            
-            # Try to convert response to number
-            try:
-                if isinstance(result['value'], str):
-                    # Handle potential decimal comma format
-                    clean_response = result['value'].replace(',', '.')
-                    
-                    # Check if it can be converted to float/integer
-                    if self._can_convert_to_float(clean_response):
-                        # Convert to float first
-                        value = float(clean_response)
-                        
-                        # Return as int if it's a whole number
-                        if value.is_integer():
-                            value = int(value)
-                else:
-                    # Keep as string if not convertible to number
-                    value = result['value']
-                
-                #estimate value bounding box if value_pos is given based on label block position
-                value_bbox = None
-                # for i in range(0, 3):  # Next 3 blocks
-                #     next_block_index = label_block_index + i
-                #     if result['value_string'] in blocks[next_block_index]['text'] and next_block_index < len(blocks):
-                #         value_bbox = blocks[next_block_index]['bounding_box']
-                for block in blocks:
-                    if result['value_string'] in block['text']:
-                        value_bbox = block['bounding_box']
-                        break
+        # Score candidate blocks by spatial proximity
+        candidates = []
+        for i, block in enumerate(blocks):
+            if i == label_idx:
+                continue
+            bbox = block['bounding_box']
+            block_cx = (bbox[0][0] + bbox[1][0]) / 2
+            block_cy = (bbox[0][1] + bbox[2][1]) / 2
+            block_left = bbox[0][0]
+
+            # Must be to the right of label or just below
+            dy = block_cy - label_cy
+            dx = block_left - label_right
+
+            # Candidate: same line (within label_height tolerance) and to the right
+            same_line = abs(dy) < label_height * 1.2 and dx > -20
+            # Candidate: just below (within 2x label height) and roughly aligned
+            just_below = 0 < dy < label_height * 3 and abs(block_left - label_bbox[0][0]) < label_height * 3
+
+            if same_line or just_below:
+                # Priority: same-line blocks first, then below; closer is better
+                priority = 0 if same_line else 1
+                distance = abs(dx) + abs(dy)
+                candidates.append((priority, distance, i, block))
+
+        # Sort: same-line first, then by distance
+        candidates.sort(key=lambda c: (c[0], c[1]))
+
+        # Try to extract value from candidates
+        for _, _, _, block in candidates:
+            text = block['text'].strip()
+            if not text:
+                continue
+
+            value = None
+            if parse_mode == "digits_string":
+                value = extract_digits_string(text)
+            else:
+                value = extract_number(text)
+                # If we got a number but there are allowed values, check
+                if value is not None and allowed_values:
+                    if str(int(value) if isinstance(value, float) and value == int(value) else value) not in allowed_values:
+                        # Apply OCR fixes and retry
+                        value = extract_number(apply_ocr_fixes(text))
+
+            if value is not None:
+                # Handle allowed values constraint
+                if allowed_values:
+                    str_val = str(int(value)) if isinstance(value, (int, float)) else str(value)
+                    if str_val not in allowed_values:
+                        continue  # Skip, not in allowed set
+
                 return {
                     'value': value,
-                    'value_bbox': value_bbox
+                    'value_bbox': block['bounding_box']
                 }
-                
-            except (ValueError, TypeError):
-                # If conversion fails, return None
-                return {'value': None, 'value_bbox': None}
-                
-        except Exception as e:
-            # If Gemini call fails, fallback to original logic
-            print(f"Gemini extraction failed: {e}")
 
-            return {'value': None, 'value_block': None, 'value_bbox': None}
+        return {'value': None, 'value_bbox': None}
     
     
 
@@ -471,117 +397,9 @@ class OCRDocument:
                     return block
         return None
 
-    # Extrait les tableaux d'un document
-    def extract_tables_with_gemini(self, config_json_path, ocr_json_path, project_path,  pageid ):
-        try:
-            #Read config
-            with open(config_json_path, "r", encoding="utf-8") as f:
-                config_data = json.load(f)
-
-            # target_text = [item["text"] for item in config_data if "text" in item]
-            target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
-            target_parse = {param["label"]: param["parse"] for param in config_data if "label" in param and "parse" in param}
-            # Load OCR layout data
-            with open(ocr_json_path, 'r', encoding='utf-8') as f:
-                ocr_data = json.load(f)
-            json_data = json.dumps(ocr_data, ensure_ascii=False, indent=2)
-
-            # Construct prompt
-            prompt = f"""
-                You are given these inputs:
-
-                1. ### OCR blocks: A list of 'block'. Each block has:
-                            - "page": page number
-                            - "text": the recognized text
-                            - "type": type of block, such as "paragraph"
-                            - "bounding_box": [x, y, width, height]
-
-                2. ### parameters: A list of string as 'parameters'
-                3. ### Format: A list of instructions to format associated 'values'
-
-                Your task:
-
-                - For each 'parameters' in the list, find the matching 'block' by it with a word in the `text` string (case-insensitive, typo-tolerant).
-                - Return the bounding box of each match 'block' in label_bbox.
-                - Locate the next numerical value (float or integer) in the same 'block' or to a following block just to the right (within ±20 pixels in Y), and save it as `value`.
-                - Return the bounding box of each match 'block' containing 'value' in value_bbox.
-                - Use 'Format' instructions to convert 'value' as needed
-                - The output JSON must keep all 'parameters' and in the same order.
-                - Return the 'value' in extract_values listed by 'parameters'
-
-                Return a single JSON object like this:
-
-                {{
-                    "label_bbox": {{
-                        "Glucose": [100, 200, 50, 10]
-                    }},
-                    "value_bbox": {{
-                        "Glucose": [160, 200, 40, 10]
-                    }},
-                    "extract_values": {{
-                        "Glucose": 5.1,
-                        "Triglycerides": null
-                    }}
-                }}
-
-                Do not include explanations. Only output a valid JSON object.
-                ### OCR blocks:
-                {json_data}
-
-                ### parameters:
-                {target_text}
-
-                ### Format:
-                {target_parse}
-            """
-            # Send request
-            response = self.model.generate_content(prompt)
-            # Wait for response
-            raw = response.text.strip()
-            #Remove code fences
-            if raw.startswith("```json"):
-                raw = raw[7:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-                
-            #Convert string JSON to dict
-            result = json.loads(raw.replace("\n", ""))
-            
-
-            # Sauvegarde ordonnée selon labels
-            from collections import OrderedDict
-            labels = [d['label'] for d in config_data]
-
-            # Label bounding boxes
-            label_bbox_ordered = OrderedDict((label, result['label_bbox'].get(label, None)) for label in labels)
-            label_filename = f"label_bbox_{pageid}.json"
-            label_path = os.path.join(project_path, label_filename)
-            with open(label_path, "w", encoding="utf-8") as f:
-                json.dump(label_bbox_ordered, f, indent=4, ensure_ascii=False)
-
-            # Value bounding boxes
-            value_bbox_ordered = OrderedDict((label, result['value_bbox'].get(label, None)) for label in labels)
-            value_filename = f"value_bbox_{pageid}.json"
-            value_path = os.path.join(project_path, value_filename)
-            with open(value_path, "w", encoding="utf-8") as f:
-                json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
-
-            # Table data
-            extract_values_ordered = OrderedDict((label, result['extract_values'].get(label, None)) for label in labels)
-            table_filename = f"table_{pageid}.json"
-            table_path = os.path.join(project_path, table_filename)
-            with open(table_path, "w", encoding="utf-8") as f:
-                json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
-
-            return result
-
-        except Exception as e:
-            return {"error": str(e)}
-    
+   
     # Crée un fichier CSV avec les données extraites
     def create_csv_with_data(self, file_paths, delimiter=';'):
-        #Download from gcs
-
         headers = [
             "Section", "Centre", "Participants", "Sequence", "Traitement", "Visites",
             "glu-15", "ins-15", "glu0", "ins0", "glu30", "ins30", "glu60", "ins60", "glp1", "pyy", "ghrelin", "leptine", "il6", "crp_elisa", "chol", "tg", "hdlc", "ldlc", "chol_hdlc", "nhdlc"
