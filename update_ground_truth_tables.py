@@ -21,19 +21,16 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from py.extract_tables import OCRDocument
-from py.gstorage import GSStorage
 
 # Configuration
 GROUND_TRUTH_ROOT = r"D:\Nutriss\ground_truth"
 CONFIG_PATH = "dbase/bilan_lipidique.json"
 LOCAL_TEMP_FOLDER = "temp_update"
-GCS_FOLDER = "nutriss-dbase-dev"
 
 class GroundTruthTableUpdater:
     def __init__(self):
-        # Initialize storage and OCR components
-        self.gcs = GSStorage(LOCAL_TEMP_FOLDER, GCS_FOLDER)
-        self.ocr_document = OCRDocument(self.gcs)
+        # Initialize OCR components
+        self.ocr_document = OCRDocument()
         
         # Create temp folder
         os.makedirs(LOCAL_TEMP_FOLDER, exist_ok=True)

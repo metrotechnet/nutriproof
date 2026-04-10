@@ -12,7 +12,6 @@ from google.protobuf.json_format import MessageToDict
 import vertexai
 from vertexai.generative_models import GenerativeModel
 from typing import List, Dict
-from py.gstorage import GSStorage
 import pandas as pd
 import xlwt
 
@@ -24,11 +23,10 @@ GEMINI_MODEL = 'gemini-2.5-flash-lite'
 
 class OCRDocument:
     
-    def __init__(self,_storage_manager):
+    def __init__(self):
         self.client_ocr = documentai.DocumentProcessorServiceClient()
         vertexai.init(project=get_project_id(), location="us-east1")
         self.model = GenerativeModel(GEMINI_MODEL)
-        self.storage_manager = _storage_manager
 
     def _can_convert_to_float(self, val):
         """Helper method to safely check if a value can be converted to float."""
@@ -61,13 +59,12 @@ class OCRDocument:
             image_path = os.path.join(output_folder, f"page_{i + 1}.{image_format}")
             pix.save(image_path)
             image_paths.append(image_path)
-            self.storage_manager.upload_file(image_path)
         return image_paths
 
     # Extrait une image d'une page PDF
     def get_pdf_image(self, input_pdf, output_folder, page_index=0, image_format="png", dpi=200):
         """
-        Extrait la page d'index (page_index) du PDF, la sauvegarde en local et dans GCS.
+        Extrait la page d'index (page_index) du PDF et la sauvegarde en local.
         Args:
             input_pdf (str): Chemin du PDF source.
             output_folder (str): Dossier de sortie local.
@@ -85,13 +82,12 @@ class OCRDocument:
         pix = page.get_pixmap(dpi=dpi)
         image_path = os.path.join(output_folder, f"page_{page_index + 1}.{image_format}")
         pix.save(image_path)
-        self.storage_manager.upload_file(image_path)
         return image_path
     
     def get_pdf_imageNew(self, input_pdf, output_folder, page_index=0, image_format="png", dpi=150):
         """
         Extrait la résolution effective (DPI) des images de la page,
-        puis exporte la page en image et sauvegarde en local et dans GCS.
+        puis exporte la page en image et sauvegarde en local.
 
         Args:
             input_pdf (str): Chemin du PDF source.
@@ -137,10 +133,6 @@ class OCRDocument:
         pix = page.get_pixmap(dpi=export_dpi)
         image_path = os.path.join(output_folder, f"page_{page_index + 1}.{image_format}")
         pix.save(image_path)
-
-        # Sauvegarde dans ton gestionnaire de stockage (GCS par ex.)
-        self.storage_manager.upload_file(image_path)
-
 
         return image_path
     
@@ -306,7 +298,6 @@ class OCRDocument:
             label_path = os.path.join(project_path, label_filename)
             with open(label_path, "w", encoding="utf-8") as f:
                 json.dump(label_bbox_ordered, f, indent=4, ensure_ascii=False)
-            self.storage_manager.upload_file(label_path)
 
             # Value bounding boxes
             value_bbox_ordered = OrderedDict((label, value_bboxes.get(label, None)) for label in labels)
@@ -314,7 +305,6 @@ class OCRDocument:
             value_path = os.path.join(project_path, value_filename)
             with open(value_path, "w", encoding="utf-8") as f:
                 json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
-            self.storage_manager.upload_file(value_path)
 
             # Table data
             extract_values_ordered = OrderedDict((label, extract_values.get(label, None)) for label in labels)
@@ -322,7 +312,6 @@ class OCRDocument:
             table_path = os.path.join(project_path, table_filename)
             with open(table_path, "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
-            self.storage_manager.upload_file(table_path)
 
             return {
                 "label_bbox": label_bbox_ordered,
@@ -569,7 +558,6 @@ class OCRDocument:
             label_path = os.path.join(project_path, label_filename)
             with open(label_path, "w", encoding="utf-8") as f:
                 json.dump(label_bbox_ordered, f, indent=4, ensure_ascii=False)
-            self.storage_manager.upload_file(label_path)
 
             # Value bounding boxes
             value_bbox_ordered = OrderedDict((label, result['value_bbox'].get(label, None)) for label in labels)
@@ -577,7 +565,6 @@ class OCRDocument:
             value_path = os.path.join(project_path, value_filename)
             with open(value_path, "w", encoding="utf-8") as f:
                 json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
-            self.storage_manager.upload_file(value_path)
 
             # Table data
             extract_values_ordered = OrderedDict((label, result['extract_values'].get(label, None)) for label in labels)
@@ -585,7 +572,6 @@ class OCRDocument:
             table_path = os.path.join(project_path, table_filename)
             with open(table_path, "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
-            self.storage_manager.upload_file(table_path)
 
             return result
 

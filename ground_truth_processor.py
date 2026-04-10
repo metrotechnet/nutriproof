@@ -24,20 +24,17 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from py.extract_tables import OCRDocument
-from py.gstorage import GSStorage
 from py.config import get_project_id, get_location, get_ocr_processor_id
 
 # Configuration
 GROUND_TRUTH_ROOT = r"D:\Nutriss\ground_truth"
 CONFIG_PATH = "dbase/bilan_lipidique.json"
 LOCAL_TEMP_FOLDER = "temp_processing"
-GCS_FOLDER = "nutriss-dbase-dev"  # Use dev for ground truth processing
 
 class GroundTruthProcessor:
     def __init__(self):
-        # Initialize storage and OCR components
-        self.gcs = GSStorage(LOCAL_TEMP_FOLDER, GCS_FOLDER)
-        self.ocr_document = OCRDocument(self.gcs)
+        # Initialize OCR components
+        self.ocr_document = OCRDocument()
         
         # Load configuration
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:

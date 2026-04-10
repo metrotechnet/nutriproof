@@ -5,7 +5,6 @@ from flask import Flask, request, jsonify, send_file, render_template
 import os, json, mimetypes, uuid
 import random
 from waitress import serve
-from py.gstorage import GSStorage
 from datetime import datetime
 
 
@@ -36,8 +35,6 @@ def is_running_on_cloud():
         ]
         return any(os.getenv(var) for var in cloud_env_vars)
 
-# Set GCS folder based on environment
-GCS_FOLDER = "nutriproof-dbase" 
 CONFIG_PATH = "dbase/bilan_lipidique.json"
 PROJECT_ID = "main"
 LOCAL_FOLDER = "uploads"
@@ -48,8 +45,7 @@ def create_app():
     # === Configuration ===
     global APP_ENABLED
     # === Initialisation ===
-    gcs = GSStorage(LOCAL_FOLDER, GCS_FOLDER)
-    ocr_document = OCRDocument(gcs)
+    ocr_document = OCRDocument()
     task_manager = AsyncTaskManager()
     clean_manager = CleanManager()
     
@@ -59,7 +55,6 @@ def create_app():
     # Management des fichiers temporaires
     clean_manager.clear_folder(LOCAL_FOLDER)
     clean_manager.start()
-    # gcs.delete_all_projects()
     
     #Read CONFIG_PATH to get keys order
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -69,6 +64,17 @@ def create_app():
 
     # Initialisation de l'application Flask
     app = Flask(__name__)
+
+    # @app.get("/")
+    # def home():
+    #     """API root endpoint - frontend is hosted on Firebase"""
+    #     return {"status": "ok", "message": "IMX NutriProof API"}
+
+
+    @app.get("/health")
+    def health():
+        """Health check endpoint"""
+        return {"status": "ok"}
 
     # Page d'accueil
     @app.route("/")
@@ -87,16 +93,14 @@ def create_app():
     # Création d'un projet
     @app.route("/create_project", methods=["POST"])
     def create_project():
-        """Crée un projet (dossier) local et dans GCS."""
+        """Crée un projet (dossier) local."""
         try:
             project_id = request.form.get("project_id")
             if not project_id:
                 return jsonify({"error": "project_id requis"}), 400
             
             local_path = os.path.join(LOCAL_FOLDER, project_id)
-            gcs.create_folder(local_path)
-            if not os.path.exists(local_path):
-                os.makedirs(local_path)
+            os.makedirs(local_path, exist_ok=True)
 
             return jsonify({"message": "Projet créé", "project_id": project_id}), 201
         except Exception as e:
@@ -121,28 +125,16 @@ def create_app():
     # Suppression d'un projet
     @app.route("/delete_project", methods=["POST"])
     def delete_project():
-        """Supprime le projet local et dans GCS."""
+        """Supprime le projet local."""
         try:
             project_id = request.form.get("project_id")
             if not project_id:
                 return jsonify({"error": "project_id requis"}), 400
             
             local_path = os.path.join(LOCAL_FOLDER, project_id)
-            if  os.path.exists(local_path):
-                # Suppression locale
-                for root, dirs, files in os.walk(local_path, topdown=False):
-                    for name in files:
-                        os.remove(os.path.join(root, name))
-                    for name in dirs:
-                        os.rmdir(os.path.join(root, name))
-                        
-                os.rmdir(local_path)
-            
-            # Suppression dans GCS
-            try:
-                gcs.delete_file(local_path)
-            except Exception as e:
-                pass  # Ignore GCS errors for delete
+            if os.path.exists(local_path):
+                import shutil
+                shutil.rmtree(local_path)
             
             return jsonify({"message": "Projet supprimé", "project_id": project_id}), 200
         except Exception as e:
@@ -151,53 +143,48 @@ def create_app():
     # Liste des projets
     @app.route("/list_projects", methods=["GET"])
     def list_projects():
-        """Liste tous les projets (dossiers) dans uploads et GCS."""
+        """Liste tous les projets (dossiers) dans uploads."""
         try:
-           # Liste GCS
-            project_names =  gcs.list_files()
-            return jsonify(list(project_names)), 200
+            project_names = [
+                d for d in os.listdir(LOCAL_FOLDER)
+                if os.path.isdir(os.path.join(LOCAL_FOLDER, d))
+            ]
+            return jsonify(project_names), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     # Fonction pour charger les informations du projet
     def load_project_info(file_path):
         """
-        Remplace la fonction pour charger les informations du projet depuis la base de données SQL.
+        Charge les informations du projet depuis le fichier local.
         """
-        # Load form gcs
         full_path = os.path.join(file_path, "info.json")
-        #create local
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        gcs.download_file(full_path)
-
-        #Load from local file
         with open(full_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     # Fonction pour sauvegarder les informations du projet
     def save_project_info(file_path, project_info):
         """
-        Remplace la fonction pour sauvegarder les informations du projet dans la base de données SQL.
+        Sauvegarde les informations du projet dans le fichier local.
         """
-        #save to local file
         full_path = os.path.join(file_path, "info.json")
         with open(full_path, "w", encoding="utf-8") as f:
             json.dump(project_info, f, indent=4, ensure_ascii=False)
-        # Upload to gcs
-        gcs.upload_file(full_path)
 
     #
     def load_all_project_info(project_id):
         """
-        Charge toutes les informations du projet depuis la base de données SQL.
+        Charge toutes les informations du projet depuis les fichiers locaux.
         """
-        #Load all for all documents
         project_info = []
-        #Loop thorugh all document folders
-        for doc_folder in gcs.list_files():
-            doc_info = load_project_info(os.path.join(LOCAL_FOLDER, project_id, doc_folder))
-            project_info.append(doc_info)
-
+        project_path = os.path.join(LOCAL_FOLDER, project_id)
+        if not os.path.isdir(project_path):
+            return {"error": "Projet introuvable"}
+        for doc_folder in os.listdir(project_path):
+            doc_path = os.path.join(project_path, doc_folder)
+            if os.path.isdir(doc_path) and os.path.exists(os.path.join(doc_path, "info.json")):
+                doc_info = load_project_info(doc_path)
+                project_info.append(doc_info)
         return project_info
 
     # Suppression d'un document
@@ -209,12 +196,10 @@ def create_app():
             return jsonify({'error': 'project_id et document_id requis'}), 400
         try:
             # Suppression locale
-            import shutil, os
+            import shutil
             folder_path = os.path.join('uploads', project_id, document_id)
             if os.path.exists(folder_path):
                 shutil.rmtree(folder_path, ignore_errors=True)
-            # Suppression GCS
-            gcs.delete_file(f"uploads/{project_id}/{document_id}")
             return jsonify({'success': True}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -242,8 +227,6 @@ def create_app():
             file_path = os.path.join(directory_path, uploaded_file.filename)
             uploaded_file.save(file_path)
             
-            #Save to gcs bucket
-            gcs.upload_file(file_path)
             #Get number of pages
             nbrPages = ocr_document.get_pdf_page_count(file_path)
             
@@ -302,9 +285,7 @@ def create_app():
             async def run_extraction(job_id):
                 try:
                     local_path = f'{LOCAL_FOLDER}/{project_name}/{document_id}/'
-                    #download filename to local
                     os.makedirs(local_path, exist_ok=True)
-                    gcs.download_file(local_path+filename)
                     for idx in range(start_page, nbr_pages):
                         # Check if the task is cancelled
                         if task_manager.is_cancelled(job_id):
@@ -327,7 +308,6 @@ def create_app():
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
                         with open(layout_json_path, "w", encoding="utf-8") as f:
                             json.dump(layout, f, indent=4, ensure_ascii=False)
-                        gcs.upload_file(layout_json_path)
 
                         # Extract tables with Gemini
                         # ocr_document.extract_tables_with_gemini(CONFIG_PATH, layout_json_path, local_path,  pageid)
@@ -402,9 +382,6 @@ def create_app():
     @app.route("/get_image/<project_id>/<document_id>/<filename>")
     def get_image(project_id, document_id, filename):
         image_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
-        #get data from gcs
-        os.makedirs(os.path.dirname(image_path), exist_ok=True)
-        gcs.download_file(image_path)
         if os.path.exists(image_path):
             return send_file(image_path, mimetype="image/png")
         return jsonify("Image not found"), 404
@@ -415,9 +392,6 @@ def create_app():
 
 
         file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
-        #get data from gcs
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        gcs.download_file(file_path)
         #Create default data dict   form key_order labels
         data = {k: "" for k in key_order}
         if os.path.exists(file_path):
@@ -446,9 +420,6 @@ def create_app():
             file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-                
-            # Upload to GCS
-            gcs.upload_file(file_path)
 
             return jsonify({"message": "File saved", "filename": filename}), 200
         except Exception as e:
@@ -470,11 +441,6 @@ def create_app():
                 for i in range(1, int(nbr_pages) + 1)
             ]
             
-            # download files to local
-            for path in file_paths:
-                if not os.path.isfile(path):
-                    gcs.download_file(path)
-
             xls_file = ocr_document.create_xls_with_data_by_time(file_paths)
             filename = document_id + ".xls"
             return send_file(xls_file, as_attachment=True, download_name=filename)
@@ -495,4 +461,5 @@ app = create_app()
 if __name__ == '__main__':
     # For local development
     port = int(os.environ.get('PORT', 8080))
+    print(f"Starting server on port {port}...")
     serve(app, host='0.0.0.0', port=port)

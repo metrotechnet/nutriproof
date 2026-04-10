@@ -4,51 +4,26 @@
 
 import os
 import json
-from google.cloud import secretmanager
-from google.api_core.exceptions import GoogleAPIError
+
+# Set GOOGLE_APPLICATION_CREDENTIALS early, before any Google client is initialized
+_credentials_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "nutriproof-29d95359dc1f.json")
+if os.path.exists(_credentials_path):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = _credentials_path
 
 
-def load_secret( project_id:str, secret_id: str):
-    """
-    Accesses and parses the secret stored in Secret Manager.
-
-    Args:
-    """
-    try:
-        client = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
-        response = client.access_secret_version(request={"name": name})
-        secret_payload = response.payload.data.decode("UTF-8")
-        return json.loads(secret_payload)
-            
-    except GoogleAPIError as e:
-        raise RuntimeError(f"Erreur lors de l'accès au secret : {str(e)}")
-    except json.JSONDecodeError as e:
-        raise ValueError("Le secret n'est pas un JSON valide.")
-
-"""
-Initialize the configuration by loading secrets and GCP project ID.
-
-Args:
-    secret_id (str): The secret name in Secret Manager.
-    credentials_path (str): Local path to credentials (used in local dev).
-"""
 def get_config():
-    """Load configuration from Secret Manager or environment variables."""
-    secret_id = 'nutriproof-secrets'
-    credentials_path = "..//nutriproof-29d95359dc1f.json"
+    """Load configuration from local JSON file."""
+    secrets_path = "./config/nutriproof-secrets.json"
     project_id = "nutriproof"
 
-    # if this is running locally then GOOGLE_APPLICATION_CREDENTIALS should be defined
-    if 'GOOGLE_APPLICATION_CREDENTIALS' in os.environ:
-        if os.path.exists(credentials_path):
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-            with open(os.environ['GOOGLE_APPLICATION_CREDENTIALS'], 'r') as fp:
-                credentialsVal = json.load(fp)
-            project_id = credentialsVal['project_id']
+    if os.path.exists(_credentials_path):
+        with open(_credentials_path, 'r') as fp:
+            credentialsVal = json.load(fp)
+        project_id = credentialsVal.get('project_id', project_id)
 
     try:
-        config = load_secret(project_id, secret_id)
+        with open(secrets_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
         print("ProjectID: " + project_id)
         return config
     except Exception as e:
