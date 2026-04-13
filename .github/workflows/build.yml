@@ -1,0 +1,143 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  # ── Windows build ──────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Tesseract (Windows)
+        run: choco install tesseract -y
+
+      - name: Build backend
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .venv\Scripts\Activate.ps1
+          pip install -r requirements.txt pyinstaller
+          pyinstaller app.spec --noconfirm
+          New-Item -ItemType Directory -Force -Path dist\backend\uploads\main | Out-Null
+
+      - name: Bundle Tesseract
+        shell: pwsh
+        run: |
+          $tessSrc = "C:\Program Files\Tesseract-OCR"
+          Copy-Item -Recurse -Force $tessSrc tesseract-bundle
+
+      - name: Build Electron installer
+        shell: pwsh
+        run: |
+          cd electron
+          npm install
+          npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutriProof-Windows
+          path: dist/electron/*.exe
+
+  # ── macOS build ────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Tesseract (macOS)
+        run: brew install tesseract
+
+      - name: Build backend
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt pyinstaller
+          pyinstaller app.spec --noconfirm
+          mkdir -p dist/backend/uploads/main
+
+      - name: Bundle Tesseract
+        run: |
+          chmod +x build-desktop-mac.sh
+          # Extract just the Tesseract bundling part
+          TESSERACT_DEST="tesseract-bundle"
+          rm -rf "$TESSERACT_DEST"
+          if [ -d "/opt/homebrew/opt/tesseract" ]; then
+            TESSERACT_PREFIX="/opt/homebrew/opt/tesseract"
+            TESSDATA_DIR="/opt/homebrew/share/tessdata"
+          else
+            TESSERACT_PREFIX="/usr/local/opt/tesseract"
+            TESSDATA_DIR="/usr/local/share/tessdata"
+          fi
+          mkdir -p "$TESSERACT_DEST/bin" "$TESSERACT_DEST/lib" "$TESSERACT_DEST/share/tessdata"
+          cp "$TESSERACT_PREFIX/bin/tesseract" "$TESSERACT_DEST/bin/"
+          for lib in "$TESSERACT_PREFIX"/lib/libtesseract*.dylib; do
+            [ -f "$lib" ] && cp -P "$lib" "$TESSERACT_DEST/lib/"
+          done
+          LEPT_PREFIX="$(brew --prefix leptonica 2>/dev/null || true)"
+          if [ -n "$LEPT_PREFIX" ] && [ -d "$LEPT_PREFIX/lib" ]; then
+            for lib in "$LEPT_PREFIX"/lib/liblept*.dylib; do
+              [ -f "$lib" ] && cp -P "$lib" "$TESSERACT_DEST/lib/"
+            done
+          fi
+          if [ -d "$TESSDATA_DIR" ]; then
+            cp "$TESSDATA_DIR"/*.traineddata "$TESSERACT_DEST/share/tessdata/" 2>/dev/null || true
+          fi
+          install_name_tool -add_rpath "@executable_path/../lib" "$TESSERACT_DEST/bin/tesseract" 2>/dev/null || true
+
+      - name: Build Electron installer (macOS)
+        run: |
+          cd electron
+          npm install
+          npm run dist-mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: NutriProof-macOS
+          path: dist/electron/*.dmg
+
+  # ── Publish to GitHub Releases (only on tags) ─────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/NutriProof-Windows/*.exe
+            artifacts/NutriProof-macOS/*.dmg
+          generate_release_notes: true
