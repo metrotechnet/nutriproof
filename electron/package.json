@@ -80,7 +80,8 @@
       "artifactName": "NutriProof-Setup.${ext}"
     },
     "dmg": {
-      "artifactName": "NutriProof.${ext}"
+      "artifactName": "NutriProof.${ext}",
+      "format": "ULFO"
     }
   },
   "devDependencies": {
