@@ -31,8 +31,10 @@ jobs:
         run: |
           python -m venv .venv
           .venv\Scripts\pip install -r requirements.txt pyinstaller
-          dir app.spec
-          .venv\Scripts\python -m PyInstaller app.spec --noconfirm
+          Write-Host "Working directory: $PWD"
+          Write-Host "Spec file exists: $(Test-Path app.spec)"
+          Get-ChildItem *.spec
+          .venv\Scripts\python -m PyInstaller "$PWD\app.spec" --noconfirm
           New-Item -ItemType Directory -Force -Path dist\backend\uploads\main | Out-Null
 
       - name: Bundle Tesseract
