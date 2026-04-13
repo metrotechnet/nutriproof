@@ -1,24 +1,24 @@
 # NutriProof — Guide d'installation
 
+## Téléchargement
+
+Rendez-vous sur **https://imx-nutriproof.web.app** ou téléchargez directement :
+- **Windows** : [NutriProof-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe)
+- **macOS** : [NutriProof.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg)
+
 ## Windows
 
 ### Installation
 
-1. Vous recevrez un dossier nommé **`NutriProof-win32-x64`** (par clé USB, partage réseau ou lien de téléchargement).
+1. Téléchargez **NutriProof-Setup.exe** depuis le lien ci-dessus.
 
-2. **Copier** le dossier complet à l'emplacement de votre choix, par exemple :
-   - `C:\NutriProof\`
-   - `C:\Users\VotreNom\Desktop\NutriProof\`
-   - Ou tout autre dossier où vous avez les droits d'écriture.
+2. **Lancez l'installeur** en double-cliquant dessus.
 
-3. **Lancer l'application** en double-cliquant sur :
-   ```
-   NutriProof-win32-x64\NutriProof.exe
-   ```
+3. Suivez les étapes d'installation (vous pouvez choisir le dossier d'installation).
 
-4. *(Facultatif)* Pour un accès rapide, faites un clic droit sur `NutriProof.exe` → **Créer un raccourci**, puis déplacez le raccourci sur votre Bureau.
+4. L'application est accessible depuis le **Menu Démarrer** et un raccourci est créé sur le **Bureau**.
 
-> **Aucune installation supplémentaire n'est requise.** Tout est inclus dans le dossier (Python, Tesseract OCR, etc.).
+> **Aucune installation supplémentaire n'est requise.** Tout est inclus (Python, Tesseract OCR, etc.).
 
 ### Premier lancement
 
@@ -32,11 +32,9 @@
 
 ### Installation
 
-1. Vous recevrez un fichier **`NutriProof.app`** (ou un dossier contenant l'application).
+1. Téléchargez **NutriProof.dmg** depuis le lien ci-dessus.
 
-2. **Glisser** `NutriProof.app` dans le dossier **Applications** :
-   - Ouvrir le Finder
-   - Glisser `NutriProof.app` dans `/Applications/`
+2. **Ouvrez** le fichier `.dmg` et **glissez** `NutriProof.app` dans le dossier **Applications**.
 
 3. **Lancer l'application** depuis le Launchpad ou le dossier Applications.
 
@@ -72,17 +70,12 @@
 
 ## Mise à jour
 
-Quand une nouvelle version vous est fournie :
+L'application vérifie automatiquement les mises à jour au lancement. Si une nouvelle version est disponible :
+1. Elle se télécharge en arrière-plan
+2. Un dialogue vous propose de redémarrer pour appliquer la mise à jour
+3. Vos données sont préservées automatiquement
 
-1. **Sauvegarder vos données** (si vous souhaitez les conserver) :
-   - Copier le dossier `uploads` depuis l'emplacement ci-dessus vers un endroit temporaire.
-
-2. **Supprimer** l'ancien dossier `NutriProof-win32-x64` (ou l'ancienne `NutriProof.app`).
-
-3. **Copier** le nouveau dossier/application au même emplacement.
-
-4. **Restaurer vos données** :
-   - Recopier le dossier `uploads` sauvegardé à l'étape 1 dans le nouveau dossier de l'application.
+> Il n'est plus nécessaire de remplacer manuellement les fichiers.
 
 ---
 

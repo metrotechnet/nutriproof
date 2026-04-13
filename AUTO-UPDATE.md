@@ -8,53 +8,42 @@ Au lancement, l'app vérifie automatiquement s'il y a une nouvelle version sur G
 
 ---
 
-## Prérequis (une seule fois)
-
-### 1. Créer un GitHub Personal Access Token
-
-1. Aller sur GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
-2. Cliquer **Generate new token (classic)**
-3. Sélectionner le scope **`repo`** (accès complet aux repositories)
-4. Copier le token généré
-
-### 2. Configurer la variable d'environnement
-
-Avant de publier, définir le token dans votre terminal :
-
-```powershell
-# Windows (session courante)
-$env:GH_TOKEN = "ghp_votre_token_ici"
-
-# Windows (permanent, PowerShell en tant qu'admin)
-[Environment]::SetEnvironmentVariable("GH_TOKEN", "ghp_votre_token_ici", "User")
-```
-
-```bash
-# macOS / Linux
-export GH_TOKEN="ghp_votre_token_ici"
-
-# Permanent (ajouter dans ~/.zshrc ou ~/.bashrc)
-echo 'export GH_TOKEN="ghp_votre_token_ici"' >> ~/.zshrc
-```
-
 ---
 
 ## Publier une mise à jour
 
-### Étape 1 : Incrémenter la version
+### Méthode 1 : CI/CD via GitHub Actions (recommandé)
 
-Modifier la version dans `electron/package.json` :
+1. Incrémenter la version dans `electron/package.json` :
+   ```json
+   "version": "1.1.0"
+   ```
 
-```json
-"version": "1.1.0"
+2. Commit, tag et push :
+   ```bash
+   git add -A
+   git commit -m "v1.1.0"
+   git tag v1.1.0
+   git push origin main --tags
+   ```
+
+3. Le workflow GitHub Actions build automatiquement Windows + macOS et crée une GitHub Release avec les installeurs et les fichiers `latest.yml` / `latest-mac.yml`.
+
+### Méthode 2 : Build local + publication
+
+#### Prérequis
+
+Créer un fichier `.env` à la racine du projet :
+```
+GH_TOKEN=ghp_votre_token_ici
 ```
 
-Utiliser le format **semver** :
-- `1.0.1` — correctif (bug fix)
-- `1.1.0` — nouvelle fonctionnalité
-- `2.0.0` — changement majeur
+Ou définir la variable d'environnement :
+```powershell
+$env:GH_TOKEN = "ghp_votre_token_ici"
+```
 
-### Étape 2 : Builder et publier
+#### Publier
 
 ```powershell
 # Windows — build complet + installeur + publication GitHub
@@ -77,7 +66,7 @@ Cela va :
    - Le fichier installeur
    - Le fichier `latest.yml` (ou `latest-mac.yml`) nécessaire à l'auto-update
 
-### Étape 3 : Vérifier sur GitHub
+### Vérifier sur GitHub
 
 Aller sur `https://github.com/metrotechnet/nutriproof/releases` et confirmer que :
 - La release correspond à la bonne version
@@ -106,6 +95,7 @@ Aller sur `https://github.com/metrotechnet/nutriproof/releases` et confirmer que
 
 | Commande | Description |
 |---|---|
+| `git tag v1.1.0 && git push origin v1.1.0` | Build CI/CD + publier (recommandé) |
 | `.\build-desktop.ps1` | Build portable (dossier, pas d'auto-update) |
 | `.\build-desktop.ps1 -Installer` | Build installeur NSIS (auto-update, local) |
 | `.\build-desktop.ps1 -Installer -Publish` | Build + publier sur GitHub Releases |
