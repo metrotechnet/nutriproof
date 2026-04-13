@@ -167,12 +167,17 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             await sendPasswordReset(email);
             msgDiv.className = "alert alert-success";
-            msgDiv.textContent = "Un courriel de réinitialisation a été envoyé.";
+            msgDiv.textContent = "Un courriel de réinitialisation a été envoyé. Vérifiez votre boîte de courriels ainsi que vos pourriels.";
             msgDiv.classList.remove("d-none");
         } catch (err) {
+            console.error("Password reset error:", err.code, err.message);
             let msg = "Erreur lors de l'envoi.";
             if (err.code === "auth/user-not-found") {
                 msg = "Aucun compte trouvé avec ce courriel.";
+            } else if (err.code === "auth/invalid-email") {
+                msg = "Adresse courriel invalide.";
+            } else if (err.code === "auth/unauthorized-continue-uri") {
+                msg = "Domaine non autorisé. Vérifiez la config Firebase.";
             }
             msgDiv.className = "alert alert-danger";
             msgDiv.textContent = msg;

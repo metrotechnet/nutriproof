@@ -1,7 +1,7 @@
 
 
 const { app, BrowserWindow, dialog } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -184,7 +184,10 @@ app.whenReady().then(() => {
     const win = createWindow();
 
     // Sign out Firebase when window is closed without logout button
+    let isQuitting = false;
     win.on('close', (e) => {
+      if (isQuitting) return;
+      isQuitting = true;
       e.preventDefault();
       win.webContents.executeJavaScript(
         'firebase && firebase.auth ? firebase.auth().signOut().catch(()=>{}) : Promise.resolve()'
@@ -204,11 +207,28 @@ app.whenReady().then(() => {
   });
 });
 
+function killFlask() {
+  if (flaskProcess) {
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /pid ${flaskProcess.pid} /T /F`, { stdio: 'ignore' });
+      } else {
+        flaskProcess.kill('SIGTERM');
+      }
+    } catch (e) {
+      // Process may already be dead
+    }
+    flaskProcess = null;
+  }
+}
+
+app.on('before-quit', () => {
+  killFlask();
+});
+
 app.on('window-all-closed', function () {
+  killFlask();
   if (process.platform !== 'darwin') {
     app.quit();
-  }
-  if (flaskProcess) {
-    flaskProcess.kill();
   }
 });

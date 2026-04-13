@@ -39,6 +39,19 @@ def get_data(project_id, document_id, filename):
     return jsonify("File not found"), 404
 
 
+# Get raw JSON file
+@data_bp.route("/get_raw_data/<project_id>/<document_id>/<filename>")
+@require_auth
+def get_raw_data(project_id, document_id, filename):
+    LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+    file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify(data)
+    return jsonify([]), 200
+
+
 # Put data
 @data_bp.route("/put_data", methods=["POST"])
 @require_auth

@@ -42,6 +42,12 @@ class OcrManager {
     return jobId;
   }
 
+  // Annulation d'une tâche OCR
+  static async cancelOCR(jobId) {
+    const response = await authFetch(`/cancel/${jobId}`);
+    return await response.json();
+  }
+
   // Vérification de l'état d'une tâche
   static async checkStatus(jobId) {
     const statusRes = await authFetch(`/status/${jobId}`);

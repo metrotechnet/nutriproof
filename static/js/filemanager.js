@@ -190,12 +190,22 @@ function enableLine(jobId) {
     }
 }
 
+// Annuler un job OCR
+window.cancelOCRJob = async function(jobId) {
+    try {
+        await OcrManager.cancelOCR(jobId);
+    } catch (err) {
+        console.error('Cancel failed:', err);
+    }
+};
+
 // Fonction de polling pour vérifier l'état d'un job
 async function pollJob(jobId) {
     // === Polling Task ===
     status_map = {
         "completed": "Terminé",
         "running": "En cours",
+        "cancelled": "Annulé",
         "not_found": "Terminé"
     };
     disableLine(jobId);
@@ -219,16 +229,17 @@ async function pollJob(jobId) {
                     const idCell = row.querySelector('td');
                     if (idCell && idCell.textContent === jobId) {
                         // La colonne status est la 8ème (index 7)
-                        const statusCell = row.querySelector('td:nth-child(8) span');
+                        const statusCell = row.querySelector('td:nth-child(8)');
                         if (statusCell) {
-                            if(status_data.status=='running')
-                                statusCell.textContent = status_data.progress ;
-                            else 
-                                statusCell.textContent = status_map[status_data.status] ;
-                            statusCell.className = 'badge w-100 px-3 py-2 bg-' + (status_data.status === 'completed' ? 'success' : 'warning');
+                            if(status_data.status=='running') {
+                                statusCell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><span class="badge px-3 py-2 bg-warning">${status_data.progress}</span><button class="btn btn-sm btn-outline-danger" onclick="cancelOCRJob('${jobId}')" title="Annuler"><i class="fas fa-times"></i></button></div>`;
+                            } else {
+                                const bgClass = status_data.status === 'completed' ? 'success' : (status_data.status === 'cancelled' ? 'secondary' : 'info');
+                                statusCell.innerHTML = `<span class="badge w-100 px-3 py-2 bg-${bgClass}">${status_map[status_data.status] || status_data.status}</span>`;
+                            }
                         }
-                        // On arrête le polling si terminé
-                        if (status_data.status === 'completed' ) {
+                        // On arrête le polling si terminé ou annulé
+                        if (status_data.status === 'completed' || status_data.status === 'cancelled') {
                             enableLine(jobId);
                             clearInterval(intervalId);
                             return;
