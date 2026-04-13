@@ -8,5 +8,4 @@ node_modules/
 dist/
 build/
 tesseract-bundle/
-*.spec
 uploads/
