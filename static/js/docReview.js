@@ -135,40 +135,58 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
   // Utilise la taille affichée de l'image
     const imgWidth = imageElement.clientWidth;
     const imgHeight = imageElement.naturalHeight * imageElement.clientWidth / imageElement.naturalWidth;
-    const viewerWidth = (imgWidth + padding * 2);
-    const viewerHeight = (imgHeight + padding * 2);
 
-    const offsetLeft = padding;
-    const offsetTop = padding;
+    // Dimensions effectives après rotation
+    const isRotated = (currentRotation % 180 !== 0);
+    const effectiveWidth = isRotated ? imgHeight : imgWidth;
+    const effectiveHeight = isRotated ? imgWidth : imgHeight;
+    const viewerWidth = effectiveWidth * currentScale + padding * 2;
+    const viewerHeight = effectiveHeight * currentScale + padding * 2;
+
+    // Centre de rotation = centre de l'image
+    const cx = imgWidth / 2;
+    const cy = imgHeight / 2;
+    const transformOrigin = `${cx}px ${cy}px`;
+
+    // Position de l'image: le centre doit être au centre du viewer
+    const imgLeft = padding + (effectiveWidth * currentScale - imgWidth) / 2;
+    const imgTop = padding + (effectiveHeight * currentScale - imgHeight) / 2;
+
     //display img size to console
-    console.log(`Image offset: ${offsetLeft}px x ${offsetTop}px`);
+    // console.log(`Image size: ${imgWidth}px x ${imgHeight}px`);
+    // console.log(`Scale: ${currentScale}, Rotation: ${currentRotation}`);
     // Ajoute un padding autour pour le scroll
    // Le SVG aura la même taille que l'image + padding
     svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.style.left = `${offsetLeft}px`;
-    svg.style.top = `${offsetTop}px`;
+    svg.style.left = `${imgLeft}px`;
+    svg.style.top = `${imgTop}px`;
     svg.style.width = `${imgWidth}px`;
     svg.style.height = `${imgHeight}px`;
     // svg.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
     svg.style.pointerEvents = "auto";
     svg.style.position = "absolute";
+    svg.style.transformOrigin = transformOrigin;
 
     // Calcule le scale pour les bboxes
-    const scaleX = imgWidth / imageElement.naturalWidth;
-    const scaleY = imgHeight / imageElement.naturalHeight;
+    const scaleX =  imgWidth / imageElement.naturalWidth;
+    const scaleY =  imgHeight / imageElement.naturalHeight;
     // Affichage des polygones avec couleurs par label
-    displayBbox(svg, extract_values, label_bbox, scaleX, scaleY, "label");
-    displayBbox(svg, extract_values, value_bbox, scaleX, scaleY, "value");
-  
+    displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
+    displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
+
      // Applique la transformation
-    imageElement.style.width = `${imgWidth }px`;
-    imageElement.style.height = `${imgHeight }px`;
-    imageElement.style.position = "absolute";
- // Applique la transformation au conteneur de l'image
-    imageElement.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
     svg.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
 
-    // viewerImage.style.backgroundColor = "rgba(0, 255, 0, 0.3)";
+    // Applique la transformation au conteneur de l'image
+    imageElement.style.width = `${imgWidth}px`;
+    imageElement.style.height = `${imgHeight}px`;
+    imageElement.style.position = "absolute";
+    imageElement.style.left = `${imgLeft}px`;
+    imageElement.style.top = `${imgTop}px`;
+    imageElement.style.transformOrigin = transformOrigin;
+    imageElement.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
+
+    // // viewerImage.style.backgroundColor = "rgba(0, 255, 0, 0.3)";
     viewerImage.style.width = viewerWidth + "px";
     viewerImage.style.height = viewerHeight + "px";
 
@@ -176,8 +194,8 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     if(init_scroll) {
       const viewerImageFrame = document.getElementById("viewer-image-frame");
       //Scroll viewerImage to center
-      viewerImageFrame.scrollLeft = currentScale * padding;
-      viewerImageFrame.scrollTop = currentScale * padding;
+      viewerImageFrame.scrollLeft = padding;
+      viewerImageFrame.scrollTop = padding;
     }
     //Add SVG  elements
     svg.style.display = "block";
@@ -190,8 +208,6 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     // Génération du tableau éditable
     generateEditableTable(extract_values);
 
-    // Ajout du bouton Terminer
-    addTerminateButton();
 
   };
   imageElement.onerror = () => {
@@ -201,13 +217,13 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
 }
 
 // === DISPLAY BOXES ON IMAGE ===
-function displayBbox(svg, data, boxes, scaleX, scaleY, boxType) {
+function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType) {
 
   Object.entries(boxes).forEach(([label, bbox]) => {
     if (!bbox || bbox.length !== 4) return;
     const value = data[label];
-    let x = bbox[0][0] * scaleX;
-    let y = bbox[0][1] * scaleY;
+    let x = bbox[0][0] * scaleX + offsetX;
+    let y = bbox[0][1] * scaleY + offsetY;
     let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
     let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
 
@@ -318,16 +334,6 @@ function nextPage() {
   loadPage(currentProjectID, ++currentPageIndex);
 }
 
-function addTerminateButton(containerId = "table-container") {
-  //add Terminer button with a link back to index.html
-  const terminerBtn = document.createElement("button");
-  terminerBtn.textContent = "Terminé";
-  terminerBtn.className = "btn btn-primary";
-  terminerBtn.onclick = () => {
-      window.location.href = "/";
-    };
-    document.getElementById(containerId).appendChild(terminerBtn);
-}
 // === TABLE UI ===
 function generateEditableTable(data, containerId = "table-container") {
   const container = document.getElementById(containerId);
