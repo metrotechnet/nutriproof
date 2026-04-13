@@ -77,7 +77,11 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "artifactName": "NutriProof-Setup.${ext}"
+    },
+    "dmg": {
+      "artifactName": "NutriProof.${ext}"
     }
   },
   "devDependencies": {

@@ -25,7 +25,7 @@ Ce projet permet de téléverser un PDF, d'extraire et d'analyser les tableaux v
 
 ## Installation (développement)
 ```bash
-git clone https://github.com/dboulanger363/nutriproof.git
+git clone https://github.com/metrotechnet/nutriproof.git
 cd nutriproof
 python -m venv .venv
 
@@ -47,90 +47,66 @@ Ceci lance le backend Flask (port 8080) + la fenêtre Electron.
 
 ---
 
+## Téléchargement
+
+Les installeurs sont disponibles sur le site web : **https://imx-nutriproof.web.app**
+
+Ou directement :
+- **Windows** : [NutriProof-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe)
+- **macOS** : [NutriProof.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg)
+
+L'application inclut les mises à jour automatiques via electron-updater.
+
+---
+
 ## Build & Déploiement
 
-### Windows — Build
+### CI/CD — GitHub Actions (recommandé)
+
+Le workflow `.github/workflows/build.yml` build automatiquement Windows + macOS :
+
+```bash
+# Incrémenter la version dans electron/package.json, puis :
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+Cela déclenche :
+1. Build Windows (`NutriProof-Setup.exe`)
+2. Build macOS (`NutriProof.dmg`)
+3. Création d'une GitHub Release avec les deux installeurs
+
+Pour lancer un build sans release :
+- Aller sur GitHub → Actions → "Build & Release" → "Run workflow"
+
+### Build local — Windows
 ```powershell
 .\build-desktop.ps1
 ```
 Options :
-- `-SkipBackend` : ne rebuild que l'Electron (pas PyInstaller)
+- `-Installer` : créer un installeur NSIS (avec auto-update)
+- `-Installer -Publish` : créer + publier sur GitHub Releases
+- `-SkipBackend` : ne rebuild que l'Electron
 - `-SkipElectron` : ne rebuild que le backend Python
-- `-TesseractSource "C:\chemin\vers\Tesseract-OCR"` : chemin Tesseract custom
 
-**Résultat** : `dist\electron\NutriProof-win32-x64\NutriProof.exe`
-
-### macOS — Build
+### Build local — macOS
 ```bash
 chmod +x build-desktop-mac.sh
 ./build-desktop-mac.sh
 ```
-Options :
-- `--skip-backend` : ne rebuild que l'Electron
-- `--skip-electron` : ne rebuild que le backend Python
-- `--arch arm64` ou `--arch x64` : forcer l'architecture (auto-détecté par défaut)
-
-**Résultat** : `dist/electron/NutriProof-darwin-arm64/NutriProof.app` (ou `-x64`)
+Options : `--skip-backend`, `--skip-electron`, `--arch arm64|x64`
 
 ---
 
-## Déployer chez un utilisateur
+## Déployer le site web
 
-### Première installation
-
-1. **Builder** l'application sur la machine de dev (voir ci-dessus)
-2. **Copier** le dossier complet de sortie vers la machine cible :
-   - Windows : copier `dist\electron\NutriProof-win32-x64\` → clé USB ou partage réseau
-   - macOS : copier `dist/electron/NutriProof-darwin-arm64/NutriProof.app` → DMG ou dossier
-3. **Sur la machine cible** :
-   - Windows : lancer `NutriProof.exe` directement (aucune installation requise, app portable)
-   - macOS : glisser `NutriProof.app` dans `/Applications/`, puis lancer
-
-> **Note** : Aucun runtime Python, Node.js ou Tesseract n'est requis sur la machine cible. Tout est embarqué dans le package.
-
-### Mise à jour
-
-Pour mettre à jour l'application chez un utilisateur :
-
-1. **Sur la machine de dev** : faire les modifications au code, puis re-builder :
-   ```powershell
-   # Windows — rebuild complet
-   .\build-desktop.ps1
-
-   # Windows — seulement le backend (ex: changement Python)
-   .\build-desktop.ps1 -SkipElectron
-
-   # Windows — seulement l'Electron (ex: changement UI)
-   .\build-desktop.ps1 -SkipBackend
-   ```
-   ```bash
-   # macOS — rebuild complet
-   ./build-desktop-mac.sh
-   ```
-
-2. **Remplacer** le dossier de l'application sur la machine cible :
-   - Windows : supprimer l'ancien dossier `NutriProof-win32-x64\` et copier le nouveau
-   - macOS : supprimer l'ancien `NutriProof.app` et copier le nouveau
-
-3. Les **données utilisateur** (dossier `uploads/`) sont dans le dossier de l'application sous `resources/backend/uploads/`. Si on veut les préserver lors d'une mise à jour :
-   - Sauvegarder le dossier `uploads/` avant la mise à jour
-   - Le restaurer dans le nouveau package après copie
-
-### Structure du package déployé
-
+```bash
+cd website
+firebase deploy --only hosting
 ```
-NutriProof-win32-x64/          # ou NutriProof-darwin-arm64/
-├── NutriProof.exe              # ou NutriProof.app/
-├── resources/
-│   ├── backend/                # Backend Python (PyInstaller)
-│   │   ├── app.exe             # ou app (macOS)
-│   │   ├── templates/
-│   │   ├── static/
-│   │   ├── dbase/
-│   │   └── uploads/main/       # Données utilisateur
-│   └── tesseract-bundle/       # Tesseract OCR embarqué
-└── ...
-```
+Ou double-cliquer sur `deploy-website.bat`.
+
+Site : https://imx-nutriproof.web.app
 
 ---
 
@@ -140,10 +116,10 @@ NutriProof-win32-x64/          # ou NutriProof-darwin-arm64/
 - `static/` : fichiers CSS, JS, images
 
 ## Support
-Pour toute question : Denis Boulanger, info@imxtech.ca
+Pour toute question : Denis Boulanger — info@imxtech.ca
 
 ## Auteur
-Denis Boulanger, IMX Technologie (2026)
+Denis Boulanger — [IMX Technologie](https://imx-nutriproof.web.app) (2026)
 
 ## Licence
 Ce projet est sous licence MIT.
