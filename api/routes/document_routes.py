@@ -5,12 +5,14 @@ import shutil
 from datetime import datetime
 
 from api.routes.helpers import load_project_info, save_project_info
+from api.firebase_auth import require_auth
 
 document_bp = Blueprint('document', __name__)
 
 
 # Suppression d'un document
 @document_bp.route('/delete_document', methods=['POST'])
+@require_auth
 def delete_document():
     project_id = request.form.get('project_id')
     document_id = request.form.get('document_id')
@@ -28,6 +30,7 @@ def delete_document():
 
 # Upload PDF
 @document_bp.route('/upload_pdf', methods=['POST'])
+@require_auth
 def upload_pdf():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
@@ -80,6 +83,7 @@ def upload_pdf():
 
 # Validation d'un document
 @document_bp.route("/validate_document/", methods=["POST"])
+@require_auth
 def validate_document():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']

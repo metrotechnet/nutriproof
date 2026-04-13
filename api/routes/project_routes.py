@@ -3,12 +3,14 @@ import os
 import shutil
 
 from api.routes.helpers import load_all_project_info
+from api.firebase_auth import require_auth
 
 project_bp = Blueprint('project', __name__)
 
 
 # Création d'un projet
 @project_bp.route("/create_project", methods=["POST"])
+@require_auth
 def create_project():
     """Crée un projet (dossier) local."""
     try:
@@ -29,6 +31,7 @@ def create_project():
 
 # Récupération des informations d'un projet
 @project_bp.route("/get_project", methods=["POST"])
+@require_auth
 def get_project():
     """Retourne les infos du projet (project_info.json) pour un project_id donné."""
     from flask import current_app
@@ -48,6 +51,7 @@ def get_project():
 
 # Suppression d'un projet
 @project_bp.route("/delete_project", methods=["POST"])
+@require_auth
 def delete_project():
     """Supprime le projet local."""
     try:
@@ -69,6 +73,7 @@ def delete_project():
 
 # Liste des projets
 @project_bp.route("/list_projects", methods=["GET"])
+@require_auth
 def list_projects():
     """Liste tous les projets (dossiers) dans uploads."""
     try:
