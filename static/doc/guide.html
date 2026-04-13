@@ -57,7 +57,6 @@
             <ol class="toc mb-0">
                 <li><a href="#overview">Présentation de l'application</a></li>
                 <li><a href="#workflow">Flux de travail</a></li>
-                <li><a href="#login">Connexion</a></li>
                 <li><a href="#upload">Téléverser un document</a></li>
                 <li><a href="#processing">Traitement OCR</a></li>
                 <li><a href="#review">Révision et correction</a></li>
@@ -89,8 +88,6 @@
     <!-- 2. Flux de travail -->
     <h2 id="workflow">2. Flux de travail</h2>
     <div class="workflow-diagram">
-        <span class="workflow-step">Connexion</span>
-        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
         <span class="workflow-step">Téléverser PDF</span>
         <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
         <span class="workflow-step">Traitement OCR</span>
@@ -102,43 +99,9 @@
         <span class="workflow-step">Export XLS</span>
     </div>
 
-    <!-- 3. Connexion -->
-    <h2 id="login">3. Connexion</h2>
-    <div class="step-row">
-        <span class="step-number">1</span>
-        <div class="step-content">
-            Ouvrez l'application. La page de connexion s'affiche automatiquement.
-        </div>
-    </div>
-    <div class="step-row">
-        <span class="step-number">2</span>
-        <div class="step-content">
-            Entrez votre <strong>adresse courriel</strong> et votre <strong>mot de passe</strong>.
-        </div>
-    </div>
-    <div class="step-row">
-        <span class="step-number">3</span>
-        <div class="step-content">
-            Cliquez sur <span class="icon-btn primary">Se connecter</span>.
-        </div>
-    </div>
-
-    <h3>Mot de passe oublié</h3>
-    <p>
-        Cliquez sur <strong>« Mot de passe oublié ? »</strong> sous le formulaire de connexion. Entrez votre adresse courriel et cliquez sur <strong>« Réinitialiser le mot de passe »</strong>. Un courriel de réinitialisation vous sera envoyé.
-    </p>
-    <div class="tip">
-        <i class="bi bi-info-circle"></i> <strong>Astuce :</strong> Vérifiez votre dossier de courrier indésirable (spam) si vous ne recevez pas le courriel de réinitialisation.
-    </div>
-
-    <h3>Déconnexion</h3>
-    <p>
-        Cliquez sur le bouton <span class="icon-btn danger"><i class="bi bi-box-arrow-right"></i> Déconnexion</span> en haut à droite de la page principale.
-    </p>
-
-    <!-- 4. Téléverser un document -->
-    <h2 id="upload">4. Téléverser un document</h2>
-    <p>Après la connexion, vous accédez à la <strong>page principale</strong> (gestionnaire de fichiers).</p>
+    <!-- 3. Téléverser un document -->
+    <h2 id="upload">3. Téléverser un document</h2>
+    <p>Au lancement, vous accédez à la <strong>page principale</strong> (gestionnaire de fichiers).</p>
 
     <div class="step-row">
         <span class="step-number">1</span>
@@ -176,12 +139,12 @@
             <tr><td><strong><i class="bi bi-download"></i></strong></td><td>Télécharger l'export Excel</td></tr>
             <tr><td><strong><i class="bi bi-trash"></i></strong></td><td>Supprimer le document</td></tr>
             <tr><td><strong>Statut</strong></td><td>État du traitement (En cours / Terminé / Annulé)</td></tr>
-            <tr><td><strong>V1 / V2</strong></td><td>Cases de validation (voir section 7)</td></tr>
+            <tr><td><strong>V1 / V2</strong></td><td>Cases de validation (voir section 6)</td></tr>
         </tbody>
     </table>
 
-    <!-- 5. Traitement OCR -->
-    <h2 id="processing">5. Traitement OCR</h2>
+    <!-- 4. Traitement OCR -->
+    <h2 id="processing">4. Traitement OCR</h2>
     <p>Le traitement OCR s'exécute automatiquement après le téléversement du PDF. Chaque page est traitée séquentiellement.</p>
 
     <h3>Suivi de la progression</h3>
@@ -203,8 +166,8 @@
         <i class="bi bi-exclamation-triangle"></i> <strong>Attention :</strong> L'annulation arrête le traitement à la page en cours. Les pages déjà traitées restent disponibles pour la révision.
     </div>
 
-    <!-- 6. Révision et correction -->
-    <h2 id="review">6. Révision et correction</h2>
+    <!-- 5. Révision et correction -->
+    <h2 id="review">5. Révision et correction</h2>
     <p>
         Cliquez sur le bouton <span class="icon-btn primary"><i class="bi bi-eye"></i></span> d'un document pour ouvrir la <strong>page de révision</strong>.
     </p>
@@ -234,22 +197,6 @@
         <li><strong>Rectangles bleus fins</strong> — Tous les blocs de texte détectés par Tesseract (mode débogage).</li>
     </ul>
     <p>Survolez une zone avec la souris pour afficher une <strong>infobulle</strong> indiquant le paramètre et sa valeur.</p>
-
-    <h3>Couleurs par paramètre</h3>
-    <table class="ref-table">
-        <thead><tr><th>Paramètre</th><th>Couleur label</th><th>Couleur valeur</th></tr></thead>
-        <tbody>
-            <tr><td>Matricule</td><td><span class="color-swatch" style="background:hsla(0,85%,45%,0.5)"></span> Rouge foncé</td><td><span class="color-swatch" style="background:hsla(0,85%,65%,0.5)"></span> Rouge clair</td></tr>
-            <tr><td>Visite</td><td><span class="color-swatch" style="background:hsla(120,85%,35%,0.5)"></span> Vert foncé</td><td><span class="color-swatch" style="background:hsla(120,85%,55%,0.5)"></span> Vert clair</td></tr>
-            <tr><td>Temps</td><td><span class="color-swatch" style="background:hsla(240,85%,45%,0.5)"></span> Bleu foncé</td><td><span class="color-swatch" style="background:hsla(240,85%,65%,0.5)"></span> Bleu clair</td></tr>
-            <tr><td>Cholestérol total</td><td><span class="color-swatch" style="background:hsla(30,90%,40%,0.5)"></span> Orange foncé</td><td><span class="color-swatch" style="background:hsla(30,90%,60%,0.5)"></span> Orange clair</td></tr>
-            <tr><td>Triglycérides</td><td><span class="color-swatch" style="background:hsla(180,85%,35%,0.5)"></span> Cyan foncé</td><td><span class="color-swatch" style="background:hsla(180,85%,55%,0.5)"></span> Cyan clair</td></tr>
-            <tr><td>Cholestérol-HDL</td><td><span class="color-swatch" style="background:hsla(270,85%,45%,0.5)"></span> Violet foncé</td><td><span class="color-swatch" style="background:hsla(270,85%,65%,0.5)"></span> Violet clair</td></tr>
-            <tr><td>Cholestérol-LDL</td><td><span class="color-swatch" style="background:hsla(60,90%,35%,0.5)"></span> Olive foncé</td><td><span class="color-swatch" style="background:hsla(60,90%,55%,0.5)"></span> Olive clair</td></tr>
-            <tr><td>Glucose</td><td><span class="color-swatch" style="background:hsla(210,85%,45%,0.5)"></span> Bleu acier</td><td><span class="color-swatch" style="background:hsla(210,85%,65%,0.5)"></span> Bleu acier clair</td></tr>
-            <tr><td>Insuline</td><td><span class="color-swatch" style="background:hsla(45,90%,40%,0.5)"></span> Ambre</td><td><span class="color-swatch" style="background:hsla(45,90%,60%,0.5)"></span> Ambre clair</td></tr>
-        </tbody>
-    </table>
 
     <h3>Modifier les valeurs extraites</h3>
     <div class="step-row">
@@ -309,8 +256,8 @@
         Cliquez sur <span class="icon-btn primary"><i class="bi bi-arrow-left"></i> Terminé</span> en haut à gauche pour revenir au gestionnaire de fichiers.
     </p>
 
-    <!-- 7. Validation -->
-    <h2 id="validation">7. Validation</h2>
+    <!-- 6. Validation -->
+    <h2 id="validation">6. Validation</h2>
     <p>
         Le processus de validation se fait en deux étapes directement depuis la page principale :
     </p>
@@ -329,8 +276,8 @@
     </table>
     <p>Cochez la case correspondante pour chaque document vérifié. L'état est sauvegardé automatiquement.</p>
 
-    <!-- 8. Export -->
-    <h2 id="export">8. Exportation des résultats</h2>
+    <!-- 7. Export -->
+    <h2 id="export">7. Exportation des résultats</h2>
     <div class="step-row">
         <span class="step-number">1</span>
         <div class="step-content">
@@ -365,8 +312,8 @@
         </tbody>
     </table>
 
-    <!-- 9. Paramètres extraits -->
-    <h2 id="params">9. Paramètres extraits</h2>
+    <!-- 8. Paramètres extraits -->
+    <h2 id="params">8. Paramètres extraits</h2>
     <p>L'application est configurée pour extraire les paramètres suivants à partir des bilans lipidiques :</p>
     <table class="ref-table">
         <thead><tr><th>Paramètre</th><th>Type</th><th>Valeurs attendues</th></tr></thead>
@@ -386,8 +333,8 @@
         </tbody>
     </table>
 
-    <!-- 10. Dépannage -->
-    <h2 id="troubleshooting">10. Dépannage</h2>
+    <!-- 9. Dépannage -->
+    <h2 id="troubleshooting">9. Dépannage</h2>
 
     <h3>Je ne peux pas me connecter</h3>
     <ul>
@@ -425,7 +372,7 @@
     <!-- Footer -->
     <hr class="mt-5">
     <p class="text-muted text-center" style="font-size:0.85em;">
-        NutriProof — INAF &bull; Guide de l'usager &bull; Avril 2026
+        NutriProof — Guide de l'usager &bull; Avril 2026
     </p>
 </div>
 
