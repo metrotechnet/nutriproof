@@ -29,12 +29,8 @@ jobs:
       - name: Build backend
         shell: pwsh
         run: |
-          python -m venv .venv
-          .venv\Scripts\pip install -r requirements.txt pyinstaller
-          Write-Host "Working directory: $PWD"
-          Write-Host "Spec file exists: $(Test-Path app.spec)"
-          Get-ChildItem *.spec
-          .venv\Scripts\python -m PyInstaller "$PWD\app.spec" --noconfirm
+          pip install -r requirements.txt pyinstaller
+          pyinstaller app.spec --noconfirm
           New-Item -ItemType Directory -Force -Path dist\backend\uploads\main | Out-Null
 
       - name: Bundle Tesseract
@@ -77,8 +73,6 @@ jobs:
 
       - name: Build backend
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
           pip install -r requirements.txt pyinstaller
           pyinstaller app.spec --noconfirm
           mkdir -p dist/backend/uploads/main
