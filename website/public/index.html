@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriProof — Extraction automatisée de bilans lipidiques</title>
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --green-dark: #2e7d32;
+            --green-mid: #43a047;
+            --green-light: #e8f5e9;
+            --green-glow: rgba(67, 160, 71, 0.15);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #222;
+            margin: 0;
+            background: #fafafa;
+        }
+
+        /* ── Hero ───────────────────── */
+        .hero {
+            background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-mid) 100%);
+            color: #fff;
+            padding: 80px 20px 60px;
+            text-align: center;
+        }
+        .hero img.logo {
+            width: 100px;
+            height: 100px;
+            border-radius: 22px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+            margin-bottom: 24px;
+        }
+        .hero h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+        .hero p.tagline {
+            font-size: 1.25rem;
+            opacity: 0.92;
+            max-width: 640px;
+            margin: 0 auto 32px;
+        }
+        .hero .btn-download {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+            margin: 6px;
+        }
+        .hero .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+        }
+        .btn-win {
+            background: #fff;
+            color: var(--green-dark);
+        }
+        .btn-mac {
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+        .btn-mac:hover { background: rgba(255,255,255,0.25); color: #fff; }
+        .hero .version-note {
+            margin-top: 16px;
+            font-size: 0.85rem;
+            opacity: 0.7;
+        }
+
+        /* ── Section commun ─────────── */
+        section { padding: 70px 20px; }
+        section h2 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 48px;
+            color: var(--green-dark);
+        }
+
+        /* ── Features ───────────────── */
+        .features { background: #fff; }
+        .feature-card {
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .feature-card .icon-circle {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: var(--green-light);
+            color: var(--green-mid);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.7rem;
+            margin-bottom: 16px;
+        }
+        .feature-card h5 {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .feature-card p {
+            color: #555;
+            font-size: 0.95rem;
+        }
+
+        /* ── Workflow ───────────────── */
+        .workflow { background: var(--green-light); }
+        .workflow-steps {
+            display: flex;
+            justify-content: center;
+            flex-wrap: nowrap;
+            gap: 12px;
+            max-width: 10240px;
+            margin: 0 auto;
+        }
+        .workflow-step {
+            background: var(--green-mid);
+            color: #fff;
+            padding: 10px 22px;
+            border-radius: 24px;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .workflow-arrow {
+            display: flex;
+            align-items: center;
+            color: var(--green-dark);
+            font-size: 1.3rem;
+        }
+
+        /* ── Download section ────────── */
+        .download { background: #fff; }
+        .dl-card {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 16px;
+            padding: 40px 30px;
+            text-align: center;
+            transition: box-shadow 0.2s;
+        }
+        .dl-card:hover {
+            box-shadow: 0 4px 20px var(--green-glow);
+        }
+        .dl-card .os-icon {
+            font-size: 3rem;
+            color: var(--green-mid);
+            margin-bottom: 12px;
+        }
+        .dl-card h4 { font-weight: 700; margin-bottom: 6px; }
+        .dl-card .dl-info { color: #777; font-size: 0.88rem; margin-bottom: 18px; }
+        .dl-card .btn-dl {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-decoration: none;
+            background: var(--green-mid);
+            color: #fff;
+            transition: background 0.15s;
+        }
+        .dl-card .btn-dl:hover { background: var(--green-dark); color: #fff; }
+
+        /* ── Footer ──────────────────── */
+        footer {
+            background: #263238;
+            color: rgba(255,255,255,0.7);
+            text-align: center;
+            padding: 30px 20px;
+            font-size: 0.88rem;
+        }
+        footer a { color: rgba(255,255,255,0.85); }
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .footer-brand img {
+            height: 40px;
+            width: auto;
+        }
+        .footer-brand span {
+            font-size: 0.95rem;
+            color: rgba(255,255,255,0.85);
+        }
+
+        /* ── Responsive ──────────────── */
+        @media (max-width: 576px) {
+            .hero h1 { font-size: 2rem; }
+            .hero p.tagline { font-size: 1rem; }
+            .hero .btn-download { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════ HERO ═══════ -->
+<section class="hero">
+    <img src="icon.png" alt="NutriProof" class="logo">
+    <h1>NutriProof</h1>
+    <p class="tagline">
+        Extraction automatisée de bilans lipidiques et résultats de laboratoire à partir de PDF numérisés.
+    </p>
+    <div>
+        <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe"
+           class="btn-download btn-win">
+            <i class="bi bi-windows"></i> Télécharger pour Windows
+        </a>
+        <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg"
+           class="btn-download btn-mac">
+            <i class="bi bi-apple"></i> Télécharger pour macOS
+        </a>
+    </div>
+    <p class="version-note">Version actuelle : 1.0.0 — Mises à jour automatiques incluses</p>
+</section>
+
+<!-- ═══════ FEATURES ═══════ -->
+<section class="features">
+    <h2>Fonctionnalités</h2>
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-circle"><i class="bi bi-file-earmark-pdf"></i></div>
+                    <h5>Importation PDF</h5>
+                    <p>Téléversez vos documents PDF numérisés multi-pages en un clic.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-circle"><i class="bi bi-cpu"></i></div>
+                    <h5>OCR intelligent</h5>
+                    <p>Détection automatique des paramètres et valeurs grâce à Tesseract, directement sur votre machine.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-circle"><i class="bi bi-bounding-box-circles"></i></div>
+                    <h5>Visualisation interactive</h5>
+                    <p>Zones de détection (bounding boxes) superposées sur l'image pour un contrôle visuel immédiat.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-circle"><i class="bi bi-pencil-square"></i></div>
+                    <h5>Correction manuelle</h5>
+                    <p>Éditez directement les valeurs extraites dans un tableau interactif.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-circle"><i class="bi bi-check2-circle"></i></div>
+                    <h5>Double validation</h5>
+                    <p>Processus de vérification en deux étapes (V1 / V2) pour garantir la fiabilité des données.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-circle"><i class="bi bi-file-earmark-excel"></i></div>
+                    <h5>Exportation Excel</h5>
+                    <p>Téléchargez les données structurées au format .xls, prêtes pour l'analyse.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════ WORKFLOW ═══════ -->
+<section class="workflow">
+    <h2>Flux de travail</h2>
+    <div class="workflow-steps">
+        <span class="workflow-step">Téléverser PDF</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Traitement OCR</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Révision</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Validation</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Export XLS</span>
+    </div>
+</section>
+
+<!-- ═══════ DOWNLOAD ═══════ -->
+<section class="download" id="download">
+    <h2>Télécharger NutriProof</h2>
+    <div class="container">
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-5">
+                <div class="dl-card">
+                    <div class="os-icon"><i class="bi bi-windows"></i></div>
+                    <h4>Windows</h4>
+                    <p class="dl-info">Windows 10 / 11 — 64 bits<br>Installateur .exe avec mises à jour automatiques</p>
+                    <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe"
+                       class="btn-dl">
+                        <i class="bi bi-download"></i> Télécharger .exe
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="dl-card">
+                    <div class="os-icon"><i class="bi bi-apple"></i></div>
+                    <h4>macOS</h4>
+                    <p class="dl-info">macOS 12+ — Intel &amp; Apple Silicon<br>Image disque .dmg</p>
+                    <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg"
+                       class="btn-dl">
+                        <i class="bi bi-download"></i> Télécharger .dmg
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════ FOOTER ═══════ -->
+<footer>
+    <div class="footer-brand">
+        <img src="logo-imx.png" alt="IMX Technologie">
+        <span>Développé par <strong>IMX Technologie</strong></span>
+    </div>
+    <p>&copy; 2026 NutriProof — INAF, Université Laval</p>
+</footer>
+
+</body>
+</html>
