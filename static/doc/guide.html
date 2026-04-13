@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/static/image/icon.png">
+    <title>NutriProof — Guide de l'usager</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background: #f8f9fa; color: #222; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .guide-container { max-width: 900px; margin: 0 auto; padding: 30px 20px 60px; }
+        h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.3em; }
+        h2 { font-size: 1.45rem; font-weight: 600; margin-top: 2em; padding-bottom: 0.3em; border-bottom: 2px solid #0d6efd; color: #0d6efd; }
+        h3 { font-size: 1.15rem; font-weight: 600; margin-top: 1.4em; }
+        .step-number { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: #0d6efd; color: #fff; font-weight: 700; font-size: 0.95rem; margin-right: 8px; flex-shrink: 0; }
+        .step-row { display: flex; align-items: flex-start; margin-bottom: 1em; }
+        .step-content { flex: 1; }
+        .kbd { display: inline-block; padding: 2px 7px; background: #e9ecef; border: 1px solid #ced4da; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
+        .icon-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; border: 1px solid; }
+        .icon-btn.primary { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+        .icon-btn.success { background: #198754; color: #fff; border-color: #198754; }
+        .icon-btn.danger { background: #dc3545; color: #fff; border-color: #dc3545; }
+        .icon-btn.outline { background: #fff; color: #0d6efd; border-color: #0d6efd; }
+        .icon-btn.outline-secondary { background: #fff; color: #6c757d; border-color: #6c757d; }
+        .badge-example { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 0.85em; color: #fff; }
+        .tip { background: #e7f1ff; border-left: 4px solid #0d6efd; padding: 10px 14px; border-radius: 4px; margin: 1em 0; font-size: 0.95em; }
+        .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 10px 14px; border-radius: 4px; margin: 1em 0; font-size: 0.95em; }
+        table.ref-table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.93em; }
+        table.ref-table th { background: #0d6efd; color: #fff; padding: 8px 12px; text-align: left; }
+        table.ref-table td { padding: 8px 12px; border-bottom: 1px solid #dee2e6; }
+        table.ref-table tr:nth-child(even) { background: #f1f3f5; }
+        .color-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 4px; vertical-align: middle; border: 1px solid rgba(0,0,0,0.15); }
+        .workflow-diagram { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 1.5em 0; }
+        .workflow-step { background: #0d6efd; color: #fff; padding: 6px 14px; border-radius: 20px; font-size: 0.9em; font-weight: 500; }
+        .workflow-arrow { color: #6c757d; font-size: 1.2em; }
+        .toc a { text-decoration: none; color: #0d6efd; }
+        .toc a:hover { text-decoration: underline; }
+        .toc li { margin-bottom: 4px; }
+        .back-top { position: fixed; bottom: 20px; right: 20px; z-index: 10; }
+    </style>
+</head>
+<body>
+
+<div class="guide-container">
+
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1><i class="bi bi-file-earmark-medical"></i> NutriProof</h1>
+        <p class="text-muted mb-0">Guide de l'usager — v1.0</p>
+    </div>
+
+    <!-- Table des matières -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title mb-3"><i class="bi bi-list-ol"></i> Table des matières</h5>
+            <ol class="toc mb-0">
+                <li><a href="#overview">Présentation de l'application</a></li>
+                <li><a href="#workflow">Flux de travail</a></li>
+                <li><a href="#login">Connexion</a></li>
+                <li><a href="#upload">Téléverser un document</a></li>
+                <li><a href="#processing">Traitement OCR</a></li>
+                <li><a href="#review">Révision et correction</a></li>
+                <li><a href="#validation">Validation</a></li>
+                <li><a href="#export">Exportation des résultats</a></li>
+                <li><a href="#params">Paramètres extraits</a></li>
+                <li><a href="#troubleshooting">Dépannage</a></li>
+            </ol>
+        </div>
+    </div>
+
+    <!-- 1. Présentation -->
+    <h2 id="overview">1. Présentation de l'application</h2>
+    <p>
+        <strong>NutriProof</strong> est une application de bureau conçue pour extraire automatiquement les données de bilans lipidiques et résultats de laboratoire à partir de documents PDF numérisés.
+    </p>
+    <p>L'application utilise la reconnaissance optique de caractères (OCR) via <strong>Tesseract</strong> pour identifier les paramètres et leurs valeurs, puis permet une révision manuelle avant l'exportation en fichier Excel.</p>
+
+    <h3>Fonctionnalités principales</h3>
+    <ul>
+        <li><strong>Téléversement de PDF</strong> — Importation de documents numérisés multi-pages</li>
+        <li><strong>Extraction automatique</strong> — Détection des paramètres et des valeurs par OCR</li>
+        <li><strong>Visualisation interactive</strong> — Affichage des zones détectées (bounding boxes) superposées sur l'image</li>
+        <li><strong>Correction manuelle</strong> — Édition directe des valeurs extraites dans un tableau</li>
+        <li><strong>Double validation</strong> — Processus de vérification en deux étapes (V1 / V2)</li>
+        <li><strong>Export Excel</strong> — Téléchargement des données structurées au format .xls</li>
+    </ul>
+
+    <!-- 2. Flux de travail -->
+    <h2 id="workflow">2. Flux de travail</h2>
+    <div class="workflow-diagram">
+        <span class="workflow-step">Connexion</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Téléverser PDF</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Traitement OCR</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Révision</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Validation</span>
+        <span class="workflow-arrow"><i class="bi bi-arrow-right"></i></span>
+        <span class="workflow-step">Export XLS</span>
+    </div>
+
+    <!-- 3. Connexion -->
+    <h2 id="login">3. Connexion</h2>
+    <div class="step-row">
+        <span class="step-number">1</span>
+        <div class="step-content">
+            Ouvrez l'application. La page de connexion s'affiche automatiquement.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">2</span>
+        <div class="step-content">
+            Entrez votre <strong>adresse courriel</strong> et votre <strong>mot de passe</strong>.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">3</span>
+        <div class="step-content">
+            Cliquez sur <span class="icon-btn primary">Se connecter</span>.
+        </div>
+    </div>
+
+    <h3>Mot de passe oublié</h3>
+    <p>
+        Cliquez sur <strong>« Mot de passe oublié ? »</strong> sous le formulaire de connexion. Entrez votre adresse courriel et cliquez sur <strong>« Réinitialiser le mot de passe »</strong>. Un courriel de réinitialisation vous sera envoyé.
+    </p>
+    <div class="tip">
+        <i class="bi bi-info-circle"></i> <strong>Astuce :</strong> Vérifiez votre dossier de courrier indésirable (spam) si vous ne recevez pas le courriel de réinitialisation.
+    </div>
+
+    <h3>Déconnexion</h3>
+    <p>
+        Cliquez sur le bouton <span class="icon-btn danger"><i class="bi bi-box-arrow-right"></i> Déconnexion</span> en haut à droite de la page principale.
+    </p>
+
+    <!-- 4. Téléverser un document -->
+    <h2 id="upload">4. Téléverser un document</h2>
+    <p>Après la connexion, vous accédez à la <strong>page principale</strong> (gestionnaire de fichiers).</p>
+
+    <div class="step-row">
+        <span class="step-number">1</span>
+        <div class="step-content">
+            Cliquez sur le bouton <span class="icon-btn primary"><i class="bi bi-plus-lg"></i> Nouveau Document</span> en haut à droite.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">2</span>
+        <div class="step-content">
+            Sélectionnez un fichier <strong>PDF</strong> depuis votre ordinateur.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">3</span>
+        <div class="step-content">
+            Le fichier est téléversé et le traitement OCR démarre automatiquement.
+        </div>
+    </div>
+
+    <p>Le document apparaît dans le tableau avec les informations suivantes :</p>
+    <table class="ref-table">
+        <thead>
+            <tr>
+                <th>Colonne</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>ID</strong></td><td>Identifiant unique du document</td></tr>
+            <tr><td><strong>Fichier</strong></td><td>Nom du fichier PDF original</td></tr>
+            <tr><td><strong>Date</strong></td><td>Date de téléversement</td></tr>
+            <tr><td><strong>Pages</strong></td><td>Nombre de pages du document</td></tr>
+            <tr><td><strong><i class="bi bi-eye"></i></strong></td><td>Ouvrir la page de révision</td></tr>
+            <tr><td><strong><i class="bi bi-download"></i></strong></td><td>Télécharger l'export Excel</td></tr>
+            <tr><td><strong><i class="bi bi-trash"></i></strong></td><td>Supprimer le document</td></tr>
+            <tr><td><strong>Statut</strong></td><td>État du traitement (En cours / Terminé / Annulé)</td></tr>
+            <tr><td><strong>V1 / V2</strong></td><td>Cases de validation (voir section 7)</td></tr>
+        </tbody>
+    </table>
+
+    <!-- 5. Traitement OCR -->
+    <h2 id="processing">5. Traitement OCR</h2>
+    <p>Le traitement OCR s'exécute automatiquement après le téléversement du PDF. Chaque page est traitée séquentiellement.</p>
+
+    <h3>Suivi de la progression</h3>
+    <p>
+        Pendant le traitement, la colonne <strong>Statut</strong> affiche la progression en temps réel :
+    </p>
+    <ul>
+        <li><span class="badge-example" style="background:#ffc107;color:#000;">1/5 pages</span> — Traitement en cours (progression page par page)</li>
+        <li><span class="badge-example" style="background:#198754;">Terminé</span> — Traitement complété avec succès</li>
+        <li><span class="badge-example" style="background:#6c757d;">Annulé</span> — Traitement annulé par l'utilisateur</li>
+    </ul>
+
+    <h3>Annuler un traitement</h3>
+    <p>
+        Si le document est volumineux, vous pouvez annuler le traitement en cours en cliquant sur le bouton
+        <span class="icon-btn danger"><i class="bi bi-x"></i></span> qui apparaît à droite du statut pendant le traitement.
+    </p>
+    <div class="warning">
+        <i class="bi bi-exclamation-triangle"></i> <strong>Attention :</strong> L'annulation arrête le traitement à la page en cours. Les pages déjà traitées restent disponibles pour la révision.
+    </div>
+
+    <!-- 6. Révision et correction -->
+    <h2 id="review">6. Révision et correction</h2>
+    <p>
+        Cliquez sur le bouton <span class="icon-btn primary"><i class="bi bi-eye"></i></span> d'un document pour ouvrir la <strong>page de révision</strong>.
+    </p>
+
+    <h3>Interface de révision</h3>
+    <p>L'écran se divise en deux panneaux :</p>
+    <table class="ref-table">
+        <thead>
+            <tr><th>Panneau</th><th>Contenu</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Gauche</strong></td>
+                <td>Tableau éditable des paramètres et valeurs extraites, suivi des contrôles de pagination</td>
+            </tr>
+            <tr>
+                <td><strong>Droite</strong></td>
+                <td>Image de la page PDF avec les zones de détection (bounding boxes) superposées</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Zones de détection (bounding boxes)</h3>
+    <p>Les zones détectées par l'OCR sont affichées par-dessus l'image de la page :</p>
+    <ul>
+        <li><strong>Rectangles colorés pleins</strong> — Zones associées aux paramètres configurés. Chaque paramètre possède sa propre couleur (label et valeur).</li>
+        <li><strong>Rectangles bleus fins</strong> — Tous les blocs de texte détectés par Tesseract (mode débogage).</li>
+    </ul>
+    <p>Survolez une zone avec la souris pour afficher une <strong>infobulle</strong> indiquant le paramètre et sa valeur.</p>
+
+    <h3>Couleurs par paramètre</h3>
+    <table class="ref-table">
+        <thead><tr><th>Paramètre</th><th>Couleur label</th><th>Couleur valeur</th></tr></thead>
+        <tbody>
+            <tr><td>Matricule</td><td><span class="color-swatch" style="background:hsla(0,85%,45%,0.5)"></span> Rouge foncé</td><td><span class="color-swatch" style="background:hsla(0,85%,65%,0.5)"></span> Rouge clair</td></tr>
+            <tr><td>Visite</td><td><span class="color-swatch" style="background:hsla(120,85%,35%,0.5)"></span> Vert foncé</td><td><span class="color-swatch" style="background:hsla(120,85%,55%,0.5)"></span> Vert clair</td></tr>
+            <tr><td>Temps</td><td><span class="color-swatch" style="background:hsla(240,85%,45%,0.5)"></span> Bleu foncé</td><td><span class="color-swatch" style="background:hsla(240,85%,65%,0.5)"></span> Bleu clair</td></tr>
+            <tr><td>Cholestérol total</td><td><span class="color-swatch" style="background:hsla(30,90%,40%,0.5)"></span> Orange foncé</td><td><span class="color-swatch" style="background:hsla(30,90%,60%,0.5)"></span> Orange clair</td></tr>
+            <tr><td>Triglycérides</td><td><span class="color-swatch" style="background:hsla(180,85%,35%,0.5)"></span> Cyan foncé</td><td><span class="color-swatch" style="background:hsla(180,85%,55%,0.5)"></span> Cyan clair</td></tr>
+            <tr><td>Cholestérol-HDL</td><td><span class="color-swatch" style="background:hsla(270,85%,45%,0.5)"></span> Violet foncé</td><td><span class="color-swatch" style="background:hsla(270,85%,65%,0.5)"></span> Violet clair</td></tr>
+            <tr><td>Cholestérol-LDL</td><td><span class="color-swatch" style="background:hsla(60,90%,35%,0.5)"></span> Olive foncé</td><td><span class="color-swatch" style="background:hsla(60,90%,55%,0.5)"></span> Olive clair</td></tr>
+            <tr><td>Glucose</td><td><span class="color-swatch" style="background:hsla(210,85%,45%,0.5)"></span> Bleu acier</td><td><span class="color-swatch" style="background:hsla(210,85%,65%,0.5)"></span> Bleu acier clair</td></tr>
+            <tr><td>Insuline</td><td><span class="color-swatch" style="background:hsla(45,90%,40%,0.5)"></span> Ambre</td><td><span class="color-swatch" style="background:hsla(45,90%,60%,0.5)"></span> Ambre clair</td></tr>
+        </tbody>
+    </table>
+
+    <h3>Modifier les valeurs extraites</h3>
+    <div class="step-row">
+        <span class="step-number">1</span>
+        <div class="step-content">
+            Dans le tableau de gauche, cliquez sur la cellule <strong>Valeur</strong> du paramètre à corriger.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">2</span>
+        <div class="step-content">
+            Saisissez la valeur correcte. La sauvegarde est <strong>automatique</strong> à chaque modification.
+        </div>
+    </div>
+    <div class="tip">
+        <i class="bi bi-info-circle"></i> <strong>Astuce :</strong> Comparez visuellement la valeur du tableau avec la zone colorée correspondante sur l'image pour vérifier l'exactitude de l'extraction.
+    </div>
+
+    <h3>Navigation entre les pages</h3>
+    <p>Les contrôles de pagination se trouvent sous le tableau :</p>
+    <ul>
+        <li><span class="icon-btn outline"><i class="bi bi-chevron-left"></i></span> — Page précédente</li>
+        <li><span class="icon-btn outline"><i class="bi bi-chevron-right"></i></span> — Page suivante</li>
+        <li><strong>Champ numérique</strong> — Saisissez un numéro de page et appuyez sur <span class="kbd">Entrée</span> pour y accéder directement</li>
+    </ul>
+
+    <h3>Contrôles de l'image</h3>
+    <p>Les boutons en haut à droite du panneau image permettent de manipuler l'affichage :</p>
+    <table class="ref-table">
+        <thead><tr><th>Bouton</th><th>Action</th><th>Raccourci</th></tr></thead>
+        <tbody>
+            <tr>
+                <td><span class="icon-btn outline"><i class="bi bi-zoom-in"></i></span></td>
+                <td>Zoom avant (+20%)</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td><span class="icon-btn outline"><i class="bi bi-zoom-out"></i></span></td>
+                <td>Zoom arrière (-20%)</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td><span class="icon-btn outline"><i class="bi bi-arrow-clockwise"></i></span></td>
+                <td>Rotation 90° dans le sens horaire</td>
+                <td>—</td>
+            </tr>
+            <tr>
+                <td><span class="icon-btn outline-secondary"><i class="bi bi-bootstrap-reboot"></i></span></td>
+                <td>Réinitialiser le zoom et la rotation</td>
+                <td>—</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Retour à la page principale</h3>
+    <p>
+        Cliquez sur <span class="icon-btn primary"><i class="bi bi-arrow-left"></i> Terminé</span> en haut à gauche pour revenir au gestionnaire de fichiers.
+    </p>
+
+    <!-- 7. Validation -->
+    <h2 id="validation">7. Validation</h2>
+    <p>
+        Le processus de validation se fait en deux étapes directement depuis la page principale :
+    </p>
+    <table class="ref-table">
+        <thead><tr><th>Case</th><th>Objectif</th></tr></thead>
+        <tbody>
+            <tr>
+                <td><strong>V1</strong></td>
+                <td>Première vérification — le réviseur confirme que les données sont correctes</td>
+            </tr>
+            <tr>
+                <td><strong>V2</strong></td>
+                <td>Seconde vérification — un second réviseur (ou le même) confirme la validation</td>
+            </tr>
+        </tbody>
+    </table>
+    <p>Cochez la case correspondante pour chaque document vérifié. L'état est sauvegardé automatiquement.</p>
+
+    <!-- 8. Export -->
+    <h2 id="export">8. Exportation des résultats</h2>
+    <div class="step-row">
+        <span class="step-number">1</span>
+        <div class="step-content">
+            Depuis la page principale, cliquez sur le bouton <span class="icon-btn success"><i class="bi bi-download"></i></span> du document souhaité.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">2</span>
+        <div class="step-content">
+            Un fichier <strong>.xls</strong> est généré contenant toutes les données extraites de chaque page du document.
+        </div>
+    </div>
+    <div class="step-row">
+        <span class="step-number">3</span>
+        <div class="step-content">
+            Le fichier se télécharge automatiquement dans votre navigateur.
+        </div>
+    </div>
+
+    <p>Le fichier Excel contient les colonnes suivantes :</p>
+    <table class="ref-table">
+        <thead><tr><th>Colonnes</th><th>Description</th></tr></thead>
+        <tbody>
+            <tr><td>Section, Centre</td><td>Informations du projet (pré-remplies)</td></tr>
+            <tr><td>Participants</td><td>Numéro de matricule du participant</td></tr>
+            <tr><td>Visites</td><td>Numéro de visite (T0, T6, T18)</td></tr>
+            <tr><td>glu-15, glu0, glu30, glu60</td><td>Glycémie aux différents temps</td></tr>
+            <tr><td>ins-15, ins0, ins30, ins60</td><td>Insulinémie aux différents temps</td></tr>
+            <tr><td>crp_elisa</td><td>Protéine C réactive</td></tr>
+            <tr><td>chol, tg, hdlc, ldlc</td><td>Bilan lipidique</td></tr>
+            <tr><td>chol_hdlc, nhdlc</td><td>Ratio et cholestérol non-HDL</td></tr>
+        </tbody>
+    </table>
+
+    <!-- 9. Paramètres extraits -->
+    <h2 id="params">9. Paramètres extraits</h2>
+    <p>L'application est configurée pour extraire les paramètres suivants à partir des bilans lipidiques :</p>
+    <table class="ref-table">
+        <thead><tr><th>Paramètre</th><th>Type</th><th>Valeurs attendues</th></tr></thead>
+        <tbody>
+            <tr><td>Matricule</td><td>Texte (3-4 chiffres)</td><td>ex : RZ-000</td></tr>
+            <tr><td>Visite</td><td>Entier</td><td>0, 6 ou 18</td></tr>
+            <tr><td>Temps</td><td>Entier</td><td>-15, 0, 30 ou 60 (minutes)</td></tr>
+            <tr><td>Protéine C réactive</td><td>Décimal</td><td>mg/L</td></tr>
+            <tr><td>Cholestérol total</td><td>Décimal</td><td>mmol/L</td></tr>
+            <tr><td>Triglycérides</td><td>Décimal</td><td>mmol/L</td></tr>
+            <tr><td>Cholestérol-HDL</td><td>Décimal</td><td>mmol/L</td></tr>
+            <tr><td>Cholestérol-LDL</td><td>Décimal</td><td>mmol/L</td></tr>
+            <tr><td>Cholestérol non-HDL</td><td>Décimal</td><td>mmol/L</td></tr>
+            <tr><td>Ratio Chol tot./Chol-HDL</td><td>Décimal</td><td>ratio</td></tr>
+            <tr><td>Glucose</td><td>Décimal</td><td>mmol/L</td></tr>
+            <tr><td>Insuline</td><td>Décimal</td><td>mU/L</td></tr>
+        </tbody>
+    </table>
+
+    <!-- 10. Dépannage -->
+    <h2 id="troubleshooting">10. Dépannage</h2>
+
+    <h3>Je ne peux pas me connecter</h3>
+    <ul>
+        <li>Vérifiez que votre adresse courriel et mot de passe sont corrects.</li>
+        <li>Utilisez la fonction « Mot de passe oublié » pour réinitialiser votre mot de passe.</li>
+        <li>Vérifiez votre connexion Internet (nécessaire pour l'authentification Firebase).</li>
+    </ul>
+
+    <h3>L'OCR ne détecte pas certaines lignes</h3>
+    <ul>
+        <li>Assurez-vous que le PDF est numérisé avec une résolution suffisante (300 DPI recommandé).</li>
+        <li>Les documents flous, inclinés ou de mauvaise qualité peuvent affecter la détection.</li>
+        <li>Les textes très petits ou isolés sont plus difficiles à détecter.</li>
+    </ul>
+
+    <h3>Les valeurs extraites sont incorrectes</h3>
+    <ul>
+        <li>Utilisez la page de révision pour corriger manuellement les valeurs.</li>
+        <li>Comparez visuellement les zones colorées avec les données du tableau.</li>
+        <li>Les corrections sont sauvegardées automatiquement.</li>
+    </ul>
+
+    <h3>Le traitement est lent sur un gros document</h3>
+    <ul>
+        <li>Chaque page est traitée séquentiellement. Un document de 20 pages prendra nécessairement plus de temps.</li>
+        <li>Vous pouvez annuler le traitement en cours si nécessaire et le relancer plus tard.</li>
+    </ul>
+
+    <h3>L'application ne répond plus</h3>
+    <ul>
+        <li>Fermez l'application et relancez-la.</li>
+        <li>Si le problème persiste, vérifiez que le processus Python n'est pas bloqué (le redémarrage de l'application devrait régler le problème).</li>
+    </ul>
+
+    <!-- Footer -->
+    <hr class="mt-5">
+    <p class="text-muted text-center" style="font-size:0.85em;">
+        NutriProof — INAF &bull; Guide de l'usager &bull; Avril 2026
+    </p>
+</div>
+
+<!-- Bouton retour en haut -->
+<a href="#" class="btn btn-sm btn-primary back-top" title="Haut de page"><i class="bi bi-arrow-up"></i></a>
+
+</body>
+</html>

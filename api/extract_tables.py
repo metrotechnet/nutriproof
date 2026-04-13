@@ -153,14 +153,19 @@ class OCRDocument:
             image = Image.open(file_path)
             lang = "fra+eng"
 
-            # Use LineBoxBuilder to get lines with bounding boxes
+            # Pass 1: Line-level detection with PSM 6 (uniform text block)
+            # Better than default PSM 3 for structured documents like lab reports
+            line_builder = pyocr.builders.LineBoxBuilder()
+            line_builder.tesseract_layout = 6
             line_boxes = self.ocr_tool.image_to_string(
                 image,
                 lang=lang,
-                builder=pyocr.builders.LineBoxBuilder()
+                builder=line_builder
             )
 
             block_vector = []
+            line_regions = []  # Store line positions for overlap checking
+
             for line_box in line_boxes:
                 text = line_box.content.strip()
                 if not text:
@@ -177,6 +182,46 @@ class OCRDocument:
                     "page": 1,
                     "text": text + "\n",
                     "type": "paragraph",
+                    "bounding_box": bbox
+                })
+                line_regions.append(pos)
+
+            # Pass 2: Word-level detection with PSM 11 (sparse text)
+            # Catches isolated words/numbers missed by line detection
+            word_builder = pyocr.builders.WordBoxBuilder()
+            word_builder.tesseract_layout = 11
+            word_boxes = self.ocr_tool.image_to_string(
+                image,
+                lang=lang,
+                builder=word_builder
+            )
+
+            for word_box in word_boxes:
+                text = word_box.content.strip()
+                if not text:
+                    continue
+                pos = word_box.position
+                # Skip if this word center falls within an existing line region
+                wcx = (pos[0][0] + pos[1][0]) / 2
+                wcy = (pos[0][1] + pos[1][1]) / 2
+                covered = False
+                for lr in line_regions:
+                    if lr[0][0] <= wcx <= lr[1][0] and lr[0][1] <= wcy <= lr[1][1]:
+                        covered = True
+                        break
+                if covered:
+                    continue
+
+                bbox = [
+                    [pos[0][0], pos[0][1]],
+                    [pos[1][0], pos[0][1]],
+                    [pos[1][0], pos[1][1]],
+                    [pos[0][0], pos[1][1]],
+                ]
+                block_vector.append({
+                    "page": 1,
+                    "text": text + "\n",
+                    "type": "word",
                     "bounding_box": bbox
                 })
 
@@ -211,9 +256,9 @@ class OCRDocument:
                     label_bboxes[label] = block['bounding_box']
                     # Find numerical value for this label
                     value_result = self.find_next_value(ocr_data, block, text, target_parse.get(label))
-                    if value_result['value'] is not None:
-                        extract_values[label] = value_result['value']
-                        value_bboxes[label] = value_result['value_bbox']
+                    extract_values[label] = value_result['value']
+                    value_bboxes[label] = value_result['value_bbox']
+
                    
                         
 
@@ -241,6 +286,19 @@ class OCRDocument:
             table_path = os.path.join(project_path, table_filename)
             with open(table_path, "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+
+            # All OCR blocks (for debug display)
+            all_blocks = []
+            for block in ocr_data:
+                if 'bounding_box' in block and 'text' in block:
+                    all_blocks.append({
+                        "text": block['text'].strip(),
+                        "bbox": block['bounding_box']
+                    })
+            all_blocks_filename = f"all_blocks_{pageid}.json"
+            all_blocks_path = os.path.join(project_path, all_blocks_filename)
+            with open(all_blocks_path, "w", encoding="utf-8") as f:
+                json.dump(all_blocks, f, indent=4, ensure_ascii=False)
 
             return {
                 "label_bbox": label_bbox_ordered,
@@ -319,6 +377,36 @@ class OCRDocument:
             """Extract a string of 3-4 consecutive digits."""
             match = re.search(r'\d{3,4}', apply_ocr_fixes(text))
             return match.group(0) if match else None
+
+        # First, try to extract the value from the label block itself
+        # (e.g. "Cholestérol total 3,81 mmol/L" contains both label and value)
+        label_block_text = label_block['text'].strip()
+        # Find the label text(s) in the block and take what comes after
+        search_targets = [label_text] if isinstance(label_text, str) else label_text
+        for lt in search_targets:
+            match_pos = re.search(re.escape(lt), label_block_text, re.IGNORECASE)
+            if match_pos:
+                remainder = label_block_text[match_pos.end():]
+                if remainder.strip():
+                    inline_value = None
+                    if parse_mode == "digits_string":
+                        inline_value = extract_digits_string(remainder)
+                    else:
+                        inline_value = extract_number(remainder)
+                        if inline_value is not None and allowed_values:
+                            str_val = str(int(inline_value)) if isinstance(inline_value, (int, float)) and inline_value == int(inline_value) else str(inline_value)
+                            if str_val not in allowed_values:
+                                inline_value = extract_number(apply_ocr_fixes(remainder))
+                                if inline_value is not None:
+                                    str_val2 = str(int(inline_value)) if isinstance(inline_value, (int, float)) and inline_value == int(inline_value) else str(inline_value)
+                                    if str_val2 not in allowed_values:
+                                        inline_value = None
+                    if inline_value is not None:
+                        return {
+                            'value': inline_value,
+                            'value_bbox': label_block['bounding_box']
+                        }
+                break
 
         # Score candidate blocks by spatial proximity
         candidates = []

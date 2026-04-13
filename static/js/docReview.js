@@ -3,6 +3,7 @@ let page_id = '';
 let extract_values = {};
 let label_bbox = {};
 let value_bbox = {};
+let all_blocks = [];
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -14,21 +15,22 @@ let nbrPageMax = 0;
 let project_data = null;
 let padding = 200; // ou la valeur désirée
 let svg = null
+let bboxOpacity = 0.2;
 
 // Create different colors for each label with high contrast
 const labelColors = {
-  "Matricule": { label: "hsla(0, 85%, 45%, 0.4)", value: "hsla(0, 85%, 65%, 0.4)" },
-  "Visite": { label: "hsla(120, 85%, 35%, 0.4)", value: "hsla(120, 85%, 55%, 0.4)" },
-  "Temps": { label: "hsla(240, 85%, 45%, 0.4)", value: "hsla(240, 85%, 65%, 0.4)" },
-  "Protéine C réactive": { label: "hsla(300, 85%, 40%, 0.4)", value: "hsla(300, 85%, 60%, 0.4)" },
-  "Cholestérol total": { label: "hsla(30, 90%, 40%, 0.4)", value: "hsla(30, 90%, 60%, 0.4)" },
-  "Triglycérides": { label: "hsla(180, 85%, 35%, 0.4)", value: "hsla(180, 85%, 55%, 0.4)" },
-  "Cholestérol-HDL": { label: "hsla(270, 85%, 45%, 0.4)", value: "hsla(270, 85%, 65%, 0.4)" },
-  "Cholestérol-LDL": { label: "hsla(60, 90%, 35%, 0.4)", value: "hsla(60, 90%, 55%, 0.4)" },
-  "Cholestérol non-HDL": { label: "hsla(330, 85%, 40%, 0.4)", value: "hsla(330, 85%, 60%, 0.4)" },
-  "Ratio Chol tot./Chol-HDL": { label: "hsla(150, 85%, 35%, 0.4)", value: "hsla(150, 85%, 55%, 0.4)" },
-  "Glucose": { label: "hsla(210, 85%, 45%, 0.4)", value: "hsla(210, 85%, 65%, 0.4)" },
-  "Insuline": { label: "hsla(45, 90%, 40%, 0.4)", value: "hsla(45, 90%, 60%, 0.4)" }
+  "Matricule": { label: `hsla(0, 85%, 45%,${bboxOpacity})`, value: `hsla(0, 85%, 65%,${bboxOpacity})` },
+  "Visite": { label: `hsla(120, 85%, 35%,${bboxOpacity})`, value: `hsla(120, 85%, 55%,${bboxOpacity})` },
+  "Temps": { label: `hsla(240, 85%, 45%,${bboxOpacity})`, value: `hsla(240, 85%, 65%,${bboxOpacity})` },
+  "Protéine C réactive": { label: `hsla(300, 85%, 40%,${bboxOpacity})`, value: `hsla(300, 85%, 60%,${bboxOpacity})` },
+  "Cholestérol total": { label: `hsla(30, 90%, 40%,${bboxOpacity})`, value: `hsla(30, 90%, 60%,${bboxOpacity})` },
+  "Triglycérides": { label: `hsla(180, 85%, 35%,${bboxOpacity})`, value: `hsla(180, 85%, 55%,${bboxOpacity})` },
+  "Cholestérol-HDL": { label: `hsla(270, 85%, 45%,${bboxOpacity})`, value: `hsla(270, 85%, 65%,${bboxOpacity})` },
+  "Cholestérol-LDL": { label: `hsla(60, 90%, 35%,${bboxOpacity})`, value: `hsla(60, 90%, 55%,${bboxOpacity})` },
+  "Cholestérol non-HDL": { label: `hsla(330, 85%, 40%,${bboxOpacity})`, value: `hsla(330, 85%, 60%,${bboxOpacity})` },
+  "Ratio Chol tot./Chol-HDL": { label: `hsla(150, 85%, 35%,${bboxOpacity})`, value: `hsla(150, 85%, 55%,${bboxOpacity})` },
+  "Glucose": { label: `hsla(210, 85%, 45%,${bboxOpacity})`, value: `hsla(210, 85%, 65%,${bboxOpacity})` },
+  "Insuline": { label: `hsla(45, 90%, 40%,${bboxOpacity})`, value: `hsla(45, 90%, 60%,${bboxOpacity})` }
 };
 
 const tooltip = document.createElement("div");
@@ -39,7 +41,7 @@ document.body.appendChild(tooltip);
 function displayInfo(info) {
   //display info in ocr-demo-title
   const title = document.getElementById("ocr-demo-title");
-  title.innerHTML = `${info}<br><i style="font-size:0.5em;">Vérifier les valeurs de chaque page et appuyez sur Terminer</i>`;
+  title.innerHTML = `${info}`;
 
 }
 // Démarrer un spinner avec sweetalert
@@ -90,7 +92,8 @@ async function loadPage(project_id, index, init_scroll=false) {
     const responses = await Promise.all([
         authFetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json`).then(res => res.json()),
         authFetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json`).then(res => res.json()),
-        authFetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json())
+        authFetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json()),
+        authFetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => [])
     ]);
     if (!responses[0].data_string || !responses[1].data_string || !responses[2].data_string) {
         // Handle empty responses
@@ -99,6 +102,7 @@ async function loadPage(project_id, index, init_scroll=false) {
     label_bbox = JSON.parse(responses[0].data_string || '{}');
     value_bbox = JSON.parse(responses[1].data_string || '{}');
     extract_values = JSON.parse(responses[2].data_string || '{}');
+    all_blocks = responses[3] || [];
   // Exemple d'utilisation :
     // label_bbox = adjustBboxHeight(label_bbox, 40);
     // value_bbox = adjustBboxHeight(value_bbox, 40);
@@ -181,6 +185,7 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     const scaleX =  imgWidth / imageElement.naturalWidth;
     const scaleY =  imgHeight / imageElement.naturalHeight;
     // Affichage des polygones avec couleurs par label
+    displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
     displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
     displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
 
@@ -213,10 +218,10 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
 
     // Effacer le tableau
     document.getElementById("table-container").innerHTML = "";
-    // Création des contrôles de pagination
-    createPaginationControls(currentPageIndex+1, nbrPageMax);
     // Génération du tableau éditable
     generateEditableTable(extract_values);
+    // Pagination après le tableau
+    createPaginationControls(currentPageIndex+1, nbrPageMax);
 
 
   };
@@ -224,6 +229,42 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     imageElement.style.display = "none";
     // Optionnel: afficher un message d’erreur
   };
+}
+
+// === DISPLAY ALL TESSERACT BLOCKS ===
+function displayAllBlocks(svg, blocks, offsetX, offsetY, scaleX, scaleY) {
+  if (!blocks || !blocks.length) return;
+  blocks.forEach((block) => {
+    const bbox = block.bbox;
+    if (!bbox || bbox.length !== 4) return;
+    let x = bbox[0][0] * scaleX + offsetX;
+    let y = bbox[0][1] * scaleY + offsetY;
+    let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
+    let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
+
+    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", w);
+    rect.setAttribute("height", h);
+    rect.setAttribute("fill", "none");
+    rect.setAttribute("stroke", "rgba(100, 100, 255, 0.5)");
+    rect.setAttribute("stroke-width", "1");
+
+    rect.addEventListener("mouseenter", (e) => {
+      tooltip.textContent = block.text;
+      tooltip.style.opacity = 1;
+    });
+    rect.addEventListener("mousemove", (e) => {
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+    });
+    rect.addEventListener("mouseleave", () => {
+      tooltip.style.opacity = 0;
+    });
+
+    svg.appendChild(rect);
+  });
 }
 
 // === DISPLAY BOXES ON IMAGE ===

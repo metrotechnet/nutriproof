@@ -7,23 +7,40 @@ body {
     margin: 0;
     height: 100vh;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 #app {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    flex: 1;
+    padding: 0;
+    overflow: hidden;
+    background-color: red;
+}
+
+#section-info {
+    flex: 1;
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+}
+
+#section-info > .row {
+    height: 100%;
+    margin: 0;
 }
 
 /* ============================
    Image Viewer
 ============================= */
 #viewer-container {
-    width: 58%;
-    overflow: auto;
-    background-color: #f0f0f0;
+    width: 60%;
     overflow: hidden;
+    background-color: #f0f0f0;
     border: solid 1px #ddd;
+    flex: 1;
 }
 
 #page-image {
@@ -39,7 +56,7 @@ body {
   position: relative;
   overflow: auto;
   width: 100%;
-  height: calc(100vh - 150px);
+  height: calc(100vh - 115px);
 }
 #viewer-image {
   position: relative;
