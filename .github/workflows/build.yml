@@ -30,9 +30,8 @@ jobs:
         shell: pwsh
         run: |
           python -m venv .venv
-          .venv\Scripts\Activate.ps1
-          pip install -r requirements.txt pyinstaller
-          pyinstaller app.spec --noconfirm
+          .venv\Scripts\pip install -r requirements.txt pyinstaller
+          .venv\Scripts\pyinstaller app.spec --noconfirm
           New-Item -ItemType Directory -Force -Path dist\backend\uploads\main | Out-Null
 
       - name: Bundle Tesseract
