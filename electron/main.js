@@ -53,6 +53,24 @@ function createWindow () {
   });
   win.setMenuBarVisibility(false);
   win.loadURL('http://127.0.0.1:8080');
+
+  // Open target="_blank" links (e.g. guide) in a new frameless-menu window
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const child = new BrowserWindow({
+      width: 1000,
+      height: 800,
+      autoHideMenuBar: true,
+      icon: path.join(__dirname, 'icon.png'),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    child.setMenuBarVisibility(false);
+    child.loadURL(url);
+    return { action: 'deny' };
+  });
+
   return win;
 }
 
