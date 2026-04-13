@@ -52,7 +52,6 @@ function createWindow () {
     }
   });
   win.setMenuBarVisibility(false);
-  win.webContents.session.clearCache();
   win.loadURL('http://127.0.0.1:8080');
   return win;
 }
@@ -182,7 +181,18 @@ app.whenReady().then(() => {
 
   // Attendre que le serveur Flask soit prêt
   waitForServer('http://127.0.0.1:8080').then(() => {
-    createWindow();
+    const win = createWindow();
+
+    // Sign out Firebase when window is closed without logout button
+    win.on('close', (e) => {
+      e.preventDefault();
+      win.webContents.executeJavaScript(
+        'firebase && firebase.auth ? firebase.auth().signOut().catch(()=>{}) : Promise.resolve()'
+      ).finally(() => {
+        win.destroy();
+      });
+    });
+
     setupAutoUpdater();
   }).catch((err) => {
     console.error('Le serveur Flask n\'a pas démarré à temps:', err);

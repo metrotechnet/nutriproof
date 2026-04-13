@@ -3,12 +3,14 @@ import os
 import json
 
 from api.routes.helpers import load_project_info, save_project_info
+from api.firebase_auth import require_auth
 
 ocr_bp = Blueprint('ocr', __name__)
 
 
 # Process OCR
 @ocr_bp.route("/process_ocr", methods=["POST"])
+@require_auth
 def process_ocr():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
@@ -88,6 +90,7 @@ def process_ocr():
 
 # Get the status of a job
 @ocr_bp.route("/status/<job_id>", methods=["GET"])
+@require_auth
 def status(job_id):
     try:
         task_manager = current_app.config['TASK_MANAGER']
@@ -98,6 +101,7 @@ def status(job_id):
 
 # Cancel a job
 @ocr_bp.route("/cancel/<job_id>", methods=["GET"])
+@require_auth
 def cancel(job_id):
     try:
         task_manager = current_app.config['TASK_MANAGER']

@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect
 import os, sys, json
 from waitress import serve
 
@@ -71,13 +71,23 @@ def create_app():
         """Health check endpoint"""
         return {"status": "ok"}
 
-    # Page d'accueil
+    # Page d'accueil — redirige vers login
     @app.route("/")
     def home():
         if APP_ENABLED:
-            return render_template("index.html")
+            return redirect("/login")
         else:
             return render_template("maintenance.html")
+
+    # Page principale (après connexion)
+    @app.route("/main")
+    def main_page():
+        return render_template("index.html")
+
+    # Page de connexion
+    @app.route("/login")
+    def login():
+        return render_template("login.html")
 
     # Page de révision
     @app.route("/review")

@@ -13,7 +13,7 @@
 
     <div style="margin:10px;display:flex;align-items:center;">
         <div style="flex:0.25;text-align:left;">
-            <a href="/" class="btn btn-sm btn-outline-primary" title="Retour"><i class="bi bi-arrow-left"></i> Terminé</a>
+            <a href="/" class="btn btn-sm btn-primary" title="Retour"><i class="bi bi-arrow-left"></i> Terminé</a>
         </div>
         <div style="flex:0.5;text-align:center;">
             <h2 id="ocr-demo-title" style="margin:0;">Analyse OCR de document</h2>
@@ -45,6 +45,8 @@
             </div>
         </div>
     </div>
+    <script src="/static/js/firebaseAuth.js"></script>
+    <script>requireAuth();</script>
     <script src="/static/js/projectManager.js"></script>
     <script src="/static/js/ocrManager.js"></script>
     <script src="/static/js/docReview.js"></script>
