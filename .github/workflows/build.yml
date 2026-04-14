@@ -50,7 +50,9 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: NutriProof-Windows
-          path: dist/electron/*.exe
+          path: |
+            dist/electron/*.exe
+            dist/electron/latest.yml
 
   # ── macOS build ────────────────────────────────────────────────────
   build-macos:
@@ -116,7 +118,9 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: NutriProof-macOS
-          path: dist/electron/*.dmg
+          path: |
+            dist/electron/*.dmg
+            dist/electron/latest-mac.yml
 
   # ── Publish to GitHub Releases (only on tags) ─────────────────────
   release:
@@ -136,5 +140,7 @@ jobs:
         with:
           files: |
             artifacts/NutriProof-Windows/*.exe
+            artifacts/NutriProof-Windows/latest.yml
             artifacts/NutriProof-macOS/*.dmg
+            artifacts/NutriProof-macOS/latest-mac.yml
           generate_release_notes: true

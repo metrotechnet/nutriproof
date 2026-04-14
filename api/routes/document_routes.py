@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime
 
 from api.routes.helpers import load_project_info, save_project_info
-from api.firebase_auth import require_auth
+from api.firebase_auth import require_auth, db
 
 document_bp = Blueprint('document', __name__)
 
@@ -36,25 +36,6 @@ def upload_pdf():
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         ocr_document = current_app.config['OCR_DOCUMENT']
 
-        # Demo mode: check total page limit
-        if current_app.config.get('DEMO_MODE'):
-            max_pages = current_app.config.get('DEMO_MAX_PAGES', 100)
-            project_name_check = request.form.get("projectName", "")
-            project_dir = os.path.join(LOCAL_FOLDER, project_name_check)
-            if os.path.isdir(project_dir):
-                total_pages = 0
-                for d in os.listdir(project_dir):
-                    info_path = os.path.join(project_dir, d, 'info.json')
-                    if os.path.isfile(info_path):
-                        try:
-                            with open(info_path, 'r', encoding='utf-8') as f:
-                                info = __import__('json').load(f)
-                                total_pages += info.get('nbr_pages', 0)
-                        except Exception:
-                            pass
-                if total_pages >= max_pages:
-                    return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte."}), 403
-
         project_name = request.form.get("projectName")
         if not project_name:
             return jsonify({"error": "Project name is required"}), 400
@@ -75,7 +56,29 @@ def upload_pdf():
         
         #Get number of pages
         nbrPages = ocr_document.get_pdf_page_count(file_path)
+
+        # Demo mode: check if adding these pages would exceed the limit
+        if current_app.config.get('DEMO_MODE'):
+            max_pages = current_app.config.get('DEMO_MAX_PAGES', 100)
+            uid = request.firebase_user.get('uid', '')
+            user_ref = db.collection('usage').document(uid)
+            user_doc = user_ref.get()
+            current_pages = user_doc.to_dict().get('total_pages', 0) if user_doc.exists else 0
+            if current_pages + nbrPages > max_pages:
+                remaining = max(0, max_pages - current_pages)
+                shutil.rmtree(directory_path, ignore_errors=True)
+                return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte. Votre document dépasse la limite permise."}), 403        # Demo mode: update page count in Firestore
         
+        if current_app.config.get('DEMO_MODE'):
+            from google.cloud.firestore_v1 import Increment
+            uid = request.firebase_user.get('uid', '')
+            user_ref = db.collection('usage').document(uid)
+            user_ref.set({
+                'total_pages': Increment(nbrPages),
+                'last_upload': datetime.now().isoformat(),
+                'email': request.firebase_user.get('email', ''),
+            }, merge=True)    
+
         #Set id and nbr page in project_info.json
         project_info = {
             "project_id": project_name,
@@ -89,6 +92,8 @@ def upload_pdf():
         }
         # save info to file_path
         save_project_info(directory_path, project_info)
+
+
 
         return {
             "message": "ok",
