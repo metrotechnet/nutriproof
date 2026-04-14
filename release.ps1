@@ -19,7 +19,8 @@ if ($status) {
 $pkgPath = Join-Path $PSScriptRoot 'electron\package.json'
 $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
 $pkg.version = $Version
-$pkg | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8
+$json = $pkg | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($pkgPath, $json, [System.Text.UTF8Encoding]::new($false))
 Write-Host "Updated electron/package.json -> $Version" -ForegroundColor Green
 
 # Stage, commit, tag, push
