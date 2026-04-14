@@ -3,7 +3,7 @@ class ProjectManager {
   // Liste les projets
   static async listProjects() {
     try {
-      const response = await authFetch('/list_projects', { method: 'GET' });
+      const response = await fetch('/list_projects', { method: 'GET' });
       const data = await response.json();
       if (data.error) {
         console.error("Error listing projects:", data.error);
@@ -22,7 +22,7 @@ class ProjectManager {
     try {
       const formData = new FormData();
       formData.append("project_id", project_id);
-      const response = await authFetch('/get_project', {
+      const response = await fetch('/get_project', {
         method: 'POST',
         body: formData,
       });
@@ -45,7 +45,7 @@ class ProjectManager {
     try {
       const formData = new FormData();
       formData.append("project_id", projectId);
-      const response = await authFetch('/create_project', {
+      const response = await fetch('/create_project', {
         method: 'POST',
         body: formData,
       });
@@ -72,7 +72,7 @@ class ProjectManager {
     try {
       const formData = new FormData();
       formData.append("project_id", projectId);
-      const response = await authFetch('/delete_project', {
+      const response = await fetch('/delete_project', {
         method: 'POST',
         body: formData,
       });
@@ -98,7 +98,7 @@ class ProjectManager {
     const formData = new FormData();
     formData.append("project_id", projectId);
     formData.append("document_id", documentId);
-    const response = await authFetch('/delete_document', {
+    const response = await fetch('/delete_document', {
       method: 'POST',
       body: formData
     });

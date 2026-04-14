@@ -176,6 +176,55 @@
         }
         .dl-card .btn-dl:hover { background: var(--green-dark); color: #fff; }
 
+        /* ── Install Help ────────────── */
+        .install-help { background: #f5f5f5; }
+        .help-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 16px;
+            padding: 30px;
+        }
+        .help-card h5 {
+            font-weight: 700;
+            color: var(--green-dark);
+            margin-bottom: 16px;
+            font-size: 1.15rem;
+        }
+        .help-card ol {
+            padding-left: 20px;
+            color: #444;
+            line-height: 1.8;
+        }
+        .help-card ol li { margin-bottom: 6px; }
+        .help-note {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 0;
+        }
+        .help-terminal {
+            background: #1e1e1e;
+            color: #4ec9b0;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .help-terminal code { color: #4ec9b0; }
+        .btn-copy {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #aaa;
+            border-radius: 6px;
+            padding: 4px 8px;
+            cursor: pointer;
+            transition: color 0.15s;
+        }
+        .btn-copy:hover { color: #fff; }
+
         /* ── Footer ──────────────────── */
         footer {
             background: #263238;
@@ -324,6 +373,45 @@
                        class="btn-dl">
                         <i class="bi bi-download"></i> Télécharger .dmg
                     </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ═══════ INSTALLATION HELP ═══════ -->
+<section class="install-help" id="install-help">
+    <h2>Aide à l'installation</h2>
+    <div class="container">
+        <p class="text-center text-muted mb-4" style="max-width:640px;margin:0 auto;">
+            L'application n'est pas encore certifiée par Microsoft ou Apple. Un avertissement de sécurité peut s'afficher lors de la première installation. Voici comment procéder&nbsp;:
+        </p>
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-5">
+                <div class="help-card">
+                    <h5><i class="bi bi-windows"></i> Windows</h5>
+                    <ol>
+                        <li>Exécutez le fichier <strong>NutriProof-Setup.exe</strong></li>
+                        <li>Si un écran bleu <em>«&nbsp;Windows a protégé votre PC&nbsp;»</em> apparaît, cliquez sur <strong>Informations complémentaires</strong></li>
+                        <li>Cliquez sur <strong>Exécuter quand même</strong></li>
+                    </ol>
+                    <p class="help-note">Cet avertissement n'apparaît qu'une seule fois.</p>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="help-card">
+                    <h5><i class="bi bi-apple"></i> macOS</h5>
+                    <ol>
+                        <li>Ouvrez le fichier <strong>NutriProof.dmg</strong> et glissez l'app dans Applications</li>
+                        <li>Si le message <em>«&nbsp;Application endommagée&nbsp;»</em> apparaît, ouvrez le <strong>Terminal</strong> et exécutez&nbsp;:</li>
+                    </ol>
+                    <div class="help-terminal">
+                        <code>xattr -cr /Applications/NutriProof.app</code>
+                        <button class="btn-copy" onclick="navigator.clipboard.writeText('xattr -cr /Applications/NutriProof.app')" title="Copier">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <p class="help-note mt-2">Puis double-cliquez sur l'app pour l'ouvrir normalement.</p>
                 </div>
             </div>
         </div>

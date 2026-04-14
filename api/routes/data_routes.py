@@ -2,14 +2,11 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 import os
 import json
 
-from api.firebase_auth import require_auth
-
 data_bp = Blueprint('data', __name__)
 
 
 # Get image
 @data_bp.route("/get_image/<project_id>/<document_id>/<filename>")
-@require_auth
 def get_image(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
     image_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
@@ -20,7 +17,6 @@ def get_image(project_id, document_id, filename):
 
 # Get data
 @data_bp.route("/get_data/<project_id>/<document_id>/<filename>")
-@require_auth
 def get_data(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
     key_order = current_app.config['KEY_ORDER']
@@ -41,7 +37,6 @@ def get_data(project_id, document_id, filename):
 
 # Get raw JSON file
 @data_bp.route("/get_raw_data/<project_id>/<document_id>/<filename>")
-@require_auth
 def get_raw_data(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
     file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
@@ -54,7 +49,6 @@ def get_raw_data(project_id, document_id, filename):
 
 # Put data
 @data_bp.route("/put_data", methods=["POST"])
-@require_auth
 def put_data():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
@@ -78,7 +72,6 @@ def put_data():
 
 # Download XLS file
 @data_bp.route("/download_xls", methods=["POST"])
-@require_auth
 def download_xls():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']

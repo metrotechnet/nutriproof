@@ -90,10 +90,10 @@ async function loadPage(project_id, index, init_scroll=false) {
     //start spinner cursor
     page_id = `page_${index+1}`;
     const responses = await Promise.all([
-        authFetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json`).then(res => res.json()),
-        authFetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json`).then(res => res.json()),
-        authFetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json()),
-        authFetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => [])
+        fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json`).then(res => res.json()),
+        fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json`).then(res => res.json()),
+        fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json()),
+        fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => [])
     ]);
     if (!responses[0].data_string || !responses[1].data_string || !responses[2].data_string) {
         // Handle empty responses
@@ -126,8 +126,8 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
 
   page_id = `page_${index+1}`;
 
-  // Load image via authFetch to include auth token
-  authFetch(`/get_image/${project_id}/${document_id}/${page_id}.png`)
+  // Load image
+  fetch(`/get_image/${project_id}/${document_id}/${page_id}.png`)
     .then(res => res.blob())
     .then(blob => {
       imageElement.src = URL.createObjectURL(blob);
@@ -468,7 +468,7 @@ function sendTableToServer() {
   formData.append("filename", `table_page_${currentDocPage+1}.json`);
   formData.append("data", JSON.stringify(data));
 
-  authFetch("/put_data", { method: "POST", body: formData })
+  fetch("/put_data", { method: "POST", body: formData })
     .then(res => res.json())
     .then(console.log)
     .catch(err => console.error("Upload failed:", err));
