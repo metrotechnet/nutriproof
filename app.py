@@ -25,16 +25,13 @@ if getattr(sys, 'frozen', False):
     LOCAL_FOLDER = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'NutriProof', 'uploads')
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
-APP_ENABLED = True  # Default to True, can be overridden by env variable
-APP_VERSION = '1.0.10'
 
 DEMO_MODE = True   # Set to True to limit page count
 DEMO_MAX_PAGES = 100
+APP_VERSION = '1.0.11'
 
 def create_app():
 
-    # === Configuration ===
-    global APP_ENABLED
     # === Initialisation ===
     ocr_document = OCRDocument()
     task_manager = AsyncTaskManager()
@@ -89,10 +86,7 @@ def create_app():
     # Page d'accueil — redirige vers login
     @app.route("/")
     def home():
-        if APP_ENABLED:
-            return redirect("/login")
-        else:
-            return render_template("maintenance.html")
+        return redirect("/login")
 
     # Page principale (après connexion)
     @app.route("/main")
