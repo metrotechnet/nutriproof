@@ -23,6 +23,13 @@ $json = $pkg | ConvertTo-Json -Depth 10
 [System.IO.File]::WriteAllText($pkgPath, $json, [System.Text.UTF8Encoding]::new($false))
 Write-Host "Updated electron/package.json -> $Version" -ForegroundColor Green
 
+# Update version in app.py
+$appPath = Join-Path $PSScriptRoot 'app.py'
+$appContent = [System.IO.File]::ReadAllText($appPath)
+$appContent = $appContent -replace "APP_VERSION = '[^']*'", "APP_VERSION = '$Version'"
+[System.IO.File]::WriteAllText($appPath, $appContent, [System.Text.UTF8Encoding]::new($false))
+Write-Host "Updated app.py -> $Version" -ForegroundColor Green
+
 # Stage, commit, tag, push
 git add -A
 git commit -m "release: $tag"
