@@ -43,7 +43,7 @@ def create_app():
     # Management des fichiers temporaires
     # clean_manager.clear_folder(LOCAL_FOLDER)
     clean_manager.start()
-    
+     
     #Read CONFIG_PATH to get keys order
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         config = json.load(f)
