@@ -11,10 +11,14 @@ class OcrManager {
     });
 
     const result = await response.json();
+    if (!response.ok) {
+      Swal.fire('Limite atteinte', result.error || 'Erreur lors du téléversement', 'warning');
+      return [null, 0];
+    }
     if (result.message == 'ok') {
       return [result.document_id, result.nbr_pages];
     } else {
-      Swal.fire('Erreur', 'Impossible de télécharger le fichier', result.message);
+      Swal.fire('Erreur', result.error || 'Impossible de télécharger le fichier', 'error');
       return [null, 0];
     }
   }

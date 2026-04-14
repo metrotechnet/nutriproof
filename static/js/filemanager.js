@@ -38,9 +38,12 @@ fileBrowserMain.addEventListener('change', async (event) => {
     const files = event.target.files;
     startSpinner("Chargement des projets...");
     if (!files || files.length === 0) return;
+    let hasError = false;
     for (const file of files) {
-        await window.addFileToProject({ target: { files: [file] } }, projectId);
+        const ok = await window.addFileToProject({ target: { files: [file] } }, projectId);
+        if (!ok) { hasError = true; break; }
     }
+    if (hasError) return;
     await loadProjects();
     stopSpinner();
 });
@@ -136,15 +139,16 @@ window.deleteDocumentConfirm = async function(documentId) {
 // Ajout de fichier au projet
 window.addFileToProject = async function(event, projectId) {
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) return false;
   //Upload file
   const uploadResults = await OcrManager.sendOCRFile(projectId, file);
+  if (!uploadResults[0]) return false;
 
   //start processing
   const jobid = await OcrManager.processOCRFile(projectId, uploadResults[0], uploadResults[1], 0, file.name);
   //start polling et mise à jour du status
   pollJob(jobid);
-
+  return true;
 };
 
 //Disable line in table

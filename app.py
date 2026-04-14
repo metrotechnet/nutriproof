@@ -27,6 +27,9 @@ else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
 APP_ENABLED = True  # Default to True, can be overridden by env variable
 
+DEMO_MODE = True   # Set to True to limit page count
+DEMO_MAX_PAGES = 100
+
 def create_app():
 
     # === Configuration ===
@@ -62,6 +65,9 @@ def create_app():
     app.config['OCR_DOCUMENT'] = ocr_document
     app.config['TASK_MANAGER'] = task_manager
     app.config['KEY_ORDER'] = key_order
+
+    app.config['DEMO_MODE'] = DEMO_MODE
+    app.config['DEMO_MAX_PAGES'] = DEMO_MAX_PAGES
 
     # Register blueprints
     app.register_blueprint(project_bp)
