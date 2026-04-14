@@ -10,7 +10,7 @@
     {
       "label": "Visite",
       "text": ["Visite"],
-      "parse": "a digit that should be one of  0, 6, 18; put 0 if nothing is detected",
+      "parse": "a digit; put 0 if nothing is detected",
       "key": "Visite"
 
     },

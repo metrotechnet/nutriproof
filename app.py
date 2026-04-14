@@ -28,7 +28,7 @@ else:
 
 DEMO_MODE = True   # Set to True to limit page count
 DEMO_MAX_PAGES = 100
-APP_VERSION = '1.1.1'
+APP_VERSION = '1.1.2'
 
 def create_app():
 
