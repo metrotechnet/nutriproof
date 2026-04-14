@@ -36,6 +36,25 @@ def upload_pdf():
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         ocr_document = current_app.config['OCR_DOCUMENT']
 
+        # Demo mode: check total page limit
+        if current_app.config.get('DEMO_MODE'):
+            max_pages = current_app.config.get('DEMO_MAX_PAGES', 100)
+            project_name_check = request.form.get("projectName", "")
+            project_dir = os.path.join(LOCAL_FOLDER, project_name_check)
+            if os.path.isdir(project_dir):
+                total_pages = 0
+                for d in os.listdir(project_dir):
+                    info_path = os.path.join(project_dir, d, 'info.json')
+                    if os.path.isfile(info_path):
+                        try:
+                            with open(info_path, 'r', encoding='utf-8') as f:
+                                info = __import__('json').load(f)
+                                total_pages += info.get('nbr_pages', 0)
+                        except Exception:
+                            pass
+                if total_pages >= max_pages:
+                    return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte."}), 403
+
         project_name = request.form.get("projectName")
         if not project_name:
             return jsonify({"error": "Project name is required"}), 400
