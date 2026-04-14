@@ -93,7 +93,7 @@ window.verifyDocument = function(projectId, documentId,label,validFlag) {
     formData.append("label", label);
     formData.append("value", validFlag);
 
-    authFetch(`/validate_document/`, { 
+    fetch(`/validate_document/`, { 
         method: 'POST', 
         body: formData
     })
@@ -271,7 +271,7 @@ function downloadXlsFile(projectId, documentId,nbrPages) {
     formData.append("document_id", documentId);
     formData.append("nbr_pages", nbrPages);
 
-    authFetch('/download_xls', { method: 'POST', body: formData })
+    fetch('/download_xls', { method: 'POST', body: formData })
         .then(response => {
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
             return response.blob();

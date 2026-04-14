@@ -5,7 +5,7 @@ class OcrManager {
     formData.append("file", file);
     formData.append("projectName", projectName);
 
-    const response = await authFetch('/upload_pdf', {
+    const response = await fetch('/upload_pdf', {
       method: 'POST',
       body: formData,
     });
@@ -31,7 +31,7 @@ class OcrManager {
     formData.append("nbrPages", nbr_pages);
     formData.append("startPage", start_page);
 
-    const response = await authFetch('/process_ocr', {
+    const response = await fetch('/process_ocr', {
       method: 'POST',
       body: formData,
     });
@@ -48,13 +48,13 @@ class OcrManager {
 
   // Annulation d'une tâche OCR
   static async cancelOCR(jobId) {
-    const response = await authFetch(`/cancel/${jobId}`);
+    const response = await fetch(`/cancel/${jobId}`);
     return await response.json();
   }
 
   // Vérification de l'état d'une tâche
   static async checkStatus(jobId) {
-    const statusRes = await authFetch(`/status/${jobId}`);
+    const statusRes = await fetch(`/status/${jobId}`);
     const statusData = await statusRes.json();
 
     const status = statusData.status;

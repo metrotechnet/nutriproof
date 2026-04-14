@@ -11,6 +11,7 @@ else:
 from api.extract_tables import OCRDocument
 from api.task_mngr import AsyncTaskManager
 from api.clean_mngr import CleanManager
+from api.firebase_auth import init_usage_tracker
 
 from api.routes.project_routes import project_bp
 from api.routes.document_routes import document_bp
@@ -28,21 +29,23 @@ else:
 
 DEMO_MODE = True   # Set to True to limit page count
 DEMO_MAX_PAGES = 100
-APP_VERSION = '1.1.2'
+APP_VERSION = '1.1.3'
 
 def create_app():
 
     # === Initialisation ===
     ocr_document = OCRDocument()
     task_manager = AsyncTaskManager()
-    clean_manager = CleanManager()
+    # clean_manager = CleanManager()
     
     #Create main project
     local_path = os.path.join(LOCAL_FOLDER, PROJECT_ID)
     os.makedirs(local_path, exist_ok=True)
+    # Init local usage tracker for demo mode
+    init_usage_tracker(LOCAL_FOLDER)
     # Management des fichiers temporaires
     # clean_manager.clear_folder(LOCAL_FOLDER)
-    clean_manager.start()
+    # clean_manager.start()
      
     #Read CONFIG_PATH to get keys order
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
@@ -83,20 +86,15 @@ def create_app():
         """Health check endpoint"""
         return {"status": "ok"}
 
-    # Page d'accueil — redirige vers login
+    # Page d'accueil
     @app.route("/")
     def home():
-        return redirect("/login")
+        return redirect("/main")
 
-    # Page principale (après connexion)
+    # Page principale
     @app.route("/main")
     def main_page():
         return render_template("index.html")
-
-    # Page de connexion
-    @app.route("/login")
-    def login():
-        return render_template("login.html")
 
     # Page de révision
     @app.route("/review")

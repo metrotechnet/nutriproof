@@ -5,14 +5,13 @@ import shutil
 from datetime import datetime
 
 from api.routes.helpers import load_project_info, save_project_info
-from api.firebase_auth import require_auth, db
+from api.firebase_auth import get_total_pages, increment_total_pages
 
 document_bp = Blueprint('document', __name__)
 
 
 # Suppression d'un document
 @document_bp.route('/delete_document', methods=['POST'])
-@require_auth
 def delete_document():
     project_id = request.form.get('project_id')
     document_id = request.form.get('document_id')
@@ -30,7 +29,6 @@ def delete_document():
 
 # Upload PDF
 @document_bp.route('/upload_pdf', methods=['POST'])
-@require_auth
 def upload_pdf():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
@@ -60,24 +58,14 @@ def upload_pdf():
         # Demo mode: check if adding these pages would exceed the limit
         if current_app.config.get('DEMO_MODE'):
             max_pages = current_app.config.get('DEMO_MAX_PAGES', 100)
-            uid = request.firebase_user.get('uid', '')
-            user_ref = db.collection('usage').document(uid)
-            user_doc = user_ref.get()
-            current_pages = user_doc.to_dict().get('total_pages', 0) if user_doc.exists else 0
+            current_pages = get_total_pages()
             if current_pages + nbrPages > max_pages:
-                remaining = max(0, max_pages - current_pages)
                 shutil.rmtree(directory_path, ignore_errors=True)
-                return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte. Votre document dépasse la limite permise."}), 403        # Demo mode: update page count in Firestore
-        
+                return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte. Votre document dépasse la limite permise."}), 403
+
+        # Demo mode: update local page count
         if current_app.config.get('DEMO_MODE'):
-            from google.cloud.firestore_v1 import Increment
-            uid = request.firebase_user.get('uid', '')
-            user_ref = db.collection('usage').document(uid)
-            user_ref.set({
-                'total_pages': Increment(nbrPages),
-                'last_upload': datetime.now().isoformat(),
-                'email': request.firebase_user.get('email', ''),
-            }, merge=True)    
+            increment_total_pages(nbrPages)
 
         #Set id and nbr page in project_info.json
         project_info = {
@@ -107,7 +95,6 @@ def upload_pdf():
 
 # Validation d'un document
 @document_bp.route("/validate_document/", methods=["POST"])
-@require_auth
 def validate_document():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']

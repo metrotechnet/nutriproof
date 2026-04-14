@@ -1,35 +1,36 @@
-from functools import wraps
-from flask import request, jsonify
-import firebase_admin
-from firebase_admin import credentials, auth, firestore
+import os
+import json
+import threading
 
-# Initialize Firebase Admin SDK
-# Option 2: With project ID only (works for token verification without service account)
-firebase_admin.initialize_app(options={
-    'projectId': 'imx-nutriproof',
-})
+# === Local page-count tracker (replaces Firestore usage tracking) ===
 
-# Firestore client (lazy-initialized)
-db = firestore.client()
+_usage_lock = threading.Lock()
+_usage_file = None  # set by init_usage_tracker()
 
 
-def require_auth(f):
-    """
-    Decorator that verifies the Firebase ID token from the Authorization header.
-    Usage: @require_auth on any Flask route.
-    """
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            return jsonify({'error': 'Token manquant'}), 401
-        
-        token = auth_header.split('Bearer ')[1]
-        try:
-            decoded_token = auth.verify_id_token(token)
-            request.firebase_user = decoded_token
-        except Exception:
-            return jsonify({'error': 'Token invalide ou expiré'}), 401
-        
-        return f(*args, **kwargs)
-    return decorated
+def init_usage_tracker(local_folder):
+    """Call once at startup to set the path to the local usage file."""
+    global _usage_file
+    _usage_file = os.path.join(local_folder, "_usage.json")
+
+
+def get_total_pages():
+    """Return the current total_pages count from the local usage file."""
+    with _usage_lock:
+        if _usage_file and os.path.exists(_usage_file):
+            with open(_usage_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("total_pages", 0)
+    return 0
+
+
+def increment_total_pages(n):
+    """Add *n* to the running total_pages counter."""
+    with _usage_lock:
+        data = {}
+        if _usage_file and os.path.exists(_usage_file):
+            with open(_usage_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        data["total_pages"] = data.get("total_pages", 0) + n
+        with open(_usage_file, "w", encoding="utf-8") as f:
+            json.dump(data, f)
