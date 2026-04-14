@@ -1,18 +1,16 @@
 from functools import wraps
 from flask import request, jsonify
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, firestore
 
 # Initialize Firebase Admin SDK
-# Option 1: With service account key file (recommended for production)
-#   Place your serviceAccountKey.json in the project root or dbase/ folder
-#   cred = credentials.Certificate("path/to/serviceAccountKey.json")
-#   firebase_admin.initialize_app(cred)
-#
 # Option 2: With project ID only (works for token verification without service account)
 firebase_admin.initialize_app(options={
     'projectId': 'imx-nutriproof',
 })
+
+# Firestore client (lazy-initialized)
+db = firestore.client()
 
 
 def require_auth(f):
