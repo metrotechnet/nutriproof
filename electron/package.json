@@ -56,9 +56,7 @@
           ]
         }
       ],
-      "icon": "icon.ico",
-      "signingHashAlgorithms": null,
-      "sign": null
+      "icon": "icon.ico"
     },
     "mac": {
       "target": [
