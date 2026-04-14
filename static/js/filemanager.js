@@ -71,7 +71,7 @@ async function loadProjects() {
                 <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
                 <td class="align-middle text-center"><button class="btn btn-success btn-sm" onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
                 <td class="align-middle text-center"><button class="btn btn-danger btn-sm" onclick="deleteDocumentConfirm('${file.document_id}')"><i class="fas fa-trash"></i></button></td>
-                <td class="align-middle text-center"><span class="badge w-100 px-3 py-2 bg-info" style="min-width: 120px;">Lecture</span></td>
+                <td class="align-middle text-center"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">Lecture</span></td>
                 <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
                 <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v2-${file.document_id}" ${file.v2=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v2',this.checked ? 'true' : 'false')"></td>
 
@@ -239,7 +239,7 @@ async function pollJob(jobId) {
                                 statusCell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><span class="badge px-3 py-2 bg-warning">${status_data.progress}</span><button class="btn btn-sm btn-outline-danger" onclick="cancelOCRJob('${jobId}')" title="Annuler"><i class="fas fa-times"></i></button></div>`;
                             } else {
                                 const bgClass = status_data.status === 'completed' ? 'success' : (status_data.status === 'cancelled' ? 'secondary' : 'info');
-                                statusCell.innerHTML = `<span class="badge w-100 px-3 py-2 bg-${bgClass}">${status_map[status_data.status] || status_data.status}</span>`;
+                                statusCell.innerHTML = `<span class="badge px-3 py-2 bg-${bgClass}" style="display:inline-block;width:120px;">${status_map[status_data.status] || status_data.status}</span>`;
                             }
                         }
                         // On arrête le polling si terminé ou annulé
