@@ -111,9 +111,13 @@ jobs:
         run: |
           cd electron
           npm install
+          # Unset empty signing vars to prevent electron-builder from treating them as file paths
+          [ -z "$CSC_LINK" ] && unset CSC_LINK
+          [ -z "$APPLE_ID" ] && unset APPLE_ID
           npx electron-builder --mac --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
