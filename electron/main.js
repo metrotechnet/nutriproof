@@ -193,8 +193,18 @@ app.whenReady().then(() => {
   flaskProcess.stderr.on('data', (data) => {
     console.error(`[Flask ERROR] ${data}`);
   });
+  flaskProcess.on('error', (err) => {
+    console.error(`[Flask] Failed to start process:`, err);
+    dialog.showErrorBox('Erreur de démarrage',
+      `Impossible de lancer le serveur backend.\n\n${err.message}\n\nChemin: ${backendExe || 'python'}`);
+    app.quit();
+  });
   flaskProcess.on('exit', (code, signal) => {
     console.error(`[Flask] Process exited with code ${code}, signal ${signal}`);
+    if (code !== 0 && code !== null && !isQuittingApp) {
+      dialog.showErrorBox('Erreur backend',
+        `Le serveur backend s'est arrêté de manière inattendue.\n\nCode: ${code}\nSignal: ${signal}`);
+    }
   });
 
   // Attendre que le serveur Flask soit prêt
@@ -217,6 +227,8 @@ app.whenReady().then(() => {
     setupAutoUpdater();
   }).catch((err) => {
     console.error('Le serveur Flask n\'a pas démarré à temps:', err);
+    dialog.showErrorBox('Délai d\'attente dépassé',
+      'Le serveur backend n\'a pas répondu après 2 minutes.\n\nVérifiez qu\'aucun autre programme n\'utilise le port 8080.');
     app.quit();
   });
 
@@ -225,7 +237,10 @@ app.whenReady().then(() => {
   });
 });
 
+let isQuittingApp = false;
+
 function killFlask() {
+  isQuittingApp = true;
   if (flaskProcess) {
     try {
       if (process.platform === 'win32') {
