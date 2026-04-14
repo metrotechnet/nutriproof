@@ -26,6 +26,7 @@ if getattr(sys, 'frozen', False):
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
 APP_ENABLED = True  # Default to True, can be overridden by env variable
+APP_VERSION = '1.0.10'
 
 DEMO_MODE = True   # Set to True to limit page count
 DEMO_MAX_PAGES = 100
@@ -73,6 +74,10 @@ def create_app():
     app.register_blueprint(project_bp)
     app.register_blueprint(document_bp)
     app.register_blueprint(ocr_bp)
+
+    @app.context_processor
+    def inject_version():
+        return {'app_version': APP_VERSION}
     app.register_blueprint(data_bp)
 
 
