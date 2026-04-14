@@ -20,7 +20,11 @@ from api.routes.data_routes import data_bp
 
 CONFIG_PATH = os.path.join(_bundle_dir, "dbase", "bilan_lipidique.json")
 PROJECT_ID = "main"
-LOCAL_FOLDER = os.path.join(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else '.', "uploads")
+if getattr(sys, 'frozen', False):
+    # Packaged: use writable user folder (e.g. %LOCALAPPDATA%\NutriProof\uploads)
+    LOCAL_FOLDER = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'NutriProof', 'uploads')
+else:
+    LOCAL_FOLDER = os.path.join('.', 'uploads')
 APP_ENABLED = True  # Default to True, can be overridden by env variable
 
 def create_app():
