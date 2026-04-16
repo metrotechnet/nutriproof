@@ -6,6 +6,12 @@ import threading
 
 # === Local page-count tracker (replaces Firestore usage tracking) ===
 
+
+class UsageTampered(Exception):
+    """Raised when the local usage file has been tampered with."""
+    pass
+
+
 _usage_lock = threading.Lock()
 _usage_file = None  # set by init_usage_tracker()
 _HMAC_KEY = b"NP2025#uSaGe!sIgN"
@@ -25,8 +31,7 @@ def _read_usage() -> dict:
         data = json.load(f)
     expected_sig = _compute_signature(data)
     if not hmac.compare_digest(data.get("_sig", ""), expected_sig):
-        # Tampered or legacy file — reset to 0
-        return {"total_pages": 0}
+        raise UsageTampered("Le fichier d'utilisation a été modifié. Veuillez contacter le support.")
     return data
 
 
