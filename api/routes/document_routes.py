@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime
 
 from api.routes.helpers import load_project_info, save_project_info
-from api.firebase_auth import get_total_pages, increment_total_pages
+from api.firebase_auth import get_total_pages, increment_total_pages, UsageTampered
 
 document_bp = Blueprint('document', __name__)
 
@@ -57,15 +57,23 @@ def upload_pdf():
 
         # Demo mode: check if adding these pages would exceed the limit
         if current_app.config.get('DEMO_MODE'):
-            max_pages = current_app.config.get('DEMO_MAX_PAGES', 100)
-            current_pages = get_total_pages()
-            if current_pages + nbrPages > max_pages:
+            try:
+                max_pages = current_app.config.get('DEMO_MAX_PAGES', 100)
+                current_pages = get_total_pages()
+                if current_pages + nbrPages > max_pages:
+                    shutil.rmtree(directory_path, ignore_errors=True)
+                    return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte. Votre document dépasse la limite permise."}), 403
+            except UsageTampered:
                 shutil.rmtree(directory_path, ignore_errors=True)
-                return jsonify({"error": f"Version démo : limite de {max_pages} pages atteinte. Votre document dépasse la limite permise."}), 403
+                return jsonify({"error": "Le fichier d'utilisation a été modifié. Veuillez réinstaller l'application ou contacter le support."}), 403
 
         # Demo mode: update local page count
         if current_app.config.get('DEMO_MODE'):
-            increment_total_pages(nbrPages)
+            try:
+                increment_total_pages(nbrPages)
+            except UsageTampered:
+                shutil.rmtree(directory_path, ignore_errors=True)
+                return jsonify({"error": "Le fichier d'utilisation a été modifié. Veuillez réinstaller l'application ou contacter le support."}), 403
 
         #Set id and nbr page in project_info.json
         project_info = {
