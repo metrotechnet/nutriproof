@@ -176,6 +176,14 @@
         }
         .dl-card .btn-dl:hover { background: var(--green-dark); color: #fff; }
 
+        /* Keep hero card text colors consistent with Download section */
+        .hero .dl-card {
+            color: #222;
+        }
+        .hero .dl-card h4 {
+            color: #222;
+        }
+
         /* ── Install Help ────────────── */
         .install-help { background: #f5f5f5; }
         .help-card {
@@ -268,17 +276,72 @@
     <p class="tagline">
         Extraction automatisée de bilans lipidiques et résultats de laboratoire à partir de PDF numérisés.
     </p>
-    <div>
-        <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe"
-           class="btn-download btn-win">
-            <i class="bi bi-windows"></i> Télécharger pour Windows
-        </a>
-        <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg"
-           class="btn-download btn-mac">
-            <i class="bi bi-apple"></i> Télécharger pour macOS
-        </a>
+    <div class="container">
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-5">
+                <div class="dl-card">
+                    <div class="os-icon"><i class="bi bi-windows"></i></div>
+                    <h4>Windows</h4>
+                    <p class="dl-info">Windows 10 / 11 — 64 bits<br>Installateur .exe avec mises à jour automatiques</p>
+                    <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe"
+                       class="btn-dl">
+                        <i class="bi bi-download"></i> Télécharger .exe
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="dl-card">
+                    <div class="os-icon"><i class="bi bi-apple"></i></div>
+                    <h4>macOS</h4>
+                    <p class="dl-info">macOS 12+ — Intel &amp; Apple Silicon<br>Image disque .dmg</p>
+                    <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg"
+                       class="btn-dl">
+                        <i class="bi bi-download"></i> Télécharger .dmg
+                    </a>
+                </div>
+            </div>
+            </div>
     </div>
     <p class="version-note">Mises à jour automatiques incluses</p>
+</section>
+
+<!-- ═══════ INSTALLATION HELP ═══════ -->
+<section class="install-help" id="install-help">
+    <h2>Aide à l'installation</h2>
+    <div class="container">
+        <p class="text-center text-muted mb-4" style="max-width:640px;margin:0 auto;">
+            L'application n'est pas encore certifiée par Microsoft ou Apple. Un avertissement de sécurité peut s'afficher lors de la première installation. Voici comment procéder&nbsp;:
+        </p>
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-5">
+                <div class="help-card">
+                    <h5><i class="bi bi-windows"></i> Windows</h5>
+                    <ol>
+                        <li>Exécutez le fichier <strong>NutriProof-Setup.exe</strong></li>
+                        <li>Si un écran bleu <em>«&nbsp;Windows a protégé votre PC&nbsp;»</em> apparaît, cliquez sur <strong>Informations complémentaires</strong></li>
+                        <li>Cliquez sur <strong>Exécuter quand même</strong></li>
+                    </ol>
+                    <p class="help-note">Cet avertissement n'apparaît qu'une seule fois.</p>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="help-card">
+                    <h5><i class="bi bi-apple"></i> macOS</h5>
+                    <ol>
+                        <li>Ouvrez le fichier <strong>NutriProof.dmg</strong> et glissez l'app dans Applications</li>
+                        <li>Ouvrez le <strong>Terminal</strong> et exécutez&nbsp;:</li>
+                    </ol>
+                    <div class="help-terminal">
+                        <code>sudo xattr -r -d com.apple.quarantine /Applications/NutriProof.app</code>
+                        <button class="btn-copy" onclick="navigator.clipboard.writeText('sudo xattr -r -d com.apple.quarantine /Applications/NutriProof.app')" title="Copier">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <p class="help-note mt-2">Puis relancez l'application.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 
 <!-- ═══════ FEATURES ═══════ -->
@@ -348,75 +411,6 @@
     </div>
 </section>
 
-<!-- ═══════ DOWNLOAD ═══════ -->
-<section class="download" id="download">
-    <h2>Télécharger NutriProof</h2>
-    <div class="container">
-        <div class="row g-4 justify-content-center">
-            <div class="col-md-5">
-                <div class="dl-card">
-                    <div class="os-icon"><i class="bi bi-windows"></i></div>
-                    <h4>Windows</h4>
-                    <p class="dl-info">Windows 10 / 11 — 64 bits<br>Installateur .exe avec mises à jour automatiques</p>
-                    <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe"
-                       class="btn-dl">
-                        <i class="bi bi-download"></i> Télécharger .exe
-                    </a>
-                </div>
-            </div>
-            <div class="col-md-5">
-                <div class="dl-card">
-                    <div class="os-icon"><i class="bi bi-apple"></i></div>
-                    <h4>macOS</h4>
-                    <p class="dl-info">macOS 12+ — Intel &amp; Apple Silicon<br>Image disque .dmg</p>
-                    <a href="https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg"
-                       class="btn-dl">
-                        <i class="bi bi-download"></i> Télécharger .dmg
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════ INSTALLATION HELP ═══════ -->
-<section class="install-help" id="install-help">
-    <h2>Aide à l'installation</h2>
-    <div class="container">
-        <p class="text-center text-muted mb-4" style="max-width:640px;margin:0 auto;">
-            L'application n'est pas encore certifiée par Microsoft ou Apple. Un avertissement de sécurité peut s'afficher lors de la première installation. Voici comment procéder&nbsp;:
-        </p>
-        <div class="row g-4 justify-content-center">
-            <div class="col-md-5">
-                <div class="help-card">
-                    <h5><i class="bi bi-windows"></i> Windows</h5>
-                    <ol>
-                        <li>Exécutez le fichier <strong>NutriProof-Setup.exe</strong></li>
-                        <li>Si un écran bleu <em>«&nbsp;Windows a protégé votre PC&nbsp;»</em> apparaît, cliquez sur <strong>Informations complémentaires</strong></li>
-                        <li>Cliquez sur <strong>Exécuter quand même</strong></li>
-                    </ol>
-                    <p class="help-note">Cet avertissement n'apparaît qu'une seule fois.</p>
-                </div>
-            </div>
-            <div class="col-md-5">
-                <div class="help-card">
-                    <h5><i class="bi bi-apple"></i> macOS</h5>
-                    <ol>
-                        <li>Ouvrez le fichier <strong>NutriProof.dmg</strong> et glissez l'app dans Applications</li>
-                        <li>Si le message <em>«&nbsp;Application endommagée&nbsp;»</em> apparaît, ouvrez le <strong>Terminal</strong> et exécutez&nbsp;:</li>
-                    </ol>
-                    <div class="help-terminal">
-                        <code>xattr -cr /Applications/NutriProof.app</code>
-                        <button class="btn-copy" onclick="navigator.clipboard.writeText('xattr -cr /Applications/NutriProof.app')" title="Copier">
-                            <i class="bi bi-clipboard"></i>
-                        </button>
-                    </div>
-                    <p class="help-note mt-2">Puis double-cliquez sur l'app pour l'ouvrir normalement.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
 
 <!-- ═══════ FOOTER ═══════ -->
 <footer>
