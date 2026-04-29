@@ -61,19 +61,28 @@ jobs:
             Remove-Item -Force -ErrorAction SilentlyContinue
 
       - name: Sign Windows installer (Azure Artifact Signing)
-        uses: azure/artifact-signing-action@v0
+        uses: azure/artifact-signing-action@v1
         with:
           endpoint: https://eus.codesigning.azure.net/
-          code-signing-account-name: ${{ secrets.ARTIFACT_SIGNING_ACCOUNT }}
+          signing-account-name: ${{ secrets.ARTIFACT_SIGNING_ACCOUNT }}
           certificate-profile-name: ${{ secrets.ARTIFACT_SIGNING_PROFILE }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-cli-credential: true
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
           files-folder: dist/electron
           files-folder-filter: exe
+          file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com/
-          timestamp-digest-algorithm: SHA256
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          timestamp-digest: SHA256
 
       - name: Verify signature
         shell: pwsh
