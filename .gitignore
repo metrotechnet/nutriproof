@@ -9,3 +9,7 @@ dist/
 build/
 tesseract-bundle/
 uploads/
+
+# Azure Artifact Signing local secrets/binaries
+ci/artifact-signing/metadata.json
+ci/artifact-signing/Azure.CodeSigning.Dlib.dll

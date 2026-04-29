@@ -9,6 +9,7 @@
        - Default: portable folder with electron-packager
        - -Installer: NSIS installer with electron-builder (supports auto-update)
        - -Publish: also uploads to GitHub Releases for auto-update
+    5. Optional: signs the NSIS installer using Microsoft Trusted Signing
 #>
 
 param(
@@ -16,11 +17,20 @@ param(
     [switch]$SkipBackend,
     [switch]$SkipElectron,
     [switch]$Installer,
-    [switch]$Publish
+    [switch]$Publish,
+    [Alias("SignWithArtifactSigning")]
+    [switch]$SignWithTrustedSigning,
+    [string]$TrustedSigningDlibPath,
+    [string]$TrustedSigningMetadataPath,
+    [string]$TimestampUrl = "http://timestamp.acs.microsoft.com/"
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+if ($SignWithTrustedSigning -and -not $Installer) {
+    Write-Error "-SignWithTrustedSigning requires -Installer because only NSIS output (.exe) is signed by this script."
+}
 
 Write-Host "=== NutriProof Build ===" -ForegroundColor Cyan
 Write-Host "Project root: $ProjectRoot"
@@ -87,6 +97,13 @@ if (-not $SkipElectron) {
     if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed" }
 
     if ($Installer) {
+        $installerOutputDir = Join-Path $ProjectRoot "dist\electron"
+
+        # Ensure deterministic output by removing stale setup installers from prior runs.
+        if (Test-Path $installerOutputDir) {
+            Get-ChildItem $installerOutputDir -Filter "*Setup*.exe" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+
         # Disable code signing (avoids winCodeSign symlink errors on Windows)
         $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 
@@ -153,15 +170,85 @@ if (-not $SkipElectron) {
 # -------------------------------------------------------------------
 if ($Installer) {
     $outputDir = Join-Path $ProjectRoot "dist\electron"
+    $canonicalInstallerName = "NutriProof-Setup.exe"
+    $canonicalInstallerPath = Join-Path $outputDir $canonicalInstallerName
+
+    $setupInstallers = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+    if (-not $setupInstallers -or $setupInstallers.Count -eq 0) {
+        Write-Error "No installer matching '*Setup*.exe' found in $outputDir"
+    }
+
+    $primaryInstaller = $setupInstallers | Select-Object -First 1
+    if ($primaryInstaller.Name -ne $canonicalInstallerName) {
+        Move-Item -Path $primaryInstaller.FullName -Destination $canonicalInstallerPath -Force
+    }
+
+    Get-ChildItem $outputDir -Filter "*Setup*.exe" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne $canonicalInstallerName } |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
+    $nsisInstallers = Get-ChildItem $outputDir -Filter $canonicalInstallerName -File -ErrorAction SilentlyContinue
+    $nsis = $nsisInstallers | Select-Object -First 1
+
     Write-Host "`n=== Build finished ===" -ForegroundColor Cyan
     Write-Host "Installer output: $outputDir"
-    $nsis = Get-ChildItem $outputDir -Filter "*.exe" -File | Where-Object { $_.Name -match "Setup" } | Select-Object -First 1
     if ($nsis) {
         $sizeMB = [math]::Round($nsis.Length / 1MB, 1)
         Write-Host "  Installer: $($nsis.Name) ($sizeMB MB)"
     }
     if ($Publish) {
         Write-Host "  Published to GitHub Releases" -ForegroundColor Green
+    }
+
+    if ($SignWithTrustedSigning) {
+        if (-not $nsis) {
+            Write-Error "Installer not found: $canonicalInstallerPath"
+        }
+
+        if (-not $TrustedSigningDlibPath) {
+            Write-Error "Trusted Signing dlib path missing. Pass -TrustedSigningDlibPath <path-to-Azure.CodeSigning.Dlib.dll>"
+        }
+        if (-not $TrustedSigningMetadataPath) {
+            Write-Error "Trusted Signing metadata path missing. Pass -TrustedSigningMetadataPath <path-to-metadata.json>"
+        }
+
+        $resolvedDlib = if ([System.IO.Path]::IsPathRooted($TrustedSigningDlibPath)) {
+            $TrustedSigningDlibPath
+        } else {
+            Join-Path $ProjectRoot $TrustedSigningDlibPath
+        }
+
+        $resolvedMetadata = if ([System.IO.Path]::IsPathRooted($TrustedSigningMetadataPath)) {
+            $TrustedSigningMetadataPath
+        } else {
+            Join-Path $ProjectRoot $TrustedSigningMetadataPath
+        }
+
+        if (-not (Test-Path $resolvedDlib)) {
+            Write-Error "Trusted Signing dlib not found: $resolvedDlib"
+        }
+        if (-not (Test-Path $resolvedMetadata)) {
+            Write-Error "Trusted Signing metadata not found: $resolvedMetadata"
+        }
+
+        $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+
+        if (-not $signtool) {
+            Write-Error "signtool.exe not found. Install Windows SDK on this machine first."
+        }
+
+        Write-Host "`n--- Step 4: Signing installer with Trusted Signing ---" -ForegroundColor Yellow
+        Write-Host "Signing: $($nsis.Name)" -ForegroundColor Gray
+        & $signtool.FullName sign /v /fd SHA256 /td SHA256 /tr $TimestampUrl /dlib $resolvedDlib /dmdf $resolvedMetadata $nsis.FullName
+        if ($LASTEXITCODE -ne 0) { Write-Error "Installer signing failed: $($nsis.Name)" }
+
+        Write-Host "Verifying Authenticode signature: $($nsis.Name)" -ForegroundColor Gray
+        & $signtool.FullName verify /pa /v $nsis.FullName
+        if ($LASTEXITCODE -ne 0) { Write-Error "Installer signature verification failed: $($nsis.Name)" }
+
+        Write-Host "Trusted Signing complete: $($nsis.Name)" -ForegroundColor Green
     }
 } else {
     $outputDir = Join-Path $ProjectRoot "dist\electron\NutriProof-win32-x64"

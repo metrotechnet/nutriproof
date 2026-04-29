@@ -1,0 +1,102 @@
+trigger:
+- main
+
+pool:
+  vmImage: windows-latest
+
+variables:
+  pythonVersion: '3.11'
+  nodeVersion: '20.x'
+  installerPath: 'dist/electron/NutriProof-Setup.exe'
+  timestampUrl: 'http://timestamp.acs.microsoft.com/'
+
+  # Configure in Azure DevOps pipeline variables:
+  # azureServiceConnection: Azure Resource Manager service connection name
+
+stages:
+- stage: BuildAndSign
+  displayName: Build and Sign Windows Installer
+  jobs:
+  - job: BuildSign
+    displayName: Build + Artifact Signing
+    steps:
+    - checkout: self
+      clean: true
+
+    - task: UsePythonVersion@0
+      displayName: Use Python $(pythonVersion)
+      inputs:
+        versionSpec: '$(pythonVersion)'
+
+    - task: NodeTool@0
+      displayName: Use Node $(nodeVersion)
+      inputs:
+        versionSpec: '$(nodeVersion)'
+
+    - powershell: |
+        python -m venv .venv
+        .\\.venv\\Scripts\\python.exe -m pip install --upgrade pip
+        .\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt
+      displayName: Install Python dependencies
+
+    - powershell: |
+        choco install tesseract --no-progress -y
+        if (!(Test-Path "C:\\Program Files\\Tesseract-OCR\\tesseract.exe")) {
+          throw "Tesseract install not found at expected path"
+        }
+      displayName: Install Tesseract OCR
+
+    - powershell: |
+        ./build-desktop.ps1 -Installer
+      displayName: Build NSIS installer
+
+    - powershell: |
+        if (!(Test-Path "$(installerPath)")) {
+          throw "Installer not found at $(installerPath)"
+        }
+      displayName: Validate installer path
+
+    # Upload these in Azure DevOps -> Library -> Secure files
+    - task: DownloadSecureFile@1
+      name: metadata
+      displayName: Download Artifact Signing metadata
+      inputs:
+        secureFile: 'metadata.json'
+
+    - task: DownloadSecureFile@1
+      name: dlib
+      displayName: Download Artifact Signing dlib
+      inputs:
+        secureFile: 'Azure.CodeSigning.Dlib.dll'
+
+    - task: AzureCLI@2
+      displayName: Sign installer (Artifact Signing)
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+
+          if (-not $signtool) { throw "signtool.exe not found (Windows SDK missing)." }
+
+          & $signtool.FullName sign /v /fd SHA256 /tr "$(timestampUrl)" /td SHA256 /dlib "$(dlib.secureFilePath)" /dmdf "$(metadata.secureFilePath)" "$(installerPath)"
+          if ($LASTEXITCODE -ne 0) { throw "Artifact Signing failed." }
+
+    - powershell: |
+        $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+          Sort-Object FullName -Descending |
+          Select-Object -First 1
+
+        & $signtool.FullName verify /pa /v "$(installerPath)"
+        if ($LASTEXITCODE -ne 0) { throw "Signature verification failed." }
+      displayName: Verify Authenticode signature
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish signed installer
+      inputs:
+        pathToPublish: 'dist/electron'
+        artifactName: 'signed-windows-installer'
+        publishLocation: 'Container'

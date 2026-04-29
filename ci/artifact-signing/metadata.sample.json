@@ -1,0 +1,14 @@
+{
+  "Endpoint": "https://eus.codesigning.azure.net",
+  "CodeSigningAccountName": "imxtech",
+  "CertificateProfileName": "nutriproof",
+  "CorrelationId": "nutriproof-local-signing",
+  "ExcludeCredentials": [
+    "ManagedIdentityCredential",
+    "WorkloadIdentityCredential",
+    "SharedTokenCacheCredential",
+    "VisualStudioCredential",
+    "VisualStudioCodeCredential",
+    "InteractiveBrowserCredential"
+  ]
+}
