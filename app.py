@@ -22,14 +22,26 @@ from api.routes.data_routes import data_bp
 CONFIG_PATH = os.path.join(_bundle_dir, "dbase", "bilan_lipidique.json")
 PROJECT_ID = "main"
 if getattr(sys, 'frozen', False):
-    # Packaged: use writable user folder (e.g. %LOCALAPPDATA%\NutriProof\uploads)
-    LOCAL_FOLDER = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'NutriProof', 'uploads')
+    # Packaged: use platform-appropriate writable user data folder.
+    if sys.platform == 'win32':
+        # Windows: %LOCALAPPDATA%\NutriProof\uploads
+        _base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+        LOCAL_FOLDER = os.path.join(_base, 'NutriProof', 'uploads')
+    elif sys.platform == 'darwin':
+        # macOS: ~/Library/Application Support/NutriProof/uploads
+        LOCAL_FOLDER = os.path.join(
+            os.path.expanduser('~'), 'Library', 'Application Support', 'NutriProof', 'uploads'
+        )
+    else:
+        # Linux/other: $XDG_DATA_HOME/NutriProof/uploads or ~/.local/share/NutriProof/uploads
+        _base = os.environ.get('XDG_DATA_HOME') or os.path.join(os.path.expanduser('~'), '.local', 'share')
+        LOCAL_FOLDER = os.path.join(_base, 'NutriProof', 'uploads')
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.21'
+APP_VERSION = '1.1.22'
 
 def create_app():
 
