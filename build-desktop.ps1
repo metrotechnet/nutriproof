@@ -260,3 +260,6 @@ if ($Installer) {
         Write-Host "  Executable: NutriProof.exe"
     }
 }
+
+env:
+  AZURE_LOG_LEVEL: verbose
