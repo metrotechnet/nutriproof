@@ -5,9 +5,60 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const { autoUpdater } = require('electron-updater');
 
 let flaskProcess;
+
+// --- Early startup logging (runs BEFORE app.whenReady so we capture early crashes) ---
+// Try Electron's logs path first (~/Library/Logs/NutriProof on macOS); fall back to
+// the user's home then /tmp if that fails. We also write a marker file so we can
+// confirm Electron itself launched even if the backend never starts.
+function resolveLogDir() {
+  const candidates = [];
+  try { candidates.push(app.getPath('logs')); } catch (e) { /* app not ready */ }
+  candidates.push(path.join(os.homedir(), 'Library', 'Logs', 'NutriProof'));
+  candidates.push(path.join(os.homedir(), 'NutriProof-logs'));
+  candidates.push(path.join(os.tmpdir(), 'NutriProof-logs'));
+  for (const dir of candidates) {
+    if (!dir) continue;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      // Probe writability
+      const probe = path.join(dir, '.write-probe');
+      fs.writeFileSync(probe, 'ok');
+      fs.unlinkSync(probe);
+      return dir;
+    } catch (e) { /* try next */ }
+  }
+  return null;
+}
+
+const startupLogDir = resolveLogDir();
+const startupLogPath = startupLogDir ? path.join(startupLogDir, 'startup.log') : null;
+function startupLog(line) {
+  const stamped = `[${new Date().toISOString()}] ${line}\n`;
+  try { console.log(stamped.trimEnd()); } catch (e) {}
+  if (startupLogPath) {
+    try { fs.appendFileSync(startupLogPath, stamped); } catch (e) {}
+  }
+}
+// Truncate startup log at every launch
+if (startupLogPath) {
+  try { fs.writeFileSync(startupLogPath, ''); } catch (e) {}
+}
+startupLog(`=== NutriProof main.js loaded ===`);
+startupLog(`pid=${process.pid} platform=${process.platform} arch=${process.arch} node=${process.versions.node} electron=${process.versions.electron}`);
+startupLog(`cwd=${process.cwd()}`);
+startupLog(`__dirname=${__dirname}`);
+startupLog(`startupLogDir=${startupLogDir}`);
+
+process.on('uncaughtException', (err) => {
+  startupLog(`[uncaughtException] ${err && err.stack || err}`);
+});
+process.on('unhandledRejection', (reason) => {
+  startupLog(`[unhandledRejection] ${reason && reason.stack || reason}`);
+});
 
 function isPackaged() {
   return app.isPackaged;
@@ -130,16 +181,16 @@ function setupAutoUpdater() {
 }
 
 app.whenReady().then(() => {
+  startupLog('app.whenReady fired');
   console.log("Starting Flask server...");
   console.log(`Packaged: ${isPackaged()}`);
 
   // --- Backend logging to a file for debugging ---
-  // macOS:   ~/Library/Logs/NutriProof/backend.log
-  // Windows: %APPDATA%\NutriProof\logs\backend.log
-  // Linux:   ~/.config/NutriProof/logs/backend.log
-  const logsDir = app.getPath('logs');
+  // Reuses the directory resolved at module load (see startupLogDir).
+  const logsDir = startupLogDir || app.getPath('logs');
   try { fs.mkdirSync(logsDir, { recursive: true }); } catch (e) { /* ignore */ }
   const backendLogPath = path.join(logsDir, 'backend.log');
+  startupLog(`backend log path = ${backendLogPath}`);
   let backendLog;
   try {
     // Truncate at every launch so the log reflects the current session.
@@ -152,6 +203,7 @@ app.whenReady().then(() => {
     backendLog.write(`Log file: ${backendLogPath}\n\n`);
     console.log(`[Backend log] ${backendLogPath}`);
   } catch (e) {
+    startupLog(`Failed to open backend log file: ${e.message}`);
     console.error('Failed to open backend log file:', e);
   }
   function logBackend(prefix, chunk) {
@@ -228,6 +280,10 @@ app.whenReady().then(() => {
     backendLog.write(`Env TESSERACT_PATH: ${envVars && envVars.TESSERACT_PATH || ''}\n`);
     backendLog.write(`Env TESSDATA_PREFIX: ${envVars && envVars.TESSDATA_PREFIX || ''}\n`);
     backendLog.write(`Env DYLD_FALLBACK_LIBRARY_PATH: ${envVars && envVars.DYLD_FALLBACK_LIBRARY_PATH || ''}\n\n`);
+  }
+  startupLog(`spawning backend: ${backendExe || '(python)'} cwd=${backendCwd || '(project)'}`);
+  if (backendExe && !fs.existsSync(backendExe)) {
+    startupLog(`!! backend exe missing: ${backendExe}`);
   }
 
   flaskProcess.stdout.on('data', (data) => {
