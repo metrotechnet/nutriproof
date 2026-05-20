@@ -75,16 +75,17 @@ exports.default = async function afterSign(context) {
 
     const appName = packager.appInfo.productFilename;
     const appPath = path.join(appOutDir, `${appName}.app`);
-    const resourcesDir = path.join(appPath, 'Contents', 'Resources');
     const entitlements = path.resolve(__dirname, 'entitlements.mac.plist');
 
     console.log(`[afterSign] Identity: ${signIdentity}`);
-    console.log(`[afterSign] Scanning: ${resourcesDir}`);
+    console.log(`[afterSign] Scanning: ${appPath}`);
 
-    const candidates = walk(resourcesDir).filter((f) => {
+    // Scan the WHOLE .app, not just Resources/. electron-builder misses certain
+    // binaries (e.g. Electron's libEGL.dylib, Squirrel.framework/ShipIt) which
+    // causes notarization to fail with "binary is not signed".
+    const candidates = walk(appPath).filter((f) => {
         const base = path.basename(f);
         if (base.endsWith('.dylib') || base.endsWith('.so')) return true;
-        // Heuristic: no extension and executable bit => likely binary
         try {
             const st = fs.statSync(f);
             if ((st.mode & 0o111) !== 0 && !path.extname(f)) return true;
@@ -104,26 +105,51 @@ exports.default = async function afterSign(context) {
         } catch (e) { /* ignore */ }
     }
 
-    console.log(`[afterSign] Found ${targets.length} embedded Mach-O binaries to sign.`);
-    for (const t of targets) {
+    // Helper: check if a binary is already signed with a secure timestamp + hardened runtime.
+    function isProperlySigned(filePath) {
         try {
-            console.log(`[afterSign] signing: ${t}`);
+            const out = execSync(`codesign -dv --verbose=4 "${filePath}" 2>&1`, { encoding: 'utf8' });
+            const hasTimestamp = /Timestamp=/.test(out) && !/Signed Time=/.test(out.split('\n').find(l => l.startsWith('Signed Time=')) || '');
+            const hasRuntime = /flags=.*runtime/.test(out) || /CodeDirectory.*runtime/.test(out);
+            // Consider it OK only if it has both a secure timestamp AND hardened runtime.
+            return /Timestamp=/.test(out) && hasRuntime;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    console.log(`[afterSign] Found ${targets.length} Mach-O binaries in app bundle.`);
+    let signedCount = 0;
+    let skippedCount = 0;
+    for (const t of targets) {
+        if (isProperlySigned(t)) {
+            skippedCount++;
+            continue;
+        }
+        try {
+            console.log(`[afterSign] signing: ${path.relative(appPath, t)}`);
             execSync(
                 `codesign --force --timestamp --options runtime --entitlements "${entitlements}" --sign "${signIdentity}" "${t}"`,
                 { stdio: 'inherit' }
             );
+            signedCount++;
         } catch (e) {
             console.error(`[afterSign] FAILED to sign ${t}:`, e.message);
             throw e;
         }
     }
+    console.log(`[afterSign] Signed ${signedCount} binaries, skipped ${skippedCount} already-signed.`);
 
-    // Re-sign the .app at the end so the outer signature covers all newly-signed nested binaries.
+    // Re-sign the .app shell so its outer signature covers any newly-signed nested binaries.
     console.log(`[afterSign] Re-signing app bundle: ${appPath}`);
     execSync(
-        `codesign --force --deep --timestamp --options runtime --entitlements "${entitlements}" --sign "${signIdentity}" "${appPath}"`,
+        `codesign --force --timestamp --options runtime --entitlements "${entitlements}" --sign "${signIdentity}" "${appPath}"`,
         { stdio: 'inherit' }
     );
+
+    // Verify the final bundle
+    console.log(`[afterSign] Verifying...`);
+    execSync(`codesign --verify --deep --strict --verbose=2 "${appPath}"`, { stdio: 'inherit' });
 
     console.log('[afterSign] Done.');
 };
