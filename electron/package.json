@@ -71,15 +71,15 @@
                               "category":  "public.app-category.productivity",
                               "hardenedRuntime":  true,
                               "gatekeeperAssess":  false,
-                              "entitlements":  "build/entitlements.mac.plist",
-                              "entitlementsInherit":  "build/entitlements.mac.plist",
+                              "entitlements":  "./signing/entitlements.mac.plist",
+                              "entitlementsInherit":  "./signing/entitlements.mac.plist",
                               "extendInfo":  {
                                                  "NSAppleEventsUsageDescription":  "NutriProof requires this access.",
                                                  "NSCameraUsageDescription":  "NutriProof requires this access.",
                                                  "NSMicrophoneUsageDescription":  "NutriProof requires this access."
                                              }
                           },
-                  "afterSign":  "build/afterSign.js",
+                  "afterSign":  "./signing/afterSign.js",
                   "nsis":  {
                                "oneClick":  false,
                                "allowToChangeInstallationDirectory":  true,
