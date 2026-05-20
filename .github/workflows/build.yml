@@ -35,6 +35,14 @@ jobs:
         run: |
           $tessSrc = "C:\Program Files\Tesseract-OCR"
           Copy-Item -Recurse -Force $tessSrc tesseract-bundle
+          # pyocr (frozen mode) looks for tessdata at <_MEIPASS>/data.
+          # Mirror tessdata into the PyInstaller bundle so libtesseract finds language files.
+          $tessdataSrc = Join-Path $tessSrc 'tessdata'
+          $tessdataDst = 'dist\app\_internal\data'
+          New-Item -ItemType Directory -Force -Path $tessdataDst | Out-Null
+          Copy-Item -Recurse -Force "$tessdataSrc\*" $tessdataDst
+          Write-Host "=== tessdata mirrored to $tessdataDst ==="
+          Get-ChildItem $tessdataDst -Filter *.traineddata | Select-Object Name
 
       - name: Build Electron installer
         shell: pwsh
@@ -264,6 +272,16 @@ jobs:
             echo "::error::Bundled tesseract failed to run"
             exit 1
           }
+
+          # pyocr (frozen mode) overrides TESSDATA_PREFIX with <_MEIPASS>/data.
+          # Mirror tessdata into the PyInstaller bundle so libtesseract finds language files.
+          PYI_DATA_DIR="dist/app/_internal/data"
+          mkdir -p "$PYI_DATA_DIR"
+          if [ -d "$TESSDATA_DIR" ]; then
+            cp "$TESSDATA_DIR"/*.traineddata "$PYI_DATA_DIR/" 2>/dev/null || true
+          fi
+          echo "=== tessdata mirrored to $PYI_DATA_DIR ==="
+          ls -la "$PYI_DATA_DIR"
 
       - name: Build Electron installer (macOS)
         run: |
