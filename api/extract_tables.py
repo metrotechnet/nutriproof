@@ -14,6 +14,8 @@ from typing import List, Dict
 import pandas as pd
 import xlwt
 
+from api.grid_detector import GridDetector
+
 # Add Tesseract to PATH if not already there
 if sys.platform == "win32":
     _default_tesseract = r"C:\Program Files\Tesseract-OCR"
@@ -33,7 +35,12 @@ class OCRDocument:
         if not tools:
             raise RuntimeError("No OCR tool found. Please install Tesseract.")
         self.ocr_tool = tools[0]
+        self.grid_detector = GridDetector()
         print(f"Using OCR tool: {self.ocr_tool.get_name()}")
+
+    def detect_grid_and_checkboxes(self, image_path: str):
+        """Detect grid cells and checked boxes from a form image."""
+        return self.grid_detector.detect_grid_cells(image_path)
 
     def _can_convert_to_float(self, val):
         """Helper method to safely check if a value can be converted to float."""

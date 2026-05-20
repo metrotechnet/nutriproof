@@ -27,9 +27,9 @@ if getattr(sys, 'frozen', False):
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
 
-DEMO_MODE = True   # Set to True to limit page count
-DEMO_MAX_PAGES = 100
-APP_VERSION = '1.1.12'
+DEMO_MODE = False   # Set to True to limit page count
+DEMO_MAX_PAGES = 25
+APP_VERSION = '1.1.13'
 
 def create_app():
 
