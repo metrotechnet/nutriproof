@@ -1,6 +1,6 @@
 {
     "name":  "nutriproof",
-    "version":  "1.1.17",
+    "version":  "1.1.18",
     "main":  "main.js",
     "author":  "NutriProof",
     "description":  "NutriProof Desktop Application",
@@ -68,8 +68,18 @@
                                              }
                                          ],
                               "icon":  "icon.png",
-                              "category":  "public.app-category.productivity"
+                              "category":  "public.app-category.productivity",
+                              "hardenedRuntime":  true,
+                              "gatekeeperAssess":  false,
+                              "entitlements":  "build/entitlements.mac.plist",
+                              "entitlementsInherit":  "build/entitlements.mac.plist",
+                              "extendInfo":  {
+                                                 "NSAppleEventsUsageDescription":  "NutriProof requires this access.",
+                                                 "NSCameraUsageDescription":  "NutriProof requires this access.",
+                                                 "NSMicrophoneUsageDescription":  "NutriProof requires this access."
+                                             }
                           },
+                  "afterSign":  "build/afterSign.js",
                   "nsis":  {
                                "oneClick":  false,
                                "allowToChangeInstallationDirectory":  true,
