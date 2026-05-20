@@ -155,6 +155,13 @@ app.whenReady().then(() => {
       TESSERACT_PATH: tesseractBin,
       TESSDATA_PREFIX: tessDataDir
     };
+    // macOS: ensure the bundled tesseract can find its dylibs even if rpath
+    // resolution fails (defense-in-depth — needs allow-dyld-environment-variables entitlement).
+    if (process.platform === 'darwin') {
+      const tessLib = path.join(tesseractDir, 'lib');
+      envVars.DYLD_FALLBACK_LIBRARY_PATH = tessLib +
+        (process.env.DYLD_FALLBACK_LIBRARY_PATH ? ':' + process.env.DYLD_FALLBACK_LIBRARY_PATH : '');
+    }
     console.log(`Backend exe: ${backendExe}`);
     console.log(`Tesseract bin: ${tesseractBin}`);
     console.log(`Tessdata: ${tessDataDir}`);
