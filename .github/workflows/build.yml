@@ -145,25 +145,64 @@ jobs:
           chmod +w "$TESSERACT_DEST/bin/tesseract"
 
           # Recursively gather all Homebrew dylib dependencies
-          # Walks otool -L output, copying each non-system dylib into bundle/lib
+          # Walks otool -L output, copying each non-system dylib into bundle/lib.
+          # Resolves @rpath/<name> references by searching known Homebrew lib paths.
+          BREW_SEARCH_PATHS=(
+            "/opt/homebrew/lib"
+            "/usr/local/lib"
+            "/opt/homebrew/opt/leptonica/lib"
+            "/opt/homebrew/opt/webp/lib"
+            "/opt/homebrew/opt/libpng/lib"
+            "/opt/homebrew/opt/jpeg-turbo/lib"
+            "/opt/homebrew/opt/libtiff/lib"
+            "/opt/homebrew/opt/openjpeg/lib"
+            "/opt/homebrew/opt/giflib/lib"
+            "/opt/homebrew/opt/xz/lib"
+          )
+          # Also append every brew --prefix */lib for any installed formula
+          while IFS= read -r p; do
+            [ -d "$p/lib" ] && BREW_SEARCH_PATHS+=("$p/lib")
+          done < <(brew list --formula 2>/dev/null | xargs -n1 brew --prefix 2>/dev/null || true)
+
+          resolve_dep() {
+            local dep="$1"
+            case "$dep" in
+              /*)
+                [ -f "$dep" ] && echo "$dep" && return 0
+                ;;
+              @rpath/*|@loader_path/*|@executable_path/*)
+                local name="${dep##*/}"
+                for p in "${BREW_SEARCH_PATHS[@]}"; do
+                  if [ -f "$p/$name" ]; then
+                    echo "$p/$name"
+                    return 0
+                  fi
+                done
+                ;;
+            esac
+            return 1
+          }
+
           gather_deps() {
             local target="$1"
             local seen_file="$2"
-            # Lines from otool look like: "\t/opt/homebrew/.../lib.dylib (compat ...)"
             otool -L "$target" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
-              # Skip system libraries (Apple-shipped, always present)
+              # Skip system libraries
               case "$dep" in
-                /usr/lib/*|/System/*|@rpath/*|@loader_path/*|@executable_path/*) continue ;;
+                /usr/lib/*|/System/*) continue ;;
               esac
               [ -z "$dep" ] && continue
-              [ ! -f "$dep" ] && continue
+              local resolved
+              resolved=$(resolve_dep "$dep") || continue
               local base
-              base=$(basename "$dep")
+              base=$(basename "$resolved")
+              # Skip if it's the target itself (LC_ID_DYLIB self-reference)
+              if [ "$(basename "$target")" = "$base" ]; then continue; fi
               local out="$TESSERACT_DEST/lib/$base"
               if ! grep -qx "$base" "$seen_file"; then
                 echo "$base" >> "$seen_file"
-                echo "  + $dep -> lib/$base"
-                cp -L "$dep" "$out"
+                echo "  + $resolved -> lib/$base"
+                cp -L "$resolved" "$out"
                 chmod +w "$out"
                 gather_deps "$out" "$seen_file"
               fi
@@ -178,7 +217,6 @@ jobs:
           # Rewrite install names: every non-system dylib reference becomes @rpath/<basename>
           rewrite_install_names() {
             local target="$1"
-            # Set the LC_ID_DYLIB to @rpath/<basename> for dylibs (not for the executable)
             if [[ "$target" == *.dylib ]]; then
               local base
               base=$(basename "$target")
@@ -186,11 +224,13 @@ jobs:
             fi
             otool -L "$target" 2>/dev/null | tail -n +2 | awk '{print $1}' | while read -r dep; do
               case "$dep" in
-                /usr/lib/*|/System/*|@rpath/*|@loader_path/*|@executable_path/*) continue ;;
+                /usr/lib/*|/System/*) continue ;;
               esac
               [ -z "$dep" ] && continue
               local base
               base=$(basename "$dep")
+              # Skip self-reference
+              if [ "$(basename "$target")" = "$base" ] && [[ "$dep" == @rpath/* ]]; then continue; fi
               install_name_tool -change "$dep" "@rpath/$base" "$target" 2>/dev/null || true
             done
           }
