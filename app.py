@@ -2,6 +2,21 @@ from flask import Flask, render_template, redirect
 import os, sys, json
 from waitress import serve
 
+def _pyocr_log(msg):
+    """Write a diagnostic line that survives PyInstaller stderr buffering."""
+    try:
+        sys.stderr.write(msg + "\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
+    try:
+        sys.stdout.write(msg + "\n")
+        sys.stdout.flush()
+    except Exception:
+        pass
+
+_pyocr_log(f"[pyocr-fix] app.py loaded; frozen={getattr(sys, 'frozen', False)}")
+
 # When running as a PyInstaller bundle, resolve paths relative to the bundle
 if getattr(sys, 'frozen', False):
     _bundle_dir = sys._MEIPASS
@@ -14,37 +29,36 @@ else:
 # This must run BEFORE pyocr is imported.
 if getattr(sys, 'frozen', False):
     _pyocr_data_dir = os.path.join(sys._MEIPASS, 'data')
+    _pyocr_log(f"[pyocr-fix] checking {_pyocr_data_dir} exists={os.path.isdir(_pyocr_data_dir)}")
     if not os.path.isdir(_pyocr_data_dir):
-        # Locate bundled tessdata. On macOS/Linux it lives in
-        # <Resources>/tesseract-bundle/share/tessdata; on Windows in
-        # <Resources>/tesseract-bundle/tessdata. The Resources dir is the
-        # parent of the PyInstaller bundle (one level above _MEIPASS on macOS,
-        # or alongside the executable on Windows).
         _candidates = []
         _tess_env = os.environ.get('TESSDATA_PREFIX')
         if _tess_env:
             _candidates.append(_tess_env)
-        # Walk up a few levels looking for tesseract-bundle
         _probe = os.path.dirname(sys._MEIPASS)
         for _ in range(4):
             _candidates.append(os.path.join(_probe, 'tesseract-bundle', 'share', 'tessdata'))
             _candidates.append(os.path.join(_probe, 'tesseract-bundle', 'tessdata'))
             _probe = os.path.dirname(_probe)
+        _pyocr_log(f"[pyocr-fix] candidates: {_candidates}")
         _src = next((c for c in _candidates if c and os.path.isdir(c)), None)
+        _pyocr_log(f"[pyocr-fix] selected source: {_src}")
         if _src:
             try:
-                # Prefer symlink (cheap); fall back to copy if symlinks not allowed.
                 os.symlink(_src, _pyocr_data_dir)
-                sys.stderr.write(f"[pyocr-fix] symlinked {_pyocr_data_dir} -> {_src}\n")
+                _pyocr_log(f"[pyocr-fix] symlinked {_pyocr_data_dir} -> {_src}")
             except (OSError, NotImplementedError) as e:
+                _pyocr_log(f"[pyocr-fix] symlink failed: {e}; trying copytree")
                 try:
                     import shutil
                     shutil.copytree(_src, _pyocr_data_dir)
-                    sys.stderr.write(f"[pyocr-fix] copied {_src} -> {_pyocr_data_dir}\n")
+                    _pyocr_log(f"[pyocr-fix] copied {_src} -> {_pyocr_data_dir}")
                 except Exception as e2:
-                    sys.stderr.write(f"[pyocr-fix] failed to provision tessdata: {e2}\n")
+                    _pyocr_log(f"[pyocr-fix] failed to provision tessdata: {e2}")
         else:
-            sys.stderr.write("[pyocr-fix] no tesseract-bundle tessdata found in candidates\n")
+            _pyocr_log("[pyocr-fix] no tesseract-bundle tessdata found in candidates")
+
+_pyocr_log("[pyocr-fix] about to import pyocr-using modules")
 
 from api.extract_tables import OCRDocument
 from api.task_mngr import AsyncTaskManager
@@ -79,7 +93,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.29'
+APP_VERSION = '1.1.30'
 
 def create_app():
 
