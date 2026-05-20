@@ -68,6 +68,16 @@ def process_ocr():
                     # Extract tables
                     ocr_document.extract_tables(CONFIG_PATH, layout_json_path, local_path, pageid)
 
+                    # Detect grid/cell positions and checked boxes (for handwritten forms).
+                    # grid_data = ocr_document.detect_grid_and_checkboxes(chunk_file)
+                    # grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
+                    # with open(grid_json_path, "w", encoding="utf-8") as f:
+                    #     json.dump(grid_data, f, indent=4, ensure_ascii=False)
+
+                    # checked_boxes_json_path = os.path.join(local_path, f"checked_boxes_{pageid}.json")
+                    # with open(checked_boxes_json_path, "w", encoding="utf-8") as f:
+                    #     json.dump(grid_data.get("checked_cells", []), f, indent=4, ensure_ascii=False)
+
                     # Save page index in project info
                     project_data = load_project_info(local_path)
                     project_data['current_page'] = idx + 1

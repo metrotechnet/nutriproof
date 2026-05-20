@@ -4,6 +4,8 @@ let extract_values = {};
 let label_bbox = {};
 let value_bbox = {};
 let all_blocks = [];
+let checked_boxes = [];
+let grid_cells = [];
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -93,7 +95,9 @@ async function loadPage(project_id, index, init_scroll=false) {
         fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json()),
-        fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => [])
+      fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
+        fetch(`/get_raw_data/${project_id}/${currentDocID}/checked_boxes_${page_id}.json`).then(res => res.json()).catch(() => []),
+        fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({}))
     ]);
     if (!responses[0].data_string || !responses[1].data_string || !responses[2].data_string) {
         // Handle empty responses
@@ -103,6 +107,9 @@ async function loadPage(project_id, index, init_scroll=false) {
     value_bbox = JSON.parse(responses[1].data_string || '{}');
     extract_values = JSON.parse(responses[2].data_string || '{}');
     all_blocks = responses[3] || [];
+    checked_boxes = responses[4] || [];
+    const gridData = responses[5] || {};
+    grid_cells = gridData.cells || [];
   // Exemple d'utilisation :
     // label_bbox = adjustBboxHeight(label_bbox, 40);
     // value_bbox = adjustBboxHeight(value_bbox, 40);
@@ -186,8 +193,10 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     const scaleY =  imgHeight / imageElement.naturalHeight;
     // Affichage des polygones avec couleurs par label
     displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
+    displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
     displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
     displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
+    displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
 
      // Applique la transformation
     svg.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
@@ -313,6 +322,110 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
     svg.appendChild(polygon);
   });
 
+}
+
+// === DISPLAY ALL GRID CELLS ===
+function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
+  if (!gridCells || !gridCells.length) return;
+
+  // Palette of 12 distinct row outline colors (matches Python row_colors).
+  const rowColors = [
+    "#3cb44b", "#e6194b", "#0082c8", "#f58330",
+    "#911eb4", "#46f0f0", "#f032e6", "#d2f53c",
+    "#fabebe", "#008080", "#dcbeff", "#aa6e28",
+  ];
+
+  // Seeded pseudo-random fill colors per cell (same seed as Python rng=42).
+  function cellFill(index) {
+    // Simple LCG so colors are stable across reloads.
+    let s = (index * 1664525 + 1013904223 + 42) >>> 0;
+    const r = 80 + (s & 0x7f);
+    s = (s * 1664525 + 1013904223) >>> 0;
+    const g = 80 + (s & 0x7f);
+    s = (s * 1664525 + 1013904223) >>> 0;
+    const b = 80 + (s & 0x7f);
+    return `rgba(${r},${g},${b},0.30)`;
+  }
+
+  gridCells.forEach((cell, idx) => {
+    const bbox = cell.bbox;
+    if (!bbox || bbox.length !== 4) return;
+
+    let x = bbox[0][0] * scaleX + offsetX;
+    let y = bbox[0][1] * scaleY + offsetY;
+    let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
+    let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
+
+    const rowIdx = cell.row ?? 0;
+    const outlineColor = rowColors[rowIdx % rowColors.length];
+    const fillColor = cellFill(idx);
+
+    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", w);
+    rect.setAttribute("height", h);
+    rect.setAttribute("fill", fillColor);
+    rect.setAttribute("stroke", outlineColor);
+    rect.setAttribute("stroke-width", "1.5");
+
+    rect.addEventListener("mouseenter", (e) => {
+      const row = (cell.row ?? "?");
+      const col = (cell.col ?? "?");
+      tooltip.textContent = `Grille r${row} c${col}`;
+      tooltip.style.opacity = 1;
+    });
+    rect.addEventListener("mousemove", (e) => {
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+    });
+    rect.addEventListener("mouseleave", () => {
+      tooltip.style.opacity = 0;
+    });
+
+    svg.appendChild(rect);
+  });
+}
+
+// === DISPLAY CHECKED BOXES ===
+function displayCheckedBoxes(svg, checkedCells, offsetX, offsetY, scaleX, scaleY) {
+  if (!checkedCells || !checkedCells.length) return;
+
+  checkedCells.forEach((cell) => {
+    const bbox = cell.bbox;
+    if (!bbox || bbox.length !== 4) return;
+
+    let x = bbox[0][0] * scaleX + offsetX;
+    let y = bbox[0][1] * scaleY + offsetY;
+    let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
+    let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
+
+    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", w);
+    rect.setAttribute("height", h);
+    rect.setAttribute("fill", "rgba(255, 193, 7, 0.28)");
+    rect.setAttribute("stroke", "rgba(255, 152, 0, 0.95)");
+    rect.setAttribute("stroke-width", "1.5");
+
+    rect.addEventListener("mouseenter", (e) => {
+      const row = (cell.row ?? "?");
+      const col = (cell.col ?? "?");
+      const ratio = (typeof cell.fill_ratio === "number") ? cell.fill_ratio : "n/a";
+      tooltip.textContent = `Case cochée r${row} c${col} (ratio=${ratio})`;
+      tooltip.style.opacity = 1;
+    });
+    rect.addEventListener("mousemove", (e) => {
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+    });
+    rect.addEventListener("mouseleave", () => {
+      tooltip.style.opacity = 0;
+    });
+
+    svg.appendChild(rect);
+  });
 }
 
 // === PAGINATION ===

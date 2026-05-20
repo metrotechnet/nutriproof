@@ -28,8 +28,8 @@
       "key": "Protéine-C-réactive"
     },
     {
-      "label": "Cholestérol total",
-      "text": ["Cholestérol total"],
+      "label": "Cholestérol",
+      "text": ["Cholestérol"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-total"
     },
@@ -41,19 +41,19 @@
     },
     {
       "label": "Cholestérol-HDL",
-      "text": ["Cholestérol-HDL"],
+      "text": ["Cholestérol HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-HDL"
     },
     {
       "label": "Cholestérol-LDL",
-      "text": ["Cholestérol-LDL"],
+      "text": ["Cholestérol LDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-LDL"
     },
     {
       "label": "Cholestérol non-HDL",
-      "text": ["Cholestérol non-HDL"],
+      "text": ["Cholestérol non HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-non-HDL"
     },
