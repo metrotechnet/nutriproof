@@ -9,6 +9,8 @@ dist/
 build/
 tesseract-bundle/
 uploads/
+cert/
+doc/
 
 # Azure Artifact Signing local secrets/binaries
 ci/artifact-signing/metadata.json
