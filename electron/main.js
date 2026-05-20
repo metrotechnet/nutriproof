@@ -133,6 +133,34 @@ app.whenReady().then(() => {
   console.log("Starting Flask server...");
   console.log(`Packaged: ${isPackaged()}`);
 
+  // --- Backend logging to a file for debugging ---
+  // macOS:   ~/Library/Logs/NutriProof/backend.log
+  // Windows: %APPDATA%\NutriProof\logs\backend.log
+  // Linux:   ~/.config/NutriProof/logs/backend.log
+  const logsDir = app.getPath('logs');
+  try { fs.mkdirSync(logsDir, { recursive: true }); } catch (e) { /* ignore */ }
+  const backendLogPath = path.join(logsDir, 'backend.log');
+  let backendLog;
+  try {
+    // Truncate at every launch so the log reflects the current session.
+    backendLog = fs.createWriteStream(backendLogPath, { flags: 'w' });
+    backendLog.write(`=== NutriProof backend log ===\n`);
+    backendLog.write(`Started: ${new Date().toISOString()}\n`);
+    backendLog.write(`App version: ${app.getVersion()}\n`);
+    backendLog.write(`Platform: ${process.platform} ${process.arch}\n`);
+    backendLog.write(`Electron: ${process.versions.electron}\n`);
+    backendLog.write(`Log file: ${backendLogPath}\n\n`);
+    console.log(`[Backend log] ${backendLogPath}`);
+  } catch (e) {
+    console.error('Failed to open backend log file:', e);
+  }
+  function logBackend(prefix, chunk) {
+    const text = chunk.toString();
+    if (backendLog) {
+      try { backendLog.write(`[${prefix}] ${text}`); } catch (e) { /* ignore */ }
+    }
+  }
+
   let backendExe, backendCwd, envVars;
 
   if (isPackaged()) {
@@ -194,23 +222,38 @@ app.whenReady().then(() => {
     });
   }
 
+  if (backendLog) {
+    backendLog.write(`Backend exe: ${backendExe || '(python dev mode)'}\n`);
+    backendLog.write(`Backend cwd: ${backendCwd || '(project root)'}\n`);
+    backendLog.write(`Env TESSERACT_PATH: ${envVars && envVars.TESSERACT_PATH || ''}\n`);
+    backendLog.write(`Env TESSDATA_PREFIX: ${envVars && envVars.TESSDATA_PREFIX || ''}\n`);
+    backendLog.write(`Env DYLD_FALLBACK_LIBRARY_PATH: ${envVars && envVars.DYLD_FALLBACK_LIBRARY_PATH || ''}\n\n`);
+  }
+
   flaskProcess.stdout.on('data', (data) => {
     console.log(`[Flask] ${data}`);
+    logBackend('stdout', data);
   });
   flaskProcess.stderr.on('data', (data) => {
     console.error(`[Flask ERROR] ${data}`);
+    logBackend('stderr', data);
   });
   flaskProcess.on('error', (err) => {
     console.error(`[Flask] Failed to start process:`, err);
+    if (backendLog) backendLog.write(`\n[spawn-error] ${err.stack || err.message}\n`);
     dialog.showErrorBox('Erreur de démarrage',
-      `Impossible de lancer le serveur backend.\n\n${err.message}\n\nChemin: ${backendExe || 'python'}`);
+      `Impossible de lancer le serveur backend.\n\n${err.message}\n\nChemin: ${backendExe || 'python'}\n\nLog: ${backendLogPath}`);
     app.quit();
   });
   flaskProcess.on('exit', (code, signal) => {
     console.error(`[Flask] Process exited with code ${code}, signal ${signal}`);
+    if (backendLog) {
+      backendLog.write(`\n[exit] code=${code} signal=${signal} at ${new Date().toISOString()}\n`);
+      try { backendLog.end(); } catch (e) { /* ignore */ }
+    }
     if (code !== 0 && code !== null && !isQuittingApp) {
       dialog.showErrorBox('Erreur backend',
-        `Le serveur backend s'est arrêté de manière inattendue.\n\nCode: ${code}\nSignal: ${signal}`);
+        `Le serveur backend s'est arrêté de manière inattendue.\n\nCode: ${code}\nSignal: ${signal}\n\nLog: ${backendLogPath}`);
     }
   });
 
