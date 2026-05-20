@@ -8,6 +8,44 @@ if getattr(sys, 'frozen', False):
 else:
     _bundle_dir = os.path.dirname(os.path.abspath(__file__))
 
+# pyocr.libtesseract (frozen mode) hardcodes a tessdata search at <_MEIPASS>/data
+# and overrides TESSDATA_PREFIX with that path if it exists. To make sure pyocr
+# finds language files, we ensure <_MEIPASS>/data points to the bundled tessdata.
+# This must run BEFORE pyocr is imported.
+if getattr(sys, 'frozen', False):
+    _pyocr_data_dir = os.path.join(sys._MEIPASS, 'data')
+    if not os.path.isdir(_pyocr_data_dir):
+        # Locate bundled tessdata. On macOS/Linux it lives in
+        # <Resources>/tesseract-bundle/share/tessdata; on Windows in
+        # <Resources>/tesseract-bundle/tessdata. The Resources dir is the
+        # parent of the PyInstaller bundle (one level above _MEIPASS on macOS,
+        # or alongside the executable on Windows).
+        _candidates = []
+        _tess_env = os.environ.get('TESSDATA_PREFIX')
+        if _tess_env:
+            _candidates.append(_tess_env)
+        # Walk up a few levels looking for tesseract-bundle
+        _probe = os.path.dirname(sys._MEIPASS)
+        for _ in range(4):
+            _candidates.append(os.path.join(_probe, 'tesseract-bundle', 'share', 'tessdata'))
+            _candidates.append(os.path.join(_probe, 'tesseract-bundle', 'tessdata'))
+            _probe = os.path.dirname(_probe)
+        _src = next((c for c in _candidates if c and os.path.isdir(c)), None)
+        if _src:
+            try:
+                # Prefer symlink (cheap); fall back to copy if symlinks not allowed.
+                os.symlink(_src, _pyocr_data_dir)
+                sys.stderr.write(f"[pyocr-fix] symlinked {_pyocr_data_dir} -> {_src}\n")
+            except (OSError, NotImplementedError) as e:
+                try:
+                    import shutil
+                    shutil.copytree(_src, _pyocr_data_dir)
+                    sys.stderr.write(f"[pyocr-fix] copied {_src} -> {_pyocr_data_dir}\n")
+                except Exception as e2:
+                    sys.stderr.write(f"[pyocr-fix] failed to provision tessdata: {e2}\n")
+        else:
+            sys.stderr.write("[pyocr-fix] no tesseract-bundle tessdata found in candidates\n")
+
 from api.extract_tables import OCRDocument
 from api.task_mngr import AsyncTaskManager
 from api.clean_mngr import CleanManager
@@ -41,7 +79,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.28'
+APP_VERSION = '1.1.29'
 
 def create_app():
 
