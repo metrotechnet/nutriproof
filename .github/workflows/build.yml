@@ -38,7 +38,7 @@ jobs:
           # pyocr (frozen mode) looks for tessdata at <_MEIPASS>/data.
           # Mirror tessdata into the PyInstaller bundle so libtesseract finds language files.
           $tessdataSrc = Join-Path $tessSrc 'tessdata'
-          $tessdataDst = 'dist\app\_internal\data'
+          $tessdataDst = 'dist\backend\_internal\data'
           New-Item -ItemType Directory -Force -Path $tessdataDst | Out-Null
           Copy-Item -Recurse -Force "$tessdataSrc\*" $tessdataDst
           Write-Host "=== tessdata mirrored to $tessdataDst ==="
@@ -275,7 +275,7 @@ jobs:
 
           # pyocr (frozen mode) overrides TESSDATA_PREFIX with <_MEIPASS>/data.
           # Mirror tessdata into the PyInstaller bundle so libtesseract finds language files.
-          PYI_DATA_DIR="dist/app/_internal/data"
+          PYI_DATA_DIR="dist/backend/_internal/data"
           mkdir -p "$PYI_DATA_DIR"
           if [ -d "$TESSDATA_DIR" ]; then
             cp "$TESSDATA_DIR"/*.traineddata "$PYI_DATA_DIR/" 2>/dev/null || true
