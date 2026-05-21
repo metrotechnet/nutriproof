@@ -52,7 +52,20 @@ class OCRDocument:
         if not tools:
             _trace("OCRDocument.__init__: NO OCR TOOL FOUND")
             raise RuntimeError("No OCR tool found. Please install Tesseract.")
-        self.ocr_tool = tools[0]
+        # Prefer the C-API (libtesseract) tool over the shell wrapper because the
+        # C-API honors our patched tessdata directory (with fra+eng+osd), while the
+        # shell wrapper invokes the `tesseract` CLI which may resolve a different
+        # tessdata path and miss the French language pack.
+        self.ocr_tool = None
+        for t in tools:
+            name = t.get_name()
+            if 'C-API' in name or 'libtesseract' in name.lower():
+                self.ocr_tool = t
+                _trace(f"OCRDocument.__init__: selected C-API tool: {name}")
+                break
+        if self.ocr_tool is None:
+            self.ocr_tool = tools[0]
+            _trace(f"OCRDocument.__init__: C-API not found, falling back to: {self.ocr_tool.get_name()}")
         try:
             langs = self.ocr_tool.get_available_languages()
             _trace(f"OCRDocument.__init__: tool={self.ocr_tool.get_name()} langs={langs}")
@@ -283,7 +296,12 @@ class OCRDocument:
             # Load OCR layout data
             with open(ocr_json_path, 'r', encoding='utf-8') as f:
                 ocr_data = json.load(f)
-            
+
+            # Guard against a failed get_document_layout pass (returns {"error": ...})
+            if not isinstance(ocr_data, list):
+                _trace(f"extract_tables: ocr_data not a list (type={type(ocr_data).__name__}), aborting pageid={pageid}")
+                return {"error": "OCR layout unavailable"}
+
             label_bboxes = {}
             value_bboxes = {}
             extract_values = {}
