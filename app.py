@@ -122,11 +122,10 @@ try:
             lib = _tr.g_libtesseract
             if lib is None:
                 return False
-            lib.TessBaseAPISetImage.argtypes = [
-                _ct.c_void_p,  # handle
-                _ct.c_void_p,  # imagedata (was POINTER(c_char) — strict on macOS)
-                _ct.c_int, _ct.c_int, _ct.c_int, _ct.c_int,
-            ]
+            # Disable argtype checking entirely (sledgehammer): ctypes will
+            # then use default conversions and bytes -> char* works on all
+            # platforms.
+            lib.TessBaseAPISetImage.argtypes = None
             lib.TessBaseAPISetImage.restype = None
             return True
         except Exception as e:
@@ -135,6 +134,12 @@ try:
 
     _ok = _relax_argtypes()
     _pyocr_log(f"[pyocr-fix] relaxed argtypes ok={_ok}")
+    try:
+        _pyocr_log(
+            f"[pyocr-fix] argtypes after relax: {_tr.g_libtesseract.TessBaseAPISetImage.argtypes}"
+        )
+    except Exception as _ee:
+        _pyocr_log(f"[pyocr-fix] read-back argtypes failed: {_ee}")
 
     # Wrap init so any subsequent call re-applies our relaxed argtypes.
     _orig_init = _tr.init
@@ -149,18 +154,19 @@ try:
         image = image.convert("RGB")
         image.load()
         imgdata = image.tobytes("raw", "RGB")
-        buf = _ct.create_string_buffer(imgdata, len(imgdata))
-        _relax_argtypes()  # belt-and-suspenders in case init was re-invoked
+        _relax_argtypes()  # belt-and-suspenders
+        # With argtypes=None, pass plain Python values; ctypes default
+        # conversion translates bytes -> char* and ints -> c_int.
         _tr.g_libtesseract.TessBaseAPISetImage(
-            _ct.c_void_p(handle),
-            _ct.cast(buf, _ct.c_void_p),
-            _ct.c_int(image.width),
-            _ct.c_int(image.height),
-            _ct.c_int(3),
-            _ct.c_int(image.width * 3),
+            handle,
+            imgdata,
+            image.width,
+            image.height,
+            3,
+            image.width * 3,
         )
         dpi = image.info.get("dpi", [_DPI_DEFAULT])[0]
-        _tr.g_libtesseract.TessBaseAPISetSourceResolution(_ct.c_void_p(handle), dpi)
+        _tr.g_libtesseract.TessBaseAPISetSourceResolution(handle, dpi)
 
     _tr.set_image = _patched_set_image
     _pyocr_log("[pyocr-fix] monkey-patched tesseract_raw.set_image")
@@ -200,7 +206,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.38'
+APP_VERSION = '1.1.39'
 
 def create_app():
 
