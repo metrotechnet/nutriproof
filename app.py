@@ -98,6 +98,38 @@ if getattr(sys, 'frozen', False):
 
 _pyocr_log("[pyocr-fix] about to import pyocr-using modules")
 
+# pyocr 0.8.5 monkey-patch: on some platforms (notably macOS), ctypes does NOT
+# auto-convert a `bytes` object to `POINTER(c_char)`, causing TessBaseAPISetImage
+# to raise `argument 2: TypeError: wrong type`. Wrap set_image to pass a proper
+# ctypes char array built from the raw image bytes.
+try:
+    from pyocr.libtesseract import tesseract_raw as _tr
+    import ctypes as _ct
+
+    _DPI_DEFAULT = getattr(_tr, "DPI_DEFAULT", 70)
+
+    def _patched_set_image(handle, image):
+        assert _tr.g_libtesseract is not None
+        image = image.convert("RGB")
+        image.load()
+        imgdata = image.tobytes("raw", "RGB")
+        buf = (_ct.c_char * len(imgdata)).from_buffer_copy(imgdata)
+        _tr.g_libtesseract.TessBaseAPISetImage(
+            _ct.c_void_p(handle),
+            buf,
+            _ct.c_int(image.width),
+            _ct.c_int(image.height),
+            _ct.c_int(3),
+            _ct.c_int(image.width * 3),
+        )
+        dpi = image.info.get("dpi", [_DPI_DEFAULT])[0]
+        _tr.g_libtesseract.TessBaseAPISetSourceResolution(_ct.c_void_p(handle), dpi)
+
+    _tr.set_image = _patched_set_image
+    _pyocr_log("[pyocr-fix] monkey-patched tesseract_raw.set_image")
+except Exception as _e:
+    _pyocr_log(f"[pyocr-fix] set_image patch failed: {_e}")
+
 from api.extract_tables import OCRDocument
 from api.task_mngr import AsyncTaskManager
 from api.clean_mngr import CleanManager
@@ -131,7 +163,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.35'
+APP_VERSION = '1.1.36'
 
 def create_app():
 
