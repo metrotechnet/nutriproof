@@ -108,24 +108,49 @@ try:
 
     _DPI_DEFAULT = getattr(_tr, "DPI_DEFAULT", 70)
 
+    # Force libtesseract handle to be loaded NOW so we can patch argtypes once
+    # (pyocr's init() also rewrites argtypes each time, so we monkey-patch the
+    # init function as well to re-apply our relaxed argtypes after it runs).
+    try:
+        _tr.init(lang=None)
+        _pyocr_log("[pyocr-fix] tesseract_raw.init() succeeded")
+    except Exception as _ie:
+        _pyocr_log(f"[pyocr-fix] tesseract_raw.init() raised: {_ie}")
+
+    def _relax_argtypes():
+        try:
+            lib = _tr.g_libtesseract
+            if lib is None:
+                return False
+            lib.TessBaseAPISetImage.argtypes = [
+                _ct.c_void_p,  # handle
+                _ct.c_void_p,  # imagedata (was POINTER(c_char) — strict on macOS)
+                _ct.c_int, _ct.c_int, _ct.c_int, _ct.c_int,
+            ]
+            lib.TessBaseAPISetImage.restype = None
+            return True
+        except Exception as e:
+            _pyocr_log(f"[pyocr-fix] _relax_argtypes failed: {e}")
+            return False
+
+    _ok = _relax_argtypes()
+    _pyocr_log(f"[pyocr-fix] relaxed argtypes ok={_ok}")
+
+    # Wrap init so any subsequent call re-applies our relaxed argtypes.
+    _orig_init = _tr.init
+    def _patched_init(lang=None):
+        r = _orig_init(lang)
+        _relax_argtypes()
+        return r
+    _tr.init = _patched_init
+
     def _patched_set_image(handle, image):
         assert _tr.g_libtesseract is not None
         image = image.convert("RGB")
         image.load()
         imgdata = image.tobytes("raw", "RGB")
-        # Allocate a ctypes buffer and copy image bytes into it, then cast to
-        # a void pointer. Overriding argtypes[1] to c_void_p below ensures the
-        # call accepts the pointer regardless of platform-specific ctypes
-        # strictness about POINTER(c_char) vs bytes/array.
         buf = _ct.create_string_buffer(imgdata, len(imgdata))
-        # Force argtypes[1] to c_void_p (was POINTER(c_char) — strict on macOS).
-        try:
-            at = list(_tr.g_libtesseract.TessBaseAPISetImage.argtypes)
-            if at and at[1] is not _ct.c_void_p:
-                at[1] = _ct.c_void_p
-                _tr.g_libtesseract.TessBaseAPISetImage.argtypes = at
-        except Exception:
-            pass
+        _relax_argtypes()  # belt-and-suspenders in case init was re-invoked
         _tr.g_libtesseract.TessBaseAPISetImage(
             _ct.c_void_p(handle),
             _ct.cast(buf, _ct.c_void_p),
@@ -175,7 +200,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.37'
+APP_VERSION = '1.1.38'
 
 def create_app():
 
