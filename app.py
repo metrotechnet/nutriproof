@@ -113,10 +113,22 @@ try:
         image = image.convert("RGB")
         image.load()
         imgdata = image.tobytes("raw", "RGB")
-        buf = (_ct.c_char * len(imgdata)).from_buffer_copy(imgdata)
+        # Allocate a ctypes buffer and copy image bytes into it, then cast to
+        # a void pointer. Overriding argtypes[1] to c_void_p below ensures the
+        # call accepts the pointer regardless of platform-specific ctypes
+        # strictness about POINTER(c_char) vs bytes/array.
+        buf = _ct.create_string_buffer(imgdata, len(imgdata))
+        # Force argtypes[1] to c_void_p (was POINTER(c_char) — strict on macOS).
+        try:
+            at = list(_tr.g_libtesseract.TessBaseAPISetImage.argtypes)
+            if at and at[1] is not _ct.c_void_p:
+                at[1] = _ct.c_void_p
+                _tr.g_libtesseract.TessBaseAPISetImage.argtypes = at
+        except Exception:
+            pass
         _tr.g_libtesseract.TessBaseAPISetImage(
             _ct.c_void_p(handle),
-            buf,
+            _ct.cast(buf, _ct.c_void_p),
             _ct.c_int(image.width),
             _ct.c_int(image.height),
             _ct.c_int(3),
@@ -163,7 +175,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.36'
+APP_VERSION = '1.1.37'
 
 def create_app():
 
