@@ -23,12 +23,13 @@ if getattr(sys, 'frozen', False):
 else:
     _bundle_dir = os.path.dirname(os.path.abspath(__file__))
 
-# pyocr.libtesseract (frozen mode) hardcodes a tessdata search at <_MEIPASS>/data
-# and overrides TESSDATA_PREFIX with that path if it exists. To make sure pyocr
-# finds language files, we ensure <_MEIPASS>/data points to the bundled tessdata.
-# This must run BEFORE pyocr is imported.
+# pyocr (frozen mode) checks for tessdata at <_MEIPASS>/data/tessdata (nested!).
+# It then sets TESSDATA_PREFIX to <_MEIPASS>/data/tessdata. To make sure pyocr
+# finds language files, we ensure that nested folder contains the bundled
+# traineddata. This must run BEFORE pyocr is imported.
 if getattr(sys, 'frozen', False):
-    _pyocr_data_dir = os.path.join(sys._MEIPASS, 'data')
+    _pyocr_parent = os.path.join(sys._MEIPASS, 'data')
+    _pyocr_data_dir = os.path.join(_pyocr_parent, 'tessdata')
     def _has_traineddata(d):
         try:
             return os.path.isdir(d) and any(
@@ -52,20 +53,25 @@ if getattr(sys, 'frozen', False):
         _src = next((c for c in _candidates if _has_traineddata(c)), None)
         _pyocr_log(f"[pyocr-fix] selected source: {_src}")
         if _src:
-            # If the existing data dir is empty/stale, remove it before symlinking.
-            if os.path.isdir(_pyocr_data_dir) and not os.path.islink(_pyocr_data_dir):
+            # Make sure the parent <_MEIPASS>/data exists.
+            try:
+                os.makedirs(_pyocr_parent, exist_ok=True)
+            except Exception as e:
+                _pyocr_log(f"[pyocr-fix] could not create parent {_pyocr_parent}: {e}")
+            # Remove anything stale at the target.
+            if os.path.islink(_pyocr_data_dir):
+                try:
+                    os.unlink(_pyocr_data_dir)
+                    _pyocr_log(f"[pyocr-fix] removed stale symlink {_pyocr_data_dir}")
+                except Exception as e:
+                    _pyocr_log(f"[pyocr-fix] unlink failed: {e}")
+            elif os.path.isdir(_pyocr_data_dir):
                 try:
                     import shutil
                     shutil.rmtree(_pyocr_data_dir)
                     _pyocr_log(f"[pyocr-fix] removed empty {_pyocr_data_dir}")
                 except Exception as e:
                     _pyocr_log(f"[pyocr-fix] rmtree failed: {e}")
-            elif os.path.islink(_pyocr_data_dir):
-                try:
-                    os.unlink(_pyocr_data_dir)
-                    _pyocr_log(f"[pyocr-fix] removed stale symlink {_pyocr_data_dir}")
-                except Exception as e:
-                    _pyocr_log(f"[pyocr-fix] unlink failed: {e}")
             try:
                 os.symlink(_src, _pyocr_data_dir)
                 _pyocr_log(f"[pyocr-fix] symlinked {_pyocr_data_dir} -> {_src}")
@@ -73,7 +79,6 @@ if getattr(sys, 'frozen', False):
                 _pyocr_log(f"[pyocr-fix] symlink failed: {e}; trying copytree")
                 try:
                     import shutil
-                    # If symlink failed because target exists, ensure it's clean.
                     if os.path.exists(_pyocr_data_dir):
                         shutil.rmtree(_pyocr_data_dir, ignore_errors=True)
                     shutil.copytree(_src, _pyocr_data_dir)
@@ -82,9 +87,8 @@ if getattr(sys, 'frozen', False):
                     _pyocr_log(f"[pyocr-fix] failed to provision tessdata: {e2}")
         else:
             _pyocr_log("[pyocr-fix] no tesseract-bundle tessdata found in candidates")
-        # Final state report
         _pyocr_log(
-            f"[pyocr-fix] final: data dir has_traineddata={_has_traineddata(_pyocr_data_dir)}"
+            f"[pyocr-fix] final: {_pyocr_data_dir} has_traineddata={_has_traineddata(_pyocr_data_dir)}"
         )
 
 _pyocr_log("[pyocr-fix] about to import pyocr-using modules")
@@ -122,7 +126,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.31'
+APP_VERSION = '1.1.32'
 
 def create_app():
 
