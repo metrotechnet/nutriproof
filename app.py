@@ -155,18 +155,19 @@ try:
         image.load()
         imgdata = image.tobytes("raw", "RGB")
         _relax_argtypes()  # belt-and-suspenders
-        # With argtypes=None, pass plain Python values; ctypes default
-        # conversion translates bytes -> char* and ints -> c_int.
+        # argtypes=None means ctypes uses default conversions:
+        # - Python int -> c_int (32-bit!) which would TRUNCATE the 64-bit handle pointer.
+        # Explicitly wrap pointer args as c_void_p. bytes auto-convert to char*.
         _tr.g_libtesseract.TessBaseAPISetImage(
-            handle,
+            _ct.c_void_p(handle),
             imgdata,
-            image.width,
-            image.height,
-            3,
-            image.width * 3,
+            _ct.c_int(image.width),
+            _ct.c_int(image.height),
+            _ct.c_int(3),
+            _ct.c_int(image.width * 3),
         )
         dpi = image.info.get("dpi", [_DPI_DEFAULT])[0]
-        _tr.g_libtesseract.TessBaseAPISetSourceResolution(handle, dpi)
+        _tr.g_libtesseract.TessBaseAPISetSourceResolution(_ct.c_void_p(handle), _ct.c_int(int(dpi)))
 
     _tr.set_image = _patched_set_image
     _pyocr_log("[pyocr-fix] monkey-patched tesseract_raw.set_image")
@@ -206,7 +207,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.39'
+APP_VERSION = '1.1.40'
 
 def create_app():
 
