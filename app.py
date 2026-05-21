@@ -38,7 +38,12 @@ if getattr(sys, 'frozen', False):
         except OSError:
             return False
     _has_data = _has_traineddata(_pyocr_data_dir)
-    _pyocr_log(f"[pyocr-fix] checking {_pyocr_data_dir} has_traineddata={_has_data}")
+    def _list_langs(d):
+        try:
+            return sorted(f[:-len('.traineddata')] for f in os.listdir(d) if f.endswith('.traineddata'))
+        except OSError:
+            return []
+    _pyocr_log(f"[pyocr-fix] checking {_pyocr_data_dir} has_traineddata={_has_data} langs={_list_langs(_pyocr_data_dir)}")
     if not _has_data:
         _candidates = []
         _tess_env = os.environ.get('TESSDATA_PREFIX')
@@ -88,7 +93,7 @@ if getattr(sys, 'frozen', False):
         else:
             _pyocr_log("[pyocr-fix] no tesseract-bundle tessdata found in candidates")
         _pyocr_log(
-            f"[pyocr-fix] final: {_pyocr_data_dir} has_traineddata={_has_traineddata(_pyocr_data_dir)}"
+            f"[pyocr-fix] final: {_pyocr_data_dir} has_traineddata={_has_traineddata(_pyocr_data_dir)} langs={_list_langs(_pyocr_data_dir)}"
         )
 
 _pyocr_log("[pyocr-fix] about to import pyocr-using modules")
@@ -126,7 +131,7 @@ else:
 
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.34'
+APP_VERSION = '1.1.35'
 
 def create_app():
 

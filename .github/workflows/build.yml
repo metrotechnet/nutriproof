@@ -124,7 +124,7 @@ jobs:
           node-version: '22'
 
       - name: Install Tesseract (macOS)
-        run: brew install tesseract
+        run: brew install tesseract tesseract-lang
 
       - name: Build backend
         run: |
