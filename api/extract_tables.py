@@ -16,6 +16,21 @@ import xlwt
 
 from api.grid_detector import GridDetector
 
+
+def _trace(msg):
+    """Flush-immediately trace so messages survive PyInstaller buffering."""
+    line = f"[ocr-trace] {msg}"
+    try:
+        sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
+    try:
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+    except Exception:
+        pass
+
 # Add Tesseract to PATH if not already there
 if sys.platform == "win32":
     _default_tesseract = r"C:\Program Files\Tesseract-OCR"
@@ -31,10 +46,18 @@ class OCRDocument:
     
     def __init__(self):
         # Initialize pyocr tool (Tesseract)
+        _trace("OCRDocument.__init__: calling pyocr.get_available_tools()")
         tools = pyocr.get_available_tools()
+        _trace(f"OCRDocument.__init__: tools={[t.get_name() for t in tools]}")
         if not tools:
+            _trace("OCRDocument.__init__: NO OCR TOOL FOUND")
             raise RuntimeError("No OCR tool found. Please install Tesseract.")
         self.ocr_tool = tools[0]
+        try:
+            langs = self.ocr_tool.get_available_languages()
+            _trace(f"OCRDocument.__init__: tool={self.ocr_tool.get_name()} langs={langs}")
+        except Exception as e:
+            _trace(f"OCRDocument.__init__: get_available_languages failed: {e}")
         self.grid_detector = GridDetector()
         print(f"Using OCR tool: {self.ocr_tool.get_name()}")
 
@@ -156,12 +179,15 @@ class OCRDocument:
 
     # Récupère la mise en page d'un document
     def get_document_layout(self, file_path, mime_type="application/pdf"):
+        _trace(f"get_document_layout: start file={file_path}")
         try:
             image = Image.open(file_path)
+            _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
             lang = "fra+eng"
 
             # Pass 1: Line-level detection with PSM 6 (uniform text block)
             # Better than default PSM 3 for structured documents like lab reports
+            _trace("get_document_layout: pass 1 (LineBoxBuilder, PSM=6) start")
             line_builder = pyocr.builders.LineBoxBuilder()
             line_builder.tesseract_layout = 6
             line_boxes = self.ocr_tool.image_to_string(
@@ -169,6 +195,7 @@ class OCRDocument:
                 lang=lang,
                 builder=line_builder
             )
+            _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
 
             block_vector = []
             line_regions = []  # Store line positions for overlap checking
@@ -195,6 +222,7 @@ class OCRDocument:
 
             # Pass 2: Word-level detection with PSM 11 (sparse text)
             # Catches isolated words/numbers missed by line detection
+            _trace("get_document_layout: pass 2 (WordBoxBuilder, PSM=11) start")
             word_builder = pyocr.builders.WordBoxBuilder()
             word_builder.tesseract_layout = 11
             word_boxes = self.ocr_tool.image_to_string(
@@ -202,6 +230,7 @@ class OCRDocument:
                 lang=lang,
                 builder=word_builder
             )
+            _trace(f"get_document_layout: pass 2 done, {len(word_boxes)} word boxes")
 
             for word_box in word_boxes:
                 text = word_box.content.strip()
@@ -232,12 +261,17 @@ class OCRDocument:
                     "bounding_box": bbox
                 })
 
+            _trace(f"get_document_layout: returning {len(block_vector)} blocks")
             return block_vector
         except Exception as e:
+            import traceback
+            _trace(f"get_document_layout: EXCEPTION: {e}")
+            _trace(traceback.format_exc())
             return {"error": str(e)}
     
   # Extrait les tableaux d'un document
     def extract_tables(self, config_json_path, ocr_json_path, project_path,  pageid ):
+        _trace(f"extract_tables: start pageid={pageid}")
         try:
             #Read config
             with open(config_json_path, "r", encoding="utf-8") as f:
@@ -307,6 +341,7 @@ class OCRDocument:
             with open(all_blocks_path, "w", encoding="utf-8") as f:
                 json.dump(all_blocks, f, indent=4, ensure_ascii=False)
 
+            _trace(f"extract_tables: done pageid={pageid}")
             return {
                 "label_bbox": label_bbox_ordered,
                 "value_bbox": value_bbox_ordered,
@@ -314,6 +349,9 @@ class OCRDocument:
             }
 
         except Exception as e:
+            import traceback
+            _trace(f"extract_tables: EXCEPTION: {e}")
+            _trace(traceback.format_exc())
             return {"error": str(e)}
 
     def find_next_value(self, blocks, label_block, label_text, format_instructions=None):

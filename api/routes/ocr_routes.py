@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 import os
+import sys
 import json
 
 from api.routes.helpers import load_project_info, save_project_info
@@ -7,9 +8,22 @@ from api.routes.helpers import load_project_info, save_project_info
 ocr_bp = Blueprint('ocr', __name__)
 
 
+def _trace(msg):
+    line = f"[ocr-route] {msg}"
+    try:
+        sys.stderr.write(line + "\n"); sys.stderr.flush()
+    except Exception:
+        pass
+    try:
+        sys.stdout.write(line + "\n"); sys.stdout.flush()
+    except Exception:
+        pass
+
+
 # Process OCR
 @ocr_bp.route("/process_ocr", methods=["POST"])
 def process_ocr():
+    _trace("process_ocr: route hit")
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         CONFIG_PATH = current_app.config['CONFIG_PATH']
@@ -39,16 +53,22 @@ def process_ocr():
         start_page = int(start_page)
         
         async def run_extraction(job_id):
+            _trace(f"run_extraction: start job_id={job_id} doc={document_id} pages={start_page}..{nbr_pages}")
             try:
                 local_path = f'{LOCAL_FOLDER}/{project_name}/{document_id}/'
                 os.makedirs(local_path, exist_ok=True)
+                _trace(f"run_extraction: local_path={local_path}")
                 for idx in range(start_page, nbr_pages):
+                    _trace(f"run_extraction: page idx={idx}")
                     # Check if the task is cancelled
                     if task_manager.is_cancelled(job_id):
+                        _trace(f"run_extraction: cancelled at idx={idx}")
                         return jsonify("Job Canceled"), 404
                     
                     # extract page from pdf
+                    _trace(f"run_extraction: get_pdf_image idx={idx}")
                     chunk_file = ocr_document.get_pdf_image(local_path+filename, local_path, page_index=idx, dpi=300)
+                    _trace(f"run_extraction: chunk_file={chunk_file}")
                     
                     # Set progress
                     progress = f"{idx + 1}/{nbr_pages} pages"
@@ -58,15 +78,20 @@ def process_ocr():
                     pageid = os.path.splitext(os.path.basename(chunk_file))[0]
                     
                     # Get document layout
+                    _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
                     layout = ocr_document.get_document_layout(chunk_file, mime_type="image/png")
+                    _trace(f"run_extraction: get_document_layout returned type={type(layout).__name__}")
                     
                     # Save layout to JSON
                     layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
                     with open(layout_json_path, "w", encoding="utf-8") as f:
                         json.dump(layout, f, indent=4, ensure_ascii=False)
+                    _trace(f"run_extraction: layout saved to {layout_json_path}")
 
                     # Extract tables
+                    _trace(f"run_extraction: calling extract_tables pageid={pageid}")
                     ocr_document.extract_tables(CONFIG_PATH, layout_json_path, local_path, pageid)
+                    _trace(f"run_extraction: extract_tables done pageid={pageid}")
 
                     # Detect grid/cell positions and checked boxes (for handwritten forms).
                     # grid_data = ocr_document.detect_grid_and_checkboxes(chunk_file)
@@ -83,16 +108,23 @@ def process_ocr():
                     project_data['current_page'] = idx + 1
                     save_project_info(local_path, project_data)
 
+                _trace(f"run_extraction: all done, returning nbr_pages={nbr_pages}")
                 return {
                     "nbr_pages": nbr_pages
                 }
 
             except Exception as e:
+                import traceback
+                _trace(f"run_extraction: EXCEPTION: {e}")
+                _trace(traceback.format_exc())
                 return {"error": str(e)}
 
         return task_manager.run_task(document_id, run_extraction)
 
     except Exception as e:
+        import traceback
+        _trace(f"process_ocr: EXCEPTION: {e}")
+        _trace(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
