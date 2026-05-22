@@ -318,7 +318,7 @@
                     <h5><i class="bi bi-windows"></i> Windows</h5>
                     <ol>
                         <li>Exécutez le fichier <strong>NutriProof-Setup.exe</strong></li>
-                        <li>Si un écran bleu <em>«&nbsp;Windows a protégé votre PC&nbsp;»</em> apparaît, cliquez sur <strong>Informations complémentaires</strong></li>
+                        <li>Si un écran bleu (ou rouge) <em>«&nbsp;Windows a protégé votre PC&nbsp;»</em> apparaît, cliquez sur <strong>Informations complémentaires</strong></li>
                         <li>Cliquez sur <strong>Exécuter quand même</strong></li>
                     </ol>
                     <p class="help-note">Cet avertissement n'apparaît qu'une seule fois.</p>
@@ -328,16 +328,11 @@
                 <div class="help-card">
                     <h5><i class="bi bi-apple"></i> macOS</h5>
                     <ol>
-                        <li>Ouvrez le fichier <strong>NutriProof.dmg</strong> et glissez l'app dans Applications</li>
-                        <li>Ouvrez le <strong>Terminal</strong> et exécutez&nbsp;:</li>
+                        <li>Cliquez sur le fichier <strong>NutriProof.dmg</strong> pour l'ouvrir</li>
+                        <li>Glissez l'application <strong>NutriProof</strong> dans le dossier <strong>Applications</strong></li>
+                        <li>Au premier lancement, une fenêtre vous avertit que l'application a été téléchargée depuis Internet&nbsp;: cliquez sur <strong>Ouvrir</strong> pour confirmer</li>
                     </ol>
-                    <div class="help-terminal">
-                        <code>sudo xattr -r -d com.apple.quarantine /Applications/NutriProof.app</code>
-                        <button class="btn-copy" onclick="navigator.clipboard.writeText('sudo xattr -r -d com.apple.quarantine /Applications/NutriProof.app')" title="Copier">
-                            <i class="bi bi-clipboard"></i>
-                        </button>
-                    </div>
-                    <p class="help-note mt-2">Puis relancez l'application.</p>
+                    <p class="help-note mt-2">Cet avertissement n'apparaît qu'au premier lancement.</p>
                 </div>
             </div>
         </div>
