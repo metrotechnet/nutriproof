@@ -58,10 +58,10 @@
       "key": "Cholestérol-non-HDL"
     },
     {
-      "label": "Ratio Chol tot./Chol-HDL",
-      "text": ["Ratio Chol tot./Chol-HDL"],
+      "label": "Cholestérol total/C-HDL",
+      "text": ["Cholestérol total/C-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
-      "key": "Ratio-Chol-tot./Chol-HDL"
+      "key": "Cholestérol-total/C-HDL"
     },
     {
       "label": "Glucose",

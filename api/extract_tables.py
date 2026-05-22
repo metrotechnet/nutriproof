@@ -579,7 +579,7 @@ class OCRDocument:
             "Cholestérol-HDL": "hdlc",
             "Cholestérol-LDL": "ldlc",
             "Cholestérol non-HDL": "nhdlc",
-            "Ratio Chol tot./Chol-HDL": "chol_hdlc",
+            "Cholestérol total/C-HDL": "chol_hdlc",
             "Glucose": ["glu-15", "glu0", "glu30", "glu60"],
             "Insuline": ["ins-15", "ins0", "ins30", "ins60"]
         }
@@ -652,7 +652,7 @@ class OCRDocument:
             "Cholestérol-HDL": "hdlc",
             "Cholestérol-LDL": "ldlc",
             "Cholestérol non-HDL": "nhdlc",
-            "Ratio Chol tot./Chol-HDL": "chol_hdlc",
+            "Cholestérol-total/C-HDL": "chol_hdlc",
             "Glucose": ["glu-15", "glu0", "glu30", "glu60"],
             "Insuline": ["ins-15", "ins0", "ins30", "ins60"]
         }
@@ -723,7 +723,7 @@ class OCRDocument:
             "Cholestérol-HDL": "hdlc",
             "Cholestérol-LDL": "ldlc",
             "Cholestérol non-HDL": "nhdlc",
-            "Ratio Chol tot./Chol-HDL": "chol_hdlc",
+            "Cholestérol-total/C-HDL": "chol_hdlc",
 
         }
 
