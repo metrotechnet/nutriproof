@@ -95,7 +95,7 @@ async function loadPage(project_id, index, init_scroll=false) {
         fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json()),
-      fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
+        fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/checked_boxes_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({}))
     ]);
@@ -196,7 +196,7 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
     displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
     displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
-    displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
+    // displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
 
      // Applique la transformation
     svg.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
@@ -280,46 +280,78 @@ function displayAllBlocks(svg, blocks, offsetX, offsetY, scaleX, scaleY) {
 function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType) {
 
   Object.entries(boxes).forEach(([label, bbox]) => {
-    if (!bbox || bbox.length !== 4) return;
+    if (!bbox) return;
+
+    // value_bbox may be either a single 4-point polygon (legacy) or an array
+    // of polygons (when the config has `positions: ["r1","r2",...]` and one
+    // target cell is extracted per offset). Normalize to a list of (bbox, value)
+    // pairs so the same rendering code handles both shapes.
+    const isListOfBoxes = Array.isArray(bbox[0]) && Array.isArray(bbox[0][0]);
     const value = data[label];
-    let x = bbox[0][0] * scaleX + offsetX;
-    let y = bbox[0][1] * scaleY + offsetY;
-    let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
-    let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
-
-    // Définir les 4 coins du rectangle (pas de rotation)
-    let corners = [
-      [x , y ], // haut gauche
-      [x + w , y ], // haut droit
-      [x + w , y + h ], // bas droit
-      [x , y + h ] // bas gauche
-    ];
-
-    let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-    polygon.setAttribute("points", corners.map(([px, py]) => `${px},${py}`).join(" "));
-    polygon.setAttribute("class", "bbox");
-    
-    // Use label-specific color if available, otherwise use default
-    let fillColor = "rgba(200, 200, 200, 0.3)"; // default gray
-    if (labelColors[label] && labelColors[label][boxType]) {
-      fillColor = labelColors[label][boxType];
+    let pairs;
+    if (isListOfBoxes) {
+      pairs = bbox.map((bb, i) => {
+        const v = Array.isArray(value) ? value[i] : value;
+        return { bbox: bb, value: v, index: i };
+      });
+    } else {
+      pairs = [{ bbox: bbox, value: value, index: null }];
     }
-    polygon.setAttribute("fill", fillColor);
-    polygon.setAttribute("title", label);
 
-    polygon.addEventListener("mouseenter", (e) => {
-      tooltip.textContent = `${label} = ${value}`;
-      tooltip.style.opacity = 1;
-    });
-    polygon.addEventListener("mousemove", (e) => {
-      tooltip.style.left = `${e.pageX + 10}px`;
-      tooltip.style.top = `${e.pageY + 10}px`;
-    });
-    polygon.addEventListener("mouseleave", () => {
-      tooltip.style.opacity = 0;
-    });
+    pairs.forEach(({ bbox: bb, value: v, index }) => {
+      if (!bb || bb.length !== 4) return;
+      let x = bb[0][0] * scaleX + offsetX;
+      let y = bb[0][1] * scaleY + offsetY;
+      let w = Math.max(1, (bb[1][0] - bb[0][0]) * scaleX);
+      let h = Math.max(1, (bb[2][1] - bb[1][1]) * scaleY);
 
-    svg.appendChild(polygon);
+      let corners = [
+        [x, y],
+        [x + w, y],
+        [x + w, y + h],
+        [x, y + h]
+      ];
+
+      let polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      polygon.setAttribute("points", corners.map(([px, py]) => `${px},${py}`).join(" "));
+      polygon.setAttribute("class", "bbox");
+
+      // Default fill; for "target" polygons (value bboxes coming from a
+      // positions array) use a distinct semi-transparent highlight so they
+      // stand out from regular label/value boxes.
+      let fillColor = "rgba(200, 200, 200, 0)";
+      let strokeColor = "none";
+      let strokeWidth = 0;
+      if (isListOfBoxes && boxType === "value") {
+        fillColor = "rgba(255, 215, 0, 0.25)";   // gold tint
+        strokeColor = "rgba(255, 140, 0, 0.9)";   // orange outline
+        strokeWidth = 1.5;
+      } else if (labelColors[label] && labelColors[label][boxType]) {
+        fillColor = labelColors[label][boxType];
+      }
+      polygon.setAttribute("fill", fillColor);
+      polygon.setAttribute("stroke", strokeColor);
+      polygon.setAttribute("stroke-width", strokeWidth);
+      polygon.setAttribute("title", label);
+
+      const tooltipText = index !== null
+        ? `${label}[${index}] = ${v ?? ""}`
+        : `${label} = ${v ?? ""}`;
+
+      polygon.addEventListener("mouseenter", () => {
+        tooltip.textContent = tooltipText;
+        tooltip.style.opacity = 1;
+      });
+      polygon.addEventListener("mousemove", (e) => {
+        tooltip.style.left = `${e.pageX + 10}px`;
+        tooltip.style.top = `${e.pageY + 10}px`;
+      });
+      polygon.addEventListener("mouseleave", () => {
+        tooltip.style.opacity = 0;
+      });
+
+      svg.appendChild(polygon);
+    });
   });
 
 }
@@ -344,46 +376,76 @@ function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
     const g = 80 + (s & 0x7f);
     s = (s * 1664525 + 1013904223) >>> 0;
     const b = 80 + (s & 0x7f);
-    return `rgba(${r},${g},${b},0.30)`;
+    return `rgba(${r},${g},${b},0.12)`;
   }
 
+  // Two-pass rendering: filled rectangles first, then outlines + labels on top
+  // (mirrors the Python debug image so contours stay crisp over fills).
+  const geometries = [];
   gridCells.forEach((cell, idx) => {
     const bbox = cell.bbox;
     if (!bbox || bbox.length !== 4) return;
 
-    let x = bbox[0][0] * scaleX + offsetX;
-    let y = bbox[0][1] * scaleY + offsetY;
-    let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
-    let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
-
+    const x = bbox[0][0] * scaleX + offsetX;
+    const y = bbox[0][1] * scaleY + offsetY;
+    const w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
+    const h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
     const rowIdx = cell.row ?? 0;
     const outlineColor = rowColors[rowIdx % rowColors.length];
     const fillColor = cellFill(idx);
 
-    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", x);
-    rect.setAttribute("y", y);
-    rect.setAttribute("width", w);
-    rect.setAttribute("height", h);
-    rect.setAttribute("fill", fillColor);
-    rect.setAttribute("stroke", outlineColor);
-    rect.setAttribute("stroke-width", "1.5");
+    geometries.push({ cell, x, y, w, h, outlineColor, fillColor });
+  });
 
-    rect.addEventListener("mouseenter", (e) => {
+  // Pass 1: filled rectangles.
+  // geometries.forEach(({ x, y, w, h, fillColor }) => {
+  //   const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  //   rect.setAttribute("x", x);
+  //   rect.setAttribute("y", y);
+  //   rect.setAttribute("width", w);
+  //   rect.setAttribute("height", h);
+  //   rect.setAttribute("fill", fillColor);
+  //   rect.setAttribute("stroke", "none");
+  //   svg.appendChild(rect);
+  // });
+
+  // Pass 2: outlines, labels, hover interactions.
+  geometries.forEach(({ cell, x, y, w, h, outlineColor }) => {
+    const contour = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    contour.setAttribute("x", x);
+    contour.setAttribute("y", y);
+    contour.setAttribute("width", w);
+    contour.setAttribute("height", h);
+    contour.setAttribute("fill", "transparent");
+    contour.setAttribute("stroke", outlineColor);
+    contour.setAttribute("stroke-width", "2");
+    contour.style.pointerEvents = "auto";
+
+    contour.addEventListener("mouseenter", () => {
       const row = (cell.row ?? "?");
       const col = (cell.col ?? "?");
       tooltip.textContent = `Grille r${row} c${col}`;
       tooltip.style.opacity = 1;
     });
-    rect.addEventListener("mousemove", (e) => {
+    contour.addEventListener("mousemove", (e) => {
       tooltip.style.left = `${e.pageX + 10}px`;
       tooltip.style.top = `${e.pageY + 10}px`;
     });
-    rect.addEventListener("mouseleave", () => {
+    contour.addEventListener("mouseleave", () => {
       tooltip.style.opacity = 0;
     });
 
-    svg.appendChild(rect);
+    svg.appendChild(contour);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("x", x + 3);
+    label.setAttribute("y", y + 12);
+    label.setAttribute("font-family", "Arial, sans-serif");
+    label.setAttribute("font-size", "10");
+    label.setAttribute("fill", outlineColor);
+    label.setAttribute("pointer-events", "none");
+    label.textContent = `r${cell.row ?? "?"}c${cell.col ?? "?"}`;
+    svg.appendChild(label);
   });
 }
 
@@ -405,7 +467,7 @@ function displayCheckedBoxes(svg, checkedCells, offsetX, offsetY, scaleX, scaleY
     rect.setAttribute("y", y);
     rect.setAttribute("width", w);
     rect.setAttribute("height", h);
-    rect.setAttribute("fill", "rgba(255, 193, 7, 0.28)");
+    rect.setAttribute("fill", "none");
     rect.setAttribute("stroke", "rgba(255, 152, 0, 0.95)");
     rect.setAttribute("stroke-width", "1.5");
 

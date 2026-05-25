@@ -7,6 +7,8 @@ from api.routes.helpers import load_project_info, save_project_info
 
 ocr_bp = Blueprint('ocr', __name__)
 
+from api.grid_detector import GridDetector
+grid_detector = GridDetector()
 
 def _trace(msg):
     line = f"[ocr-route] {msg}"
@@ -51,6 +53,18 @@ def process_ocr():
         if not start_page:
             return jsonify({"error": "Start page is required"}), 400
         start_page = int(start_page)
+
+        # Form type chosen by the user. Fallback to info.json if missing.
+        category = request.form.get("category")
+        if not category:
+            try:
+                info = load_project_info(os.path.join(LOCAL_FOLDER, project_name, document_id))
+                category = info.get('category')
+            except Exception:
+                category = None
+        allowed_categories = list(current_app.config.get('KEY_ORDER', {}).keys())
+        if not category or category not in allowed_categories:
+            return jsonify({"error": f"Invalid or missing category. Expected one of: {allowed_categories}"}), 400
         
         async def run_extraction(job_id):
             _trace(f"run_extraction: start job_id={job_id} doc={document_id} pages={start_page}..{nbr_pages}")
@@ -77,33 +91,48 @@ def process_ocr():
                     # Get page ID
                     pageid = os.path.splitext(os.path.basename(chunk_file))[0]
                     
-                    # Get document layout
-                    _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
-                    layout = ocr_document.get_document_layout(chunk_file, mime_type="image/png")
-                    _trace(f"run_extraction: get_document_layout returned type={type(layout).__name__}")
-                    
-                    # Save layout to JSON
-                    layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
-                    with open(layout_json_path, "w", encoding="utf-8") as f:
-                        json.dump(layout, f, indent=4, ensure_ascii=False)
-                    _trace(f"run_extraction: layout saved to {layout_json_path}")
 
-                    # Extract tables
-                    _trace(f"run_extraction: calling extract_tables pageid={pageid}")
-                    ocr_document.extract_tables(CONFIG_PATH, layout_json_path, local_path, pageid)
-                    _trace(f"run_extraction: extract_tables done pageid={pageid}")
 
-                    # Detect grid/cell positions and checked boxes (for handwritten forms).
-                    # grid_data = ocr_document.detect_grid_and_checkboxes(chunk_file)
-                    # grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
-                    # with open(grid_json_path, "w", encoding="utf-8") as f:
-                    #     json.dump(grid_data, f, indent=4, ensure_ascii=False)
+                    # Choose extraction path based on the user-selected category.
+                    if category == "interventions":
+                         # Get document layout
+                        _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
+                        layout = ocr_document.get_document_layout(chunk_file, mime_type="image/png", split_lines_to_words=True)
+                        _trace(f"run_extraction: get_document_layout returned type={type(layout).__name__}")
+                        
+                        # Save layout to JSON
+                        layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
+                        with open(layout_json_path, "w", encoding="utf-8") as f:
+                            json.dump(layout, f, indent=4, ensure_ascii=False)
+                        _trace(f"run_extraction: layout saved to {layout_json_path}")
 
-                    # checked_boxes_json_path = os.path.join(local_path, f"checked_boxes_{pageid}.json")
-                    # with open(checked_boxes_json_path, "w", encoding="utf-8") as f:
-                    #     json.dump(grid_data.get("checked_cells", []), f, indent=4, ensure_ascii=False)
 
-                    # Save page index in project info
+                        # Detect grid/cell positions and checked boxes (for handwritten forms).
+                        grid_data = grid_detector.detect_grid_cells(chunk_file)
+                        grid_ok = not grid_data.get("error")
+                        if grid_ok:
+                            grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
+                            with open(grid_json_path, "w", encoding="utf-8") as f:
+                                json.dump(grid_data, f, indent=4, ensure_ascii=False)
+                            ocr_document.extract_tables_with_grid(CONFIG_PATH, "interventions", grid_json_path, local_path, pageid)
+                            _trace(f"run_extraction: extract_tables_with_grid done pageid={pageid}")
+                    else:
+                        # Get document layout
+                        _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
+                        layout = ocr_document.get_document_layout(chunk_file, mime_type="image/png", split_lines_to_words=False)
+                        _trace(f"run_extraction: get_document_layout returned type={type(layout).__name__}")
+                        
+                        # Save layout to JSON
+                        layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
+                        with open(layout_json_path, "w", encoding="utf-8") as f:
+                            json.dump(layout, f, indent=4, ensure_ascii=False)
+                        _trace(f"run_extraction: layout saved to {layout_json_path}")
+
+                        ocr_document.extract_tables(CONFIG_PATH, category, layout_json_path, local_path, pageid)
+                        _trace(f"run_extraction: extract_tables done pageid={pageid}")
+
+
+                    # Save page index in project info (category already set at upload time)
                     project_data = load_project_info(local_path)
                     project_data['current_page'] = idx + 1
                     save_project_info(local_path, project_data)

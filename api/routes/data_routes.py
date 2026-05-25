@@ -2,7 +2,36 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 import os
 import json
 
+from api.routes.helpers import load_project_info
+
 data_bp = Blueprint('data', __name__)
+
+
+def _resolve_key_order(project_id, document_id):
+    """Return the label list for the document's category.
+
+    Resolution order:
+      1. ?category=... query param (explicit override)
+      2. 'category' field in the document's info.json
+      3. First category defined in parameters.json (fallback)
+    """
+    LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+    key_order_map = current_app.config['KEY_ORDER']  # {category: [labels]}
+
+    category = request.args.get('category')
+    if not category:
+        try:
+            info = load_project_info(os.path.join(LOCAL_FOLDER, project_id, document_id))
+            category = info.get('category')
+        except Exception:
+            category = None
+
+    if category and category in key_order_map:
+        return key_order_map[category], category
+
+    # Fallback: first category in the config
+    first_cat = next(iter(key_order_map))
+    return key_order_map[first_cat], first_cat
 
 
 # Get image
@@ -19,7 +48,7 @@ def get_image(project_id, document_id, filename):
 @data_bp.route("/get_data/<project_id>/<document_id>/<filename>")
 def get_data(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
-    key_order = current_app.config['KEY_ORDER']
+    key_order, category = _resolve_key_order(project_id, document_id)
 
     file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
     #Create default data dict from key_order labels
@@ -31,7 +60,7 @@ def get_data(project_id, document_id, filename):
         for k in key_order:
             if k in new_data:
                 data[k] = new_data[k]
-        return jsonify({"data_string": json.dumps(data)})
+        return jsonify({"data_string": json.dumps(data), "category": category})
     return jsonify("File not found"), 404
 
 
