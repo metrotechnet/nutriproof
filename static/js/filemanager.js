@@ -1,4 +1,33 @@
 let projectId = 'main';
+let selectedCategory = null; // chosen by the user before each upload
+
+// Available form types (label shown to user -> backend category key)
+const FORM_TYPES = {
+    'bilan_lipidique': 'Bilan lipidique',
+    'interventions':   'Interventions',
+};
+
+// Ask the user which form type they are about to upload.
+async function askFormType() {
+    const inputOptions = {};
+    for (const [key, label] of Object.entries(FORM_TYPES)) {
+        inputOptions[key] = label;
+    }
+    const { value: choice } = await Swal.fire({
+        title: 'Type de formulaire',
+        text: "S\u00e9lectionnez le type de document avant de choisir le fichier.",
+        input: 'select',
+        inputOptions,
+        inputPlaceholder: 'Choisir un type...',
+        showCancelButton: true,
+        confirmButtonText: 'Continuer',
+        cancelButtonText: 'Annuler',
+        inputValidator: (value) => {
+            if (!value) return 'Veuillez choisir un type de formulaire';
+        }
+    });
+    return choice || null;
+}
 
 // Démarrer un spinner avec sweetalert
 function startSpinner(message) {
@@ -28,7 +57,10 @@ window.addEventListener('DOMContentLoaded', async function () {
 // Nouveau fichier pour le projet projectId
 const btnNewFile = document.getElementById('btn-new-file');
 const fileBrowserMain = document.getElementById('file-browser-main');
-btnNewFile.addEventListener('click', () => {
+btnNewFile.addEventListener('click', async () => {
+    const choice = await askFormType();
+    if (!choice) return;
+    selectedCategory = choice;
     fileBrowserMain.value = '';
     fileBrowserMain.click();
 }); 
@@ -66,6 +98,7 @@ async function loadProjects() {
             tr.innerHTML = `
                 <td class="align-middle text-center">${file.document_id || '-'}</td>
                 <td class="align-middle text-center">${file.filename || '-'}</td>
+                <td class="align-middle text-center">${FORM_TYPES[file.category] || file.category || '-'}</td>
                 <td class="align-middle text-center">${file.upload_date || '-'}</td>
                 <td class="align-middle text-center">${file.nbr_pages || '-'}</td>
                 <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
@@ -140,12 +173,16 @@ window.deleteDocumentConfirm = async function(documentId) {
 window.addFileToProject = async function(event, projectId) {
     const file = event.target.files[0];
     if (!file) return false;
+    if (!selectedCategory) {
+        Swal.fire('Erreur', 'Type de formulaire non s\u00e9lectionn\u00e9.', 'error');
+        return false;
+    }
   //Upload file
-  const uploadResults = await OcrManager.sendOCRFile(projectId, file);
+  const uploadResults = await OcrManager.sendOCRFile(projectId, file, selectedCategory);
   if (!uploadResults[0]) return false;
 
   //start processing
-  const jobid = await OcrManager.processOCRFile(projectId, uploadResults[0], uploadResults[1], 0, file.name);
+  const jobid = await OcrManager.processOCRFile(projectId, uploadResults[0], uploadResults[1], 0, file.name, selectedCategory);
   //start polling et mise à jour du status
   pollJob(jobid);
   return true;
@@ -165,7 +202,7 @@ function disableLine(jobId) {
             const checkboxes = row.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => cb.disabled = true);
             // Ajoute le style grisé au badge de status
-            const statusCell = row.querySelector('td:nth-child(8) span');
+            const statusCell = row.querySelector('td:nth-child(9) span');
             if (statusCell) {
                 statusCell.classList.add('text-muted');
             }
@@ -186,7 +223,7 @@ function enableLine(jobId) {
             const checkboxes = row.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => cb.disabled = false);
             // Retire le style grisé au badge de status
-            const statusCell = row.querySelector('td:nth-child(8) span');
+            const statusCell = row.querySelector('td:nth-child(9) span');
             if (statusCell) {
                 statusCell.classList.remove('text-muted');
             }
@@ -232,8 +269,8 @@ async function pollJob(jobId) {
                 for (const row of rows) {
                     const idCell = row.querySelector('td');
                     if (idCell && idCell.textContent === jobId) {
-                        // La colonne status est la 8ème (index 7)
-                        const statusCell = row.querySelector('td:nth-child(8)');
+                        // La colonne status est la 9ème (index 8)
+                        const statusCell = row.querySelector('td:nth-child(9)');
                         if (statusCell) {
                             if(status_data.status=='running') {
                                 statusCell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><span class="badge px-3 py-2 bg-warning">${status_data.progress}</span><button class="btn btn-sm btn-outline-danger" onclick="cancelOCRJob('${jobId}')" title="Annuler"><i class="fas fa-times"></i></button></div>`;

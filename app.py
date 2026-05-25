@@ -185,7 +185,7 @@ from api.routes.ocr_routes import ocr_bp
 from api.routes.data_routes import data_bp
 
 
-CONFIG_PATH = os.path.join(_bundle_dir, "dbase", "bilan_lipidique.json")
+CONFIG_PATH = os.path.join(_bundle_dir, "dbase", "parameters.json")
 PROJECT_ID = "main"
 if getattr(sys, 'frozen', False):
     # Packaged: use platform-appropriate writable user data folder.
@@ -228,8 +228,11 @@ def create_app():
     #Read CONFIG_PATH to get keys order
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         config = json.load(f)
-    #Get all key values in a list
-    key_order = [item.get("label") for item in config if "label" in item]
+    #Build a dict {category: [labels...]} so consumers can pick the right one per document
+    key_order = {
+        category: [item.get("label") for item in items if "label" in item]
+        for category, items in config.items()
+    }
 
     # Initialisation de l'application Flask
     app = Flask(__name__,

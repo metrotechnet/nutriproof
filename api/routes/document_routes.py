@@ -37,7 +37,13 @@ def upload_pdf():
         project_name = request.form.get("projectName")
         if not project_name:
             return jsonify({"error": "Project name is required"}), 400
-        
+
+        # Form type chosen by the user before file selection.
+        category = request.form.get("category")
+        allowed_categories = list(current_app.config.get('KEY_ORDER', {}).keys())
+        if not category or category not in allowed_categories:
+            return jsonify({"error": f"Invalid or missing category. Expected one of: {allowed_categories}"}), 400
+
         uploaded_file = request.files.get("file")
         if not uploaded_file:
             return jsonify({"error": "No file uploaded"}), 400
@@ -83,6 +89,7 @@ def upload_pdf():
             "upload_date": datetime.now().isoformat(),
             "nbr_pages": nbrPages,
             "current_page": 0,
+            "category": category,
             "v1": False,
             "v2": False,
         }

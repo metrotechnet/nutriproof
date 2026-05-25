@@ -108,7 +108,7 @@ class GridDetector:
 
         median_h = int(np.median([b[3] for b in deduped]))
         median_w = int(np.median([b[2] for b in deduped]))
-        row_tol = max(self.cluster_tolerance, int(median_h * 0.6))
+        row_tol = max(self.cluster_tolerance, int(median_h * 0.15))
         col_tol = max(self.cluster_tolerance, int(median_w * 0.6))
 
         row_centers = [y + bh // 2 for (_, y, _, bh) in deduped]
@@ -126,7 +126,7 @@ class GridDetector:
         rng = np.random.default_rng(42)
 
         cells = []
-        cell_fill_colors: List[Tuple[int, int, int]] = []
+        cell_boxes: List[Tuple[int, int, int, int]] = []
         # Two-pass rendering: fill pass first, then borders/labels on top.
         fill_layer = binary_inv_color.copy()
         overlay = binary_inv_color.copy()
@@ -141,39 +141,76 @@ class GridDetector:
                 continue
 
             bbox = self._to_bbox(x1, y1, x2, y2)
-            cell_info = {
+            cells.append({
                 "row": row_idx,
                 "col": col_idx,
                 "bbox": bbox,
-            }
-            cells.append(cell_info)
+            })
+            cell_boxes.append((x1, y1, x2, y2))
 
-            # Random fill color per cell, distinct row color for outline.
-            fill_color = tuple(int(v) for v in rng.integers(80, 230, size=3))
-            cell_fill_colors.append(fill_color)
-            cv2.rectangle(fill_layer, (x1, y1), (x2, y2), fill_color, cv2.FILLED)
+        # Drop cells that significantly overlap more than one other cell.
+        # Such cells are typically container/outer rectangles wrapping smaller
+        # inner cells and should not be treated as data cells.
+        overlap_ratio_threshold = 0.5
+        keep_flags = [True] * len(cells)
+        for i, (ax1, ay1, ax2, ay2) in enumerate(cell_boxes):
+            a_area = max(1, (ax2 - ax1) * (ay2 - ay1))
+            overlap_count = 0
+            for j, (bx1, by1, bx2, by2) in enumerate(cell_boxes):
+                if i == j:
+                    continue
+                ix1 = max(ax1, bx1)
+                iy1 = max(ay1, by1)
+                ix2 = min(ax2, bx2)
+                iy2 = min(ay2, by2)
+                iw = ix2 - ix1
+                ih = iy2 - iy1
+                if iw <= 0 or ih <= 0:
+                    continue
+                inter = iw * ih
+                b_area = max(1, (bx2 - bx1) * (by2 - by1))
+                smaller_area = min(a_area, b_area)
+                if inter / smaller_area >= overlap_ratio_threshold:
+                    overlap_count += 1
+                    if overlap_count > 1:
+                        break
+            if overlap_count > 1:
+                keep_flags[i] = False
 
-        # Blend fill layer at 30 % opacity into the overlay.
-        overlay = cv2.addWeighted(fill_layer, 0.30, overlay, 0.70, 0)
+        cells = [c for c, keep in zip(cells, keep_flags) if keep]
+        cell_boxes = [b for b, keep in zip(cell_boxes, keep_flags) if keep]
 
-        # Draw borders and labels on top of the blended image.
-        for cell, fill_color in zip(cells, cell_fill_colors):
-            (x1, y1), _, (x2, y2), _ = cell["bbox"]
-            row_idx = cell["row"]
-            outline_color = row_colors[row_idx % len(row_colors)]
-            cv2.rectangle(overlay, (x1, y1), (x2, y2), outline_color, 2)
-            cv2.putText(
-                overlay,
-                f"r{row_idx}c{cell['col']}",
-                (x1 + 3, y1 + 14),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.35,
-                outline_color,
-                1,
-                cv2.LINE_AA,
-            )
+        # Re-index row/col after filtering so indices are contiguous and
+        # the returned rows/cols arrays only contain clusters still in use.
+        used_rows = sorted({c["row"] for c in cells})
+        row_remap = {old: new for new, old in enumerate(used_rows)}
+        for c in cells:
+            c["row"] = row_remap[c["row"]]
+        rows = [rows[i] for i in used_rows]
 
-        cv2.imwrite("debug/cells_detected.png", overlay)
+        # Per-row column reindexing: within each row, sort cells left-to-right
+        # by their bbox x position and assign col = 0, 1, 2, ... so every row
+        # starts its column numbering at 0 (independent of other rows).
+        from collections import defaultdict
+        cells_by_row = defaultdict(list)
+        for c in cells:
+            cells_by_row[c["row"]].append(c)
+        for row_cells in cells_by_row.values():
+            row_cells.sort(key=lambda c: c["bbox"][0][0])
+            for new_col, c in enumerate(row_cells):
+                c["col"] = new_col
+
+        # Rebuild a flat cols array as the union of column x-centers across rows
+        # so callers still have a reference list. Use bbox centers for accuracy.
+        max_cols = max((len(rc) for rc in cells_by_row.values()), default=0)
+        cols = []
+        for ci in range(max_cols):
+            xs = [
+                (rc[ci]["bbox"][0][0] + rc[ci]["bbox"][2][0]) // 2
+                for rc in cells_by_row.values()
+                if ci < len(rc)
+            ]
+            cols.append(int(round(sum(xs) / len(xs))) if xs else 0)
 
         return {
             "rows": rows,

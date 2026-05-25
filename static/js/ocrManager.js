@@ -1,9 +1,10 @@
 class OcrManager {
   // Envoi d'un fichier pour traitement OCR
-  static async sendOCRFile(projectName, file) {
+  static async sendOCRFile(projectName, file, category) {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("projectName", projectName);
+    if (category) formData.append("category", category);
 
     const response = await fetch('/upload_pdf', {
       method: 'POST',
@@ -23,13 +24,14 @@ class OcrManager {
     }
   }
   // Envoi d'un fichier pour traitement OCR
-  static async processOCRFile(projectName, document_id, nbr_pages, start_page, filename) {
+  static async processOCRFile(projectName, document_id, nbr_pages, start_page, filename, category) {
     const formData = new FormData();
     formData.append("fileName", filename);
     formData.append("projectName", projectName);
     formData.append("documentID", document_id);
     formData.append("nbrPages", nbr_pages);
     formData.append("startPage", start_page);
+    if (category) formData.append("category", category);
 
     const response = await fetch('/process_ocr', {
       method: 'POST',

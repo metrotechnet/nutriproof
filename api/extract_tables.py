@@ -5,16 +5,17 @@ import re
 import io
 import csv
 import json
+import ctypes
+from contextlib import contextmanager
 import fitz
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageOps, ImageFilter
 import pyocr
 import pyocr.builders
 from typing import List, Dict
 import pandas as pd
 import xlwt
 
-from api.grid_detector import GridDetector
 
 
 def _trace(msg):
@@ -42,9 +43,115 @@ _tesseract_path = os.environ.get("TESSERACT_PATH", _default_tesseract)
 if _tesseract_path not in os.environ.get("PATH", ""):
     os.environ["PATH"] += os.pathsep + _tesseract_path
 
+
+# ---------------------------------------------------------------------------
+# Handwriting OCR configuration
+# ---------------------------------------------------------------------------
+# Tesseract 4/5 already uses the LSTM engine by default (OEM_DEFAULT resolves
+# to LSTM_ONLY when LSTM data is present), so we don't need to flip OEM here.
+# What we DO need for handwritten forms is to disable the printed-text
+# dictionaries (otherwise Tesseract snaps handwritten tokens onto French/Eng
+# vocabulary words and mangles numeric/handwritten content).
+HANDWRITING_TESS_VARS = {
+    # Disable all built-in language model dictionaries.
+    "load_system_dawg":          "F",
+    "load_freq_dawg":            "F",
+    "load_unambig_dawg":         "F",
+    "load_punc_dawg":            "F",
+    "load_number_dawg":          "F",
+    "load_bigram_dawg":          "F",
+    # Remove dictionary penalties so non-dictionary words aren't down-weighted.
+    "language_model_penalty_non_dict_word":      "0",
+    "language_model_penalty_non_freq_dict_word": "0",
+    # Keep spacing as-is (handwriting often has wide / irregular spacing).
+    "preserve_interword_spaces": "1",
+
+    # --- Sensitivity tuning for small / faint handwritten marks --------------
+    # Tesseract aggressively drops small connected components it considers
+    # "noise" (dust, scanner speckle). On handwritten forms this also wipes
+    # out check marks, isolated punctuation (commas, periods, accents),
+    # apostrophes, short ticks and crossed-out cells. We relax those filters
+    # so small / thin / isolated shapes survive into the recognizer.
+
+    # Don't reject whole words/rows just because their connected components
+    # look noisy in size.
+    "textord_noise_rejwords":      "F",
+    "textord_noise_rejrows":       "F",
+    # Lower the size ratio under which a blob is called noise (default 0.7).
+    "textord_noise_sizefraction":  "0.2",
+    # Lower the row-x-height ratio used to discard tiny blobs (default 0.4).
+    "textord_noise_sizelimit":     "0.1",
+    # Allow much smaller character x-heights (default 10 pixels -> 6).
+    "textord_min_xheight":         "6",
+    # Don't drop blobs that look "too tall/thin" — handwritten 1s, accents,
+    # apostrophes, vertical bars are exactly that shape.
+    "textord_noise_normratio":     "1.0",
+    # Lower the per-blob noise count threshold so a single small mark isn't
+    # auto-classified as noise (default 10).
+    "textord_noise_snmin":         "0.3",
+    # Don't trust dictionary/context to gate character acceptance — accept
+    # what the classifier sees.
+    "tessedit_enable_doc_dict":    "0",
+    # Increase the number of segmentation states kept per blob so unusual
+    # handwritten shapes get more chances to be recognized.
+    "tessedit_certainty_threshold": "-20",
+    # Don't reject low-confidence characters outright (default keeps them
+    # blank). We want them surfaced even if uncertain — the human reviews.
+    "tessedit_zero_rejection":     "T",
+    # Disable image inversion attempts that can blank out faint pencil.
+    "tessedit_do_invert":          "0",
+}
+
+
+@contextmanager
+def _handwriting_mode():
+    """Context manager that patches pyocr.libtesseract.tesseract_raw.init so
+    that every Tesseract handle created inside the block has the handwriting
+    variables applied right after initialization (and before recognition).
+
+    No-op if the libtesseract backend is not installed.
+    """
+    try:
+        from pyocr.libtesseract import tesseract_raw  # type: ignore
+    except Exception as e:
+        _trace(f"_handwriting_mode: libtesseract not available ({e}), skipping")
+        yield
+        return
+
+    orig_init = tesseract_raw.init
+
+    def _patched_init(lang=None):
+        handle = orig_init(lang=lang)
+        try:
+            lib = tesseract_raw.g_libtesseract
+            for var, val in HANDWRITING_TESS_VARS.items():
+                lib.TessBaseAPISetVariable(
+                    ctypes.c_void_p(handle),
+                    var.encode("utf-8"),
+                    val.encode("utf-8"),
+                )
+        except Exception as e:
+            _trace(f"_handwriting_mode: failed to set vars: {e}")
+        return handle
+
+    tesseract_raw.init = _patched_init
+    try:
+        yield
+    finally:
+        tesseract_raw.init = orig_init
+
+
+@contextmanager
+def _null_context():
+    """No-op context manager used when handwriting mode is disabled."""
+    yield
+
 class OCRDocument:
-    
-    def __init__(self):
+    def __init__(self, ocr_engine='paddle'):
+        """
+        ocr_engine: 'tesseract' (pyocr)
+        """
+        self.ocr_engine = ocr_engine
         # Initialize pyocr tool (Tesseract)
         _trace("OCRDocument.__init__: calling pyocr.get_available_tools()")
         tools = pyocr.get_available_tools()
@@ -52,10 +159,6 @@ class OCRDocument:
         if not tools:
             _trace("OCRDocument.__init__: NO OCR TOOL FOUND")
             raise RuntimeError("No OCR tool found. Please install Tesseract.")
-        # Prefer the C-API (libtesseract) tool over the shell wrapper because the
-        # C-API honors our patched tessdata directory (with fra+eng+osd), while the
-        # shell wrapper invokes the `tesseract` CLI which may resolve a different
-        # tessdata path and miss the French language pack.
         self.ocr_tool = None
         for t in tools:
             name = t.get_name()
@@ -71,12 +174,82 @@ class OCRDocument:
             _trace(f"OCRDocument.__init__: tool={self.ocr_tool.get_name()} langs={langs}")
         except Exception as e:
             _trace(f"OCRDocument.__init__: get_available_languages failed: {e}")
-        self.grid_detector = GridDetector()
         print(f"Using OCR tool: {self.ocr_tool.get_name()}")
 
-    def detect_grid_and_checkboxes(self, image_path: str):
-        """Detect grid cells and checked boxes from a form image."""
-        return self.grid_detector.detect_grid_cells(image_path)
+    def read_row0_digits(self, cells, gray_img=None):
+        """
+        OCR manuscript digits in row 0 using digit-only Tesseract config.
+        Returns a list of (col, text) for each cell in row 0.
+        """
+        import re
+        results = []
+        row0_cells = [c for c in cells if c.get("row") == 0]
+        for cell in row0_cells:
+            bbox = self._cell_rect(cell)
+            if not bbox:
+                continue
+            x1, y1, x2, y2 = map(int, bbox)
+            top = max(y1, y1+(y2-y1) * 0.25)
+            crop = gray_img.crop((x1, top, x2, y2)) if gray_img else None
+            if crop is None:
+                continue
+            # Enhance image: binarize (simple threshold)
+            crop = crop.point(lambda p: 0 if p < 180 else 255, '1')
+            crop = crop.filter(ImageFilter.MinFilter(3))
+            crop = crop.filter(ImageFilter.MedianFilter(3))
+            debug_crop_path = f"debug/cell_{cell.get('row')}_{cell.get('col')}.png"
+            crop.save(debug_crop_path)
+
+            text = ''
+            # Tesseract/pyocr path only
+            ocr_tool_name = self.ocr_tool.get_name().lower() if self.ocr_tool else ""
+            use_tess_configs = ("c-api" in ocr_tool_name or "libtesseract" in ocr_tool_name)
+            builder = pyocr.builders.TextBuilder()
+            builder.tesseract_layout = 11  # single line
+            tess_vars = HANDWRITING_TESS_VARS.copy()
+            tess_vars["tessedit_char_whitelist"] = "0123456789"
+            if use_tess_configs:
+                builder.tesseract_configs = [f"-c {k}={v}" for k, v in tess_vars.items()]
+            with _handwriting_mode() if use_tess_configs else _null_context():
+                text = self.ocr_tool.image_to_string(
+                    crop,
+                    lang="eng",
+                    builder=builder
+                )
+            print(f"Tesseract row 0 cell (col {cell.get('col')}): raw='{text}'")
+            text = re.sub(r"[^0-9]", "", text)
+            results.append({"col": cell.get("col"), "text": text})
+        return results
+    
+    # def __init__(self):
+    #     # Initialize pyocr tool (Tesseract)
+    #     _trace("OCRDocument.__init__: calling pyocr.get_available_tools()")
+    #     tools = pyocr.get_available_tools()
+    #     _trace(f"OCRDocument.__init__: tools={[t.get_name() for t in tools]}")
+    #     if not tools:
+    #         _trace("OCRDocument.__init__: NO OCR TOOL FOUND")
+    #         raise RuntimeError("No OCR tool found. Please install Tesseract.")
+    #     # Prefer the C-API (libtesseract) tool over the shell wrapper because the
+    #     # C-API honors our patched tessdata directory (with fra+eng+osd), while the
+    #     # shell wrapper invokes the `tesseract` CLI which may resolve a different
+    #     # tessdata path and miss the French language pack.
+    #     self.ocr_tool = None
+    #     for t in tools:
+    #         name = t.get_name()
+    #         if 'C-API' in name or 'libtesseract' in name.lower():
+    #             self.ocr_tool = t
+    #             _trace(f"OCRDocument.__init__: selected C-API tool: {name}")
+    #             break
+    #     if self.ocr_tool is None:
+    #         self.ocr_tool = tools[0]
+    #         _trace(f"OCRDocument.__init__: C-API not found, falling back to: {self.ocr_tool.get_name()}")
+    #     try:
+    #         langs = self.ocr_tool.get_available_languages()
+    #         _trace(f"OCRDocument.__init__: tool={self.ocr_tool.get_name()} langs={langs}")
+    #     except Exception as e:
+    #         _trace(f"OCRDocument.__init__: get_available_languages failed: {e}")
+    #     print(f"Using OCR tool: {self.ocr_tool.get_name()}")
+
 
     def _can_convert_to_float(self, val):
         """Helper method to safely check if a value can be converted to float."""
@@ -191,91 +364,147 @@ class OCRDocument:
         return len(fitz.open(pdf_path))
 
     # Récupère la mise en page d'un document
-    def get_document_layout(self, file_path, mime_type="application/pdf"):
-        _trace(f"get_document_layout: start file={file_path}")
+    def get_document_layout(self, file_path, mime_type="application/pdf",
+                            split_lines_to_words=False, handwriting=True):
+        """Run OCR on ``file_path`` and return a list of layout blocks.
+
+        Args:
+            file_path: Path to the image to OCR.
+            mime_type: Unused, kept for backward compatibility.
+            split_lines_to_words: When True, detected lines are exploded into
+                individual word blocks (one block per word) using the word-level
+                bounding boxes returned by Tesseract. When False (default), each
+                line is emitted as a single ``paragraph`` block.
+            handwriting: When True (default), runs Tesseract with the LSTM
+                engine in "handwriting" mode (dictionaries disabled, no
+                non-dict penalty, preserve spacing). Set False to fall back to
+                the standard printed-text configuration.
+        """
+        _trace(f"get_document_layout: start file={file_path} split_lines_to_words={split_lines_to_words} handwriting={handwriting}")
         try:
+            # Tesseract/pyocr path only
             image = Image.open(file_path)
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
             lang = "fra+eng"
-
-            # Pass 1: Line-level detection with PSM 6 (uniform text block)
-            # Better than default PSM 3 for structured documents like lab reports
-            _trace("get_document_layout: pass 1 (LineBoxBuilder, PSM=6) start")
-            line_builder = pyocr.builders.LineBoxBuilder()
-            line_builder.tesseract_layout = 6
-            line_boxes = self.ocr_tool.image_to_string(
-                image,
-                lang=lang,
-                builder=line_builder
-            )
-            _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
-
-            block_vector = []
-            line_regions = []  # Store line positions for overlap checking
-
-            for line_box in line_boxes:
-                text = line_box.content.strip()
-                if not text:
-                    continue
-                # line_box.position is ((x1, y1), (x2, y2))
-                pos = line_box.position
-                bbox = [
-                    [pos[0][0], pos[0][1]],  # top-left
-                    [pos[1][0], pos[0][1]],  # top-right
-                    [pos[1][0], pos[1][1]],  # bottom-right
-                    [pos[0][0], pos[1][1]],  # bottom-left
-                ]
-                block_vector.append({
-                    "page": 1,
-                    "text": text + "\n",
-                    "type": "paragraph",
-                    "bounding_box": bbox
-                })
-                line_regions.append(pos)
-
-            # Pass 2: Word-level detection with PSM 11 (sparse text)
-            # Catches isolated words/numbers missed by line detection
-            _trace("get_document_layout: pass 2 (WordBoxBuilder, PSM=11) start")
-            word_builder = pyocr.builders.WordBoxBuilder()
-            word_builder.tesseract_layout = 11
-            word_boxes = self.ocr_tool.image_to_string(
-                image,
-                lang=lang,
-                builder=word_builder
-            )
-            _trace(f"get_document_layout: pass 2 done, {len(word_boxes)} word boxes")
-
-            for word_box in word_boxes:
-                text = word_box.content.strip()
-                if not text:
-                    continue
-                pos = word_box.position
-                # Skip if this word center falls within an existing line region
-                wcx = (pos[0][0] + pos[1][0]) / 2
-                wcy = (pos[0][1] + pos[1][1]) / 2
-                covered = False
-                for lr in line_regions:
-                    if lr[0][0] <= wcx <= lr[1][0] and lr[0][1] <= wcy <= lr[1][1]:
-                        covered = True
-                        break
-                if covered:
-                    continue
-
-                bbox = [
-                    [pos[0][0], pos[0][1]],
-                    [pos[1][0], pos[0][1]],
-                    [pos[1][0], pos[1][1]],
-                    [pos[0][0], pos[1][1]],
-                ]
-                block_vector.append({
-                    "page": 1,
-                    "text": text + "\n",
-                    "type": "word",
-                    "bounding_box": bbox
-                })
-
-            _trace(f"get_document_layout: returning {len(block_vector)} blocks")
-            return block_vector
+            make_ctx = _handwriting_mode if handwriting else _null_context
+            with make_ctx():
+                _trace("get_document_layout: pass 1 (LineBoxBuilder, PSM=6) start")
+                line_builder = pyocr.builders.LineBoxBuilder()
+                line_builder.tesseract_layout = 6
+                line_boxes = self.ocr_tool.image_to_string(
+                    image,
+                    lang=lang,
+                    builder=line_builder
+                )
+                _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
+                line_word_boxes = []
+                if split_lines_to_words:
+                    _trace("get_document_layout: pass 1b (WordBoxBuilder, PSM=6) start")
+                    line_word_builder = pyocr.builders.WordBoxBuilder()
+                    line_word_builder.tesseract_layout = 6
+                    line_word_boxes = self.ocr_tool.image_to_string(
+                        image,
+                        lang=lang,
+                        builder=line_word_builder
+                    )
+                    _trace(f"get_document_layout: pass 1b done, {len(line_word_boxes)} word boxes")
+                    block_vector = []
+                    line_regions = []
+                for line_box in line_boxes:
+                    text = line_box.content.strip()
+                    if not text:
+                        continue
+                    pos = line_box.position
+                    line_regions.append(pos)
+                    if split_lines_to_words:
+                        (lx1, ly1), (lx2, ly2) = pos
+                        emitted = 0
+                        for wb in line_word_boxes:
+                            wtext = wb.content.strip()
+                            if not wtext:
+                                continue
+                            wpos = wb.position
+                            wcx = (wpos[0][0] + wpos[1][0]) / 2
+                            wcy = (wpos[0][1] + wpos[1][1]) / 2
+                            if not (lx1 <= wcx <= lx2 and ly1 <= wcy <= ly2):
+                                continue
+                            wbbox = [
+                                [wpos[0][0], wpos[0][1]],
+                                [wpos[1][0], wpos[0][1]],
+                                [wpos[1][0], wpos[1][1]],
+                                [wpos[0][0], wpos[1][1]],
+                            ]
+                            block_vector.append({
+                                "page": 1,
+                                "text": wtext + "\n",
+                                "type": "word",
+                                "bounding_box": wbbox
+                            })
+                            emitted += 1
+                        if emitted == 0:
+                            bbox = [
+                                [pos[0][0], pos[0][1]],
+                                [pos[1][0], pos[0][1]],
+                                [pos[1][0], pos[1][1]],
+                                [pos[0][0], pos[1][1]],
+                            ]
+                            block_vector.append({
+                                "page": 1,
+                                "text": text + "\n",
+                                "type": "paragraph",
+                                "bounding_box": bbox
+                            })
+                    else:
+                        bbox = [
+                            [pos[0][0], pos[0][1]],
+                            [pos[1][0], pos[0][1]],
+                            [pos[1][0], pos[1][1]],
+                            [pos[0][0], pos[1][1]],
+                        ]
+                        block_vector.append({
+                            "page": 1,
+                            "text": text + "\n",
+                            "type": "paragraph",
+                            "bounding_box": bbox
+                        })
+                _trace("get_document_layout: pass 2 (WordBoxBuilder, PSM=11) start")
+                word_builder = pyocr.builders.WordBoxBuilder()
+                word_builder.tesseract_layout = 11
+                with make_ctx():
+                    word_boxes = self.ocr_tool.image_to_string(
+                        image,
+                        lang=lang,
+                        builder=word_builder
+                    )
+                _trace(f"get_document_layout: pass 2 done, {len(word_boxes)} word boxes")
+                for word_box in word_boxes:
+                    text = word_box.content.strip()
+                    if not text:
+                        continue
+                    pos = word_box.position
+                    wcx = (pos[0][0] + pos[1][0]) / 2
+                    wcy = (pos[0][1] + pos[1][1]) / 2
+                    covered = False
+                    for lr in line_regions:
+                        if lr[0][0] <= wcx <= lr[1][0] and lr[0][1] <= wcy <= lr[1][1]:
+                            covered = True
+                            break
+                    if covered:
+                        continue
+                    bbox = [
+                        [pos[0][0], pos[0][1]],
+                        [pos[1][0], pos[0][1]],
+                        [pos[1][0], pos[1][1]],
+                        [pos[0][0], pos[1][1]],
+                    ]
+                    block_vector.append({
+                        "page": 1,
+                        "text": text + "\n",
+                        "type": "word",
+                        "bounding_box": bbox
+                    })
+                _trace(f"get_document_layout: returning {len(block_vector)} blocks")
+                return block_vector
         except Exception as e:
             import traceback
             _trace(f"get_document_layout: EXCEPTION: {e}")
@@ -283,12 +512,12 @@ class OCRDocument:
             return {"error": str(e)}
     
   # Extrait les tableaux d'un document
-    def extract_tables(self, config_json_path, ocr_json_path, project_path,  pageid ):
+    def extract_tables(self, config_json_path, key_order, ocr_json_path, project_path,  pageid ):
         _trace(f"extract_tables: start pageid={pageid}")
         try:
             #Read config
             with open(config_json_path, "r", encoding="utf-8") as f:
-                config_data = json.load(f)
+                config_data = json.load(f).get(key_order, [])
 
             # target_text = [item["text"] for item in config_data if "text" in item]
             target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
@@ -371,7 +600,329 @@ class OCRDocument:
             _trace(f"extract_tables: EXCEPTION: {e}")
             _trace(traceback.format_exc())
             return {"error": str(e)}
+        
+    def extract_tables_with_grid(self, config_json_path, key_order, grid_json_path, project_path, pageid):
+        _trace(f"extract_tables_with_grid: start pageid={pageid} category={key_order}")
+        try:
+            #Read config (only the requested category, e.g. "interventions")
+            with open(config_json_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f).get(key_order, [])
 
+            # target_text = [item["text"] for item in config_data if "text" in item]
+            target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
+            
+            # Load grid detection data
+            with open(grid_json_path, 'r', encoding='utf-8') as f:
+                grid_data = json.load(f)
+
+             # Guard against an empty/invalid config section
+            if not isinstance(config_data, list) or not config_data:
+                _trace(f"extract_tables_with_grid: config section '{key_order}' empty/invalid, aborting pageid={pageid}")
+                return {"error": f"Config category '{key_order}' unavailable"}
+
+             # Guard against a failed grid detection pass (returns {"error": ...})
+            if grid_data.get("error"):
+                _trace(f"extract_tables_with_grid: grid_data error: {grid_data.get('error')}, aborting pageid={pageid}")
+                return {"error": "Grid data unavailable"}
+
+            # Load OCR layout and assign text to each grid cell (persists enriched grid).
+            cells = self._assign_text_to_cells(grid_data, grid_json_path, project_path, pageid)
+
+            # Load source page image (grayscale) so we can detect handwritten
+            # marks in cells using pixel density instead of OCR text.
+            gray_img = None
+            for ext in ("png", "jpg", "jpeg"):
+                candidate = os.path.join(project_path, f"{pageid}.{ext}")
+                if os.path.exists(candidate):
+                    try:
+                        gray_img = Image.open(candidate).convert("L")
+                    except Exception as e:
+                        _trace(f"extract_tables_with_grid: could not open image {candidate}: {e}")
+                    break
+
+
+            # Match config labels to cells and derive bboxes + values.
+            label_bbox_ordered, value_bbox_ordered, extract_values_ordered = \
+                self._match_labels_to_cells(config_data, cells, gray_img=gray_img)
+
+            # OCR manuscript digits in row 0
+            row0_digits = self.read_row0_digits(cells, gray_img=gray_img)
+            with open(os.path.join(project_path, f"row0_digits_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(row0_digits, f, indent=4, ensure_ascii=False)
+
+            with open(os.path.join(project_path, f"label_bbox_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(label_bbox_ordered, f, indent=4, ensure_ascii=False)
+            with open(os.path.join(project_path, f"value_bbox_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
+            with open(os.path.join(project_path, f"table_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+
+            # All OCR blocks (for debug display in the frontend overlay).
+            all_blocks = []
+            ocr_json_path = os.path.join(project_path, f"output_{pageid}.json")
+            if os.path.exists(ocr_json_path):
+                try:
+                    with open(ocr_json_path, 'r', encoding='utf-8') as f:
+                        ocr_blocks = json.load(f)
+                    if isinstance(ocr_blocks, list):
+                        for block in ocr_blocks:
+                            if 'bounding_box' in block and 'text' in block:
+                                all_blocks.append({
+                                    "text": block['text'].strip(),
+                                    "bbox": block['bounding_box']
+                                })
+                except Exception as e:
+                    _trace(f"extract_tables_with_grid: could not build all_blocks: {e}")
+            with open(os.path.join(project_path, f"all_blocks_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(all_blocks, f, indent=4, ensure_ascii=False)
+
+            matched = sum(1 for v in label_bbox_ordered.values() if v is not None)
+            _trace(f"extract_tables_with_grid: matched {matched}/{len(label_bbox_ordered)} labels for pageid={pageid}")
+            return {
+                "label_bbox": label_bbox_ordered,
+                "value_bbox": value_bbox_ordered,
+                "extract_values": extract_values_ordered
+            }
+
+        except Exception as e:
+            import traceback
+            _trace(f"extract_tables_with_grid: EXCEPTION: {e}")
+            _trace(traceback.format_exc())
+            return {"error": str(e)}
+
+    # ------------------------------------------------------------------
+    # Helpers for extract_tables_with_grid
+    # ------------------------------------------------------------------
+    def _assign_text_to_cells(self, grid_data, grid_json_path, project_path, pageid):
+        """Load OCR layout (output_<pageid>.json) and attach a ``text`` field to
+        each cell in ``grid_data`` based on which OCR blocks fall inside it.
+        The enriched grid is written back to ``grid_json_path``.
+
+        Returns the (mutated) list of cells.
+        """
+        ocr_json_path = os.path.join(project_path, f"output_{pageid}.json")
+        ocr_blocks = []
+        if os.path.exists(ocr_json_path):
+            try:
+                with open(ocr_json_path, 'r', encoding='utf-8') as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, list):
+                    ocr_blocks = loaded
+            except Exception as e:
+                _trace(f"_assign_text_to_cells: could not read OCR layout: {e}")
+
+        cells = grid_data.get("cells", [])
+
+        # Precompute block rectangles once for all cells.
+        block_rects = []
+        for block in ocr_blocks:
+            brect = self._block_rect(block)
+            if brect is None:
+                continue
+            block_rects.append((block, brect))
+
+        # For each cell, collect all OCR texts that fit inside it.
+        for cell in cells:
+            cell["text"] = self._find_texts_in_cell(cell, block_rects)
+
+        # Persist enriched grid (now includes "text" per cell) back to disk.
+        with open(grid_json_path, "w", encoding="utf-8") as f:
+            json.dump(grid_data, f, indent=4, ensure_ascii=False)
+
+        return cells
+
+    @staticmethod
+    def _cell_rect(cell):
+        bb = cell.get("bbox")
+        if not bb or len(bb) < 3:
+            return None
+        xs = [pt[0] for pt in bb]
+        ys = [pt[1] for pt in bb]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    @staticmethod
+    def _block_rect(block):
+        bb = block.get("bounding_box")
+        if not bb or len(bb) < 3:
+            return None
+        xs = [pt[0] for pt in bb]
+        ys = [pt[1] for pt in bb]
+        return (min(xs), min(ys), max(xs), max(ys))
+
+    def _find_texts_in_cell(self, cell, block_rects):
+        """Return the concatenated text of every OCR block whose bbox overlaps
+        the cell's bbox (fully or partially). Each matching block contributes
+        its full text; pieces are ordered top-to-bottom then left-to-right.
+
+        ``block_rects`` is a precomputed list of ``(block, (x1, y1, x2, y2))``
+        tuples produced from the OCR layout.
+        """
+        rect = self._cell_rect(cell)
+        if not rect:
+            return ""
+        cx1, cy1, cx2, cy2 = rect
+
+        pieces = []
+        for block, (bx1, by1, bx2, by2) in block_rects:
+            # Any (even partial) rectangle overlap between block and cell.
+            if bx2 <= cx1 or bx1 >= cx2 or by2 <= cy1 or by1 >= cy2:
+                continue
+
+            text = (block.get("text") or "").strip()
+            if not text:
+                continue
+
+            pieces.append((by1, bx1, text))
+
+        pieces.sort(key=lambda m: (m[0], m[1]))
+        return " ".join(t for _, _, t in pieces)
+
+    def _cell_has_mark(self, cell, gray_img, dark_threshold=253, dark_ratio=125, inset=4):
+        """Return True if the cell region in ``gray_img`` contains enough dark
+        pixels to be considered a handwritten mark (check, tick, cross, ...).
+
+        - Crops the cell bbox with a small ``inset`` to ignore the grid lines.
+        - Counts pixels darker than ``dark_threshold`` via the image histogram.
+        - Considers a cell marked if it contains at least ``dark_ratio`` dark pixels.
+        """
+        if gray_img is None:
+            return False
+        rect = self._cell_rect(cell)
+        if not rect:
+            return False
+        x1, y1, x2, y2 = (int(round(v)) for v in rect)
+        x1 += inset; y1 += inset; x2 -= inset; y2 -= inset
+        if x2 <= x1 or y2 <= y1:
+            return False
+        img_w, img_h = gray_img.size
+        x1 = max(0, min(x1, img_w)); x2 = max(0, min(x2, img_w))
+        y1 = max(0, min(y1, img_h)); y2 = max(0, min(y2, img_h))
+        if x2 <= x1 or y2 <= y1:
+            return False
+        crop = gray_img.crop((x1, y1, x2, y2))
+        hist = crop.histogram()
+        dark = sum(hist[:dark_threshold])
+        total = (x2 - x1) * (y2 - y1)
+        if total <= 0:
+            return False
+        # print ratio and debug info
+        row = cell.get("row", "?")
+        col = cell.get("col", "?")
+        print(f"Cell dark: {dark}, total: {total} at row={row} col={col}")
+
+        return dark   # threshold for "marked cell" can be adjusted based on testing
+
+    def _match_labels_to_cells(self, config_data, cells, gray_img=None):
+        """For each label in ``config_data``, find the cell whose text contains
+        one of its target snippets and use that cell's text as both the label
+        location and the extracted value.
+
+        Returns three ordered dicts keyed by label:
+        (label_bbox, value_bbox, extract_values).
+        """
+        from collections import OrderedDict
+
+        def _norm(s):
+            return (s or "").lower().strip()
+
+        labels = [d['label'] for d in config_data if 'label' in d]
+        label_bbox_ordered = OrderedDict((label, None) for label in labels)
+        value_bbox_ordered = OrderedDict((label, None) for label in labels)
+        extract_values_ordered = OrderedDict((label, None) for label in labels)
+
+        # Build a (row, col) -> cell lookup for fast offset access.
+        cells_by_rc = {}
+        for c in cells:
+            r = c.get("row")
+            co = c.get("col")
+            if r is None or co is None:
+                continue
+            cells_by_rc[(r, co)] = c
+
+        def _parse_positions(raw_positions):
+            """Parse entries into integer column offsets (number of columns to
+            the right of the label cell). 0 means the label cell itself.
+            Accepts ints (0, 1, 2, ...) or numeric strings ("0", "1", ...).
+            Legacy 'r<n>' notation is still accepted. Invalid entries are
+            skipped."""
+            offsets = []
+            for p in raw_positions or []:
+                if isinstance(p, bool):
+                    continue  # avoid True/False being treated as 1/0
+                if isinstance(p, int):
+                    if p >= 0:
+                        offsets.append(p)
+                    continue
+                if isinstance(p, str):
+                    s = p.strip()
+                    if not s:
+                        continue
+                    m = re.match(r'^\s*r?\s*(\d+)\s*$', s, re.IGNORECASE)
+                    if m:
+                        offsets.append(int(m.group(1)))
+            return offsets
+
+        # Flatten config into (label, [snippets], [position offsets]) tuples.
+        label_specs = []
+        for param in config_data:
+            label = param.get("label")
+            if not label:
+                continue
+            snippets = [_norm(t) for t in param.get("text", []) if t]
+            offsets = _parse_positions(param.get("positions"))
+            if snippets:
+                label_specs.append((label, snippets, offsets))
+
+        # For each cell, search every config label's snippets in the cell text.
+        # First matching label wins for that cell; first matching cell wins
+        # for that label.
+        for cell in cells:
+            ct = _norm(cell.get("text", ""))
+            if not ct:
+                continue
+            for label, snippets, offsets in label_specs:
+                if label_bbox_ordered[label] is not None:
+                    continue  # already matched a previous cell
+                if any(snip in ct for snip in snippets):
+                    bbox = cell.get("bbox")
+                    label_bbox_ordered[label] = bbox
+
+                    row = cell.get("row")
+                    col = cell.get("col")
+                    if not offsets or offsets[0] != 0:
+                        # Extract one value per position offset: same row, col+offset.
+                        # When off > 0 (value cell, not the label itself), also
+                        # peek at the cells directly above and below: if those
+                        # neighbors contain any text ("mark"), append it to the
+                        # value so a check / tick that landed in an adjacent
+                        # row isn't lost.
+                        values = []
+                        value_bboxes = []
+                        # For each offset, get the number of dark pixels in the cell.
+                        # Find the offset with the maximum dark pixel count, and set total to offset_weight of that offset (if >0), else 0.
+                        offset_weight = {1: 1.0, 2: 0.5}
+                        max_dark = 0
+                        max_off = 0
+                        value_bboxes = []
+                        for off in offsets:
+                            target = cells_by_rc.get((row, col + off))
+                            value_bboxes.append(target.get("bbox") if target else None)
+                            if target is not None :
+                                dark = self._cell_has_mark(target, gray_img)
+                                if isinstance(dark, (int, float)) and dark > max_dark:
+                                    max_dark = dark
+                                    max_off = off
+                        total = offset_weight.get(max_off, 0) if max_dark > 0 else 0
+                        extract_values_ordered[label] = f"{total:g}"
+                        value_bbox_ordered[label] = value_bboxes
+                    else:
+                        # No positions configured: fall back to the label cell itself.
+                        extract_values_ordered[label] = (cell.get("text") or "").strip()
+                        value_bbox_ordered[label] = [cell.get("bbox")]
+                    break
+
+        return label_bbox_ordered, value_bbox_ordered, extract_values_ordered
+                    
     def find_next_value(self, blocks, label_block, label_text, format_instructions=None):
         """
         Finds the next numerical value near the label block using spatial proximity.

@@ -1,0 +1,169 @@
+{
+  "bilan_lipidique": [
+    {
+      "label": "Matricule",
+      "text": ["SAT2", "RZ-000"],
+      "parse": "a string with three or four digits in a row",
+      "key": "Matricule"
+    },
+    {
+      "label": "Visite",
+      "text": ["Visite"],
+      "parse": "a digit; put 0 if nothing is detected",
+      "key": "Visite"
+    },
+    {
+      "label": "Temps",
+      "text": ["Temps"],
+      "parse": "a digit that should be one of -15, 0, 30, 60; if 14 is detected, replace it with -15",
+      "key": "Temps"
+    },
+    {
+      "label": "Protéine C réactive",
+      "text": ["Protéine C réactive"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Protéine-C-réactive"
+    },
+    {
+      "label": "Cholestérol",
+      "text": ["Cholestérol"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-total"
+    },
+    {
+      "label": "Triglycérides",
+      "text": ["Triglycérides"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Triglycérides"
+    },
+    {
+      "label": "Cholestérol-HDL",
+      "text": ["Cholestérol HDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-HDL"
+    },
+    {
+      "label": "Cholestérol-LDL",
+      "text": ["Cholestérol LDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-LDL"
+    },
+    {
+      "label": "Cholestérol non-HDL",
+      "text": ["Cholestérol non HDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-non-HDL"
+    },
+    {
+      "label": "Cholestérol total/C-HDL",
+      "text": ["Cholestérol total/C-HDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-total/C-HDL"
+    },
+    {
+      "label": "Glucose",
+      "text": ["Glucose"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Glucose"
+    },
+    {
+      "label": "Insuline",
+      "text": ["Insuline"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Insuline"
+    }
+  ],
+  "interventions": [
+    {
+      "label": "Phase",
+      "text": ["PHASE"],
+      "parse": "a manuscript digit",
+      "key": "Phase",
+      "positions": ["0"] 
+    },
+    {
+      "label": "Visite",
+      "text": ["VISITE"],
+      "parse": "a manuscript digit",
+      "key": "Visite",
+      "positions": ["0"] 
+    },
+    {
+      "label": "Date",
+      "text": ["OBSERVATION"],
+      "parse": "a manuscript digit",
+      "key": "Date",
+      "positions": ["0"] 
+    },
+    {
+      "label": "# Du Participant",
+      "text": ["PARTICIPANT"],
+      "parse": "a manuscript digit",
+      "key": "Participant",
+      "positions": ["0"] 
+    },
+    {
+      "label": "Assiette du GAC",
+      "text": ["GAC"],
+      "parse": "a manuscript digit",
+      "key": "AssietteDuGAC",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "Grains entiers",
+      "text": ["GRAINS"],
+      "parse": "a manuscript digit",
+      "key": "GrainsEntiers",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "Protéines végétales",
+      "text": ["VÉGÉTALES"],
+      "parse": "a manuscript digit",
+      "key": "ProteinesVegetales",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "Eau",
+      "text": ["EAU"],
+      "parse": "a manuscript digit",
+      "key": "Eau",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "10-15%",
+      "text": ["15%"],
+      "parse": "a manuscript digit",
+      "key": "DixQuinzePourcent",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "20-30%",
+      "text": ["30%"],
+      "parse": "a manuscript digit",
+      "key": "VingtTrentePourcent",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "55-60%",
+      "text": ["60%"],
+      "parse": "a manuscript digit",
+      "key": "CinquanteCinqSoixantePourcent",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "Activité physique",
+      "text": ["PHYSIQUE"],
+      "parse": "a manuscript digit",
+      "key": "ActivitePhysique",
+      "positions": ["1", "2", "3"]   
+    },
+    {
+      "label": "Habitudes de sommeil",
+      "text": ["SOMMEIL"],
+      "parse": "a manuscript digit",
+      "key": "HabitudesDeSommeil",
+      "positions": ["1", "2", "3"]   
+    }
+  ]
+}
