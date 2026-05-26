@@ -12,6 +12,7 @@ let currentDocID = 0;
 let currentProjectID = "";
 let currentPageIndex = 0;
 let currentFileList = [];
+let currentCategory = null;
 
 let nbrPageMax = 0;
 let project_data = null;
@@ -89,6 +90,7 @@ async function loadPage(project_id, index, init_scroll=false) {
     currentPageIndex = index;
     currentDocPage = currentFileList[index].page;
     currentDocID = currentFileList[index].document_id;
+    currentCategory = project_data?.find(f => f.document_id === currentDocID)?.category ?? null;
     //start spinner cursor
     page_id = `page_${index+1}`;
     const responses = await Promise.all([
@@ -326,7 +328,7 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
         fillColor = "rgba(255, 215, 0, 0.25)";   // gold tint
         strokeColor = "rgba(255, 140, 0, 0.9)";   // orange outline
         strokeWidth = 1.5;
-      } else if (labelColors[label] && labelColors[label][boxType]) {
+      } else if (currentCategory !== 'interventions' && labelColors[label] && labelColors[label][boxType]) {
         fillColor = labelColors[label][boxType];
       }
       polygon.setAttribute("fill", fillColor);
@@ -586,8 +588,8 @@ function generateEditableTable(data, containerId = "table-container") {
     paramCell.textContent = key;
     paramCell.dataset.originalKey = key;
     
-    // Apply label color if available
-    if (labelColors[key] && labelColors[key].label) {
+    // Apply label color if available (not for interventions)
+    if (currentCategory !== 'interventions' && labelColors[key] && labelColors[key].label) {
       paramCell.style.backgroundColor = labelColors[key].label;
     }
 

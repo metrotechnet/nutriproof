@@ -68,15 +68,12 @@ btnNewFile.addEventListener('click', async () => {
 // Gestion du changement de fichier
 fileBrowserMain.addEventListener('change', async (event) => {
     const files = event.target.files;
-    startSpinner("Chargement des projets...");
-    if (!files || files.length === 0) return;
-    let hasError = false;
+    startSpinner("Chargement en cours...");
+    if (!files || files.length === 0) { stopSpinner(); return; }
     for (const file of files) {
         const ok = await window.addFileToProject({ target: { files: [file] } }, projectId);
-        if (!ok) { hasError = true; break; }
+        if (!ok) break;
     }
-    if (hasError) return;
-    await loadProjects();
     stopSpinner();
 });
 
@@ -183,6 +180,25 @@ window.addFileToProject = async function(event, projectId) {
 
   //start processing
   const jobid = await OcrManager.processOCRFile(projectId, uploadResults[0], uploadResults[1], 0, file.name, selectedCategory);
+
+  // Add a placeholder row at the end of the table immediately
+  const tableBody = document.querySelector('#projects-table tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="align-middle text-center">${jobid}</td>
+    <td class="align-middle text-center">${file.name}</td>
+    <td class="align-middle text-center">${FORM_TYPES[selectedCategory] || selectedCategory || '-'}</td>
+    <td class="align-middle text-center">-</td>
+    <td class="align-middle text-center">-</td>
+    <td class="align-middle text-center"><button class="btn btn-primary btn-sm" disabled><i class="fas fa-eye"></i></button></td>
+    <td class="align-middle text-center"><button class="btn btn-success btn-sm" disabled><i class="fas fa-download"></i></button></td>
+    <td class="align-middle text-center"><button class="btn btn-danger btn-sm" disabled><i class="fas fa-trash"></i></button></td>
+    <td class="align-middle text-center"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">En cours</span></td>
+    <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
+    <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
+  `;
+  tableBody.appendChild(tr);
+
   //start polling et mise à jour du status
   pollJob(jobid);
   return true;
@@ -283,6 +299,36 @@ async function pollJob(jobId) {
                         if (status_data.status === 'completed' || status_data.status === 'cancelled') {
                             enableLine(jobId);
                             clearInterval(intervalId);
+                            // Update the placeholder row with actual server data
+                            if (status_data.status === 'completed') {
+                                try {
+                                    const details = await ProjectManager.getProject(projectId);
+                                    if (Array.isArray(details)) {
+                                        const file = details.find(f => f.document_id === jobId);
+                                        if (file) {
+                                            const tbody = document.querySelector('#projects-table tbody');
+                                            for (const row of tbody.querySelectorAll('tr')) {
+                                                if (row.querySelector('td')?.textContent.trim() === jobId) {
+                                                    row.innerHTML = `
+                                                        <td class="align-middle text-center">${file.document_id || '-'}</td>
+                                                        <td class="align-middle text-center">${file.filename || '-'}</td>
+                                                        <td class="align-middle text-center">${FORM_TYPES[file.category] || file.category || '-'}</td>
+                                                        <td class="align-middle text-center">${file.upload_date || '-'}</td>
+                                                        <td class="align-middle text-center">${file.nbr_pages || '-'}</td>
+                                                        <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
+                                                        <td class="align-middle text-center"><button class="btn btn-success btn-sm" onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
+                                                        <td class="align-middle text-center"><button class="btn btn-danger btn-sm" onclick="deleteDocumentConfirm('${file.document_id}')"><i class="fas fa-trash"></i></button></td>
+                                                        <td class="align-middle text-center"><span class="badge px-3 py-2 bg-success" style="display:inline-block;width:120px;">Terminé</span></td>
+                                                        <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
+                                                        <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v2-${file.document_id}" ${file.v2=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v2',this.checked ? 'true' : 'false')"></td>
+                                                    `;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (e) { /* ignore */ }
+                            }
                             return;
                         }
                     }
