@@ -302,57 +302,6 @@ class OCRDocument:
         pix.save(image_path)
         return image_path
     
-    def get_pdf_imageNew(self, input_pdf, output_folder, page_index=0, image_format="png", dpi=150):
-        """
-        Extrait la résolution effective (DPI) des images de la page,
-        puis exporte la page en image et sauvegarde en local.
-
-        Args:
-            input_pdf (str): Chemin du PDF source.
-            output_folder (str): Dossier de sortie local.
-            page_index (int): Index de la page à extraire (0 pour la première).
-            image_format (str): Format d'image (par défaut png).
-            dpi (int): Résolution cible pour l’export de la page.
-        Returns:
-            dict: {
-                "image_path": chemin local de l’image extraite,
-                "images_dpi": liste des DPI des images trouvées
-            }
-        """
-        doc = fitz.open(input_pdf)
-
-        if page_index < 0 or page_index >= len(doc):
-            raise ValueError("Index de page hors limites")
-
-        page = doc[page_index]
-
-        # --- Étape 1 : Extraire le premier DPI trouvé ---
-        measured_dpi= dpi
-        for img in page.get_images(full=True):
-            xref = img[0]
-            width, height = img[2], img[3]
-
-            # Parcours des blocs pour trouver le bloc image correspondant
-            for block in page.get_text("dict")["blocks"]:
-                if block["type"] == 1 and block.get("image"):
-                    rect = fitz.Rect(block["bbox"])
-                    display_w, display_h = rect.width, rect.height
-                    if display_w > 0 and display_h > 0:
-                        dpi_x = width / (display_w / 72)
-                        dpi_y = height / (display_h / 72)
-                        measured_dpi = (dpi_x, dpi_y)
-                        break  # On prend seulement le premier
-            if measured_dpi:
-                break
-
-        # --- Étape 2 : Export de la page en image ---
-            # Si aucun DPI trouvé, on met une valeur par défaut (150)
-        export_dpi = int(round(measured_dpi[0])) if measured_dpi else dpi
-        pix = page.get_pixmap(dpi=export_dpi)
-        image_path = os.path.join(output_folder, f"page_{page_index + 1}.{image_format}")
-        pix.save(image_path)
-
-        return image_path
     
     # Récupère le nombre de pages d'un PDF
     def get_pdf_page_count(self, pdf_path):
@@ -491,9 +440,7 @@ class OCRDocument:
                     extract_values[label] = value_result['value']
                     value_bboxes[label] = value_result['value_bbox']
 
-                   
-                        
-
+            
             # Sauvegarde ordonnée selon labels
             from collections import OrderedDict
             labels = [d['label'] for d in config_data]
@@ -962,66 +909,68 @@ class OCRDocument:
                             'value': inline_value,
                             'value_bbox': label_block['bounding_box']
                         }
-                break
+                    else: 
+                        return {'value': None, 'value_bbox': None}
+                # break
 
         # Score candidate blocks by spatial proximity
-        candidates = []
-        for i, block in enumerate(blocks):
-            if i == label_idx:
-                continue
-            bbox = block['bounding_box']
-            block_cx = (bbox[0][0] + bbox[1][0]) / 2
-            block_cy = (bbox[0][1] + bbox[2][1]) / 2
-            block_left = bbox[0][0]
+        # candidates = []
+        # for i, block in enumerate(blocks):
+        #     if i == label_idx:
+        #         continue
+        #     bbox = block['bounding_box']
+        #     block_cx = (bbox[0][0] + bbox[1][0]) / 2
+        #     block_cy = (bbox[0][1] + bbox[2][1]) / 2
+        #     block_left = bbox[0][0]
 
-            # Must be to the right of label or just below
-            dy = block_cy - label_cy
-            dx = block_left - label_right
+        #     # Must be to the right of label or just below
+        #     dy = block_cy - label_cy
+        #     dx = block_left - label_right
 
-            # Candidate: same line (within label_height tolerance) and to the right
-            same_line = abs(dy) < label_height * 1.2 and dx > -20
-            # Candidate: just below (within 2x label height) and roughly aligned
-            just_below = 0 < dy < label_height * 3 and abs(block_left - label_bbox[0][0]) < label_height * 3
+        #     # Candidate: same line (within label_height tolerance) and to the right
+        #     same_line = abs(dy) < label_height * 1.2 and dx > -20
+        #     # Candidate: just below (within 2x label height) and roughly aligned
+        #     just_below = 0 < dy < label_height * 3 and abs(block_left - label_bbox[0][0]) < label_height * 3
 
-            if same_line or just_below:
-                # Priority: same-line blocks first, then below; closer is better
-                priority = 0 if same_line else 1
-                distance = abs(dx) + abs(dy)
-                candidates.append((priority, distance, i, block))
+        #     if same_line or just_below:
+        #         # Priority: same-line blocks first, then below; closer is better
+        #         priority = 0 if same_line else 1
+        #         distance = abs(dx) + abs(dy)
+        #         candidates.append((priority, distance, i, block))
 
-        # Sort: same-line first, then by distance
-        candidates.sort(key=lambda c: (c[0], c[1]))
+        # # Sort: same-line first, then by distance
+        # candidates.sort(key=lambda c: (c[0], c[1]))
 
-        # Try to extract value from candidates
-        for _, _, _, block in candidates:
-            text = block['text'].strip()
-            if not text:
-                continue
+        # # Try to extract value from candidates
+        # for _, _, _, block in candidates:
+        #     text = block['text'].strip()
+        #     if not text:
+        #         continue
 
-            value = None
-            if parse_mode == "digits_string":
-                value = extract_digits_string(text)
-            else:
-                value = extract_number(text)
-                # If we got a number but there are allowed values, check
-                if value is not None and allowed_values:
-                    if str(int(value) if isinstance(value, float) and value == int(value) else value) not in allowed_values:
-                        # Apply OCR fixes and retry
-                        value = extract_number(apply_ocr_fixes(text))
+        #     value = None
+        #     if parse_mode == "digits_string":
+        #         value = extract_digits_string(text)
+        #     else:
+        #         value = extract_number(text)
+        #         # If we got a number but there are allowed values, check
+        #         if value is not None and allowed_values:
+        #             if str(int(value) if isinstance(value, float) and value == int(value) else value) not in allowed_values:
+        #                 # Apply OCR fixes and retry
+        #                 value = extract_number(apply_ocr_fixes(text))
 
-            if value is not None:
-                # Handle allowed values constraint
-                if allowed_values:
-                    str_val = str(int(value)) if isinstance(value, (int, float)) else str(value)
-                    if str_val not in allowed_values:
-                        continue  # Skip, not in allowed set
+        #     if value is not None:
+        #         # Handle allowed values constraint
+        #         if allowed_values:
+        #             str_val = str(int(value)) if isinstance(value, (int, float)) else str(value)
+        #             if str_val not in allowed_values:
+        #                 continue  # Skip, not in allowed set
 
-                return {
-                    'value': value,
-                    'value_bbox': block['bounding_box']
-                }
+        #         return {
+        #             'value': value,
+        #             'value_bbox': block['bounding_box']
+        #         }
 
-        return {'value': None, 'value_bbox': None}
+        # return {'value': None, 'value_bbox': None}
     
     
 
