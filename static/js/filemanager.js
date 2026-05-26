@@ -99,7 +99,7 @@ async function loadProjects() {
                 <td class="align-middle text-center">${file.upload_date || '-'}</td>
                 <td class="align-middle text-center">${file.nbr_pages || '-'}</td>
                 <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
-                <td class="align-middle text-center"><button class="btn btn-success btn-sm" onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
+                <td class="align-middle text-center"><button class="btn btn-success btn-sm disabled"  onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
                 <td class="align-middle text-center"><button class="btn btn-danger btn-sm" onclick="deleteDocumentConfirm('${file.document_id}')"><i class="fas fa-trash"></i></button></td>
                 <td class="align-middle text-center"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">Lecture</span></td>
                 <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
@@ -316,7 +316,7 @@ async function pollJob(jobId) {
                                                         <td class="align-middle text-center">${file.upload_date || '-'}</td>
                                                         <td class="align-middle text-center">${file.nbr_pages || '-'}</td>
                                                         <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
-                                                        <td class="align-middle text-center"><button class="btn btn-success btn-sm" onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
+                                                        <td class="align-middle text-center"><button class="btn btn-success btn-sm disabled" onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
                                                         <td class="align-middle text-center"><button class="btn btn-danger btn-sm" onclick="deleteDocumentConfirm('${file.document_id}')"><i class="fas fa-trash"></i></button></td>
                                                         <td class="align-middle text-center"><span class="badge px-3 py-2 bg-success" style="display:inline-block;width:120px;">Terminé</span></td>
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>

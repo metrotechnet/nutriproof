@@ -50,7 +50,7 @@
     },
     {
       "label": "Cholestérol total/C-HDL",
-      "text": ["C-HDL","Chol-HDL"],
+      "text": ["Cholestérol total","Chol-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-chdl"
     },

@@ -26,12 +26,12 @@ const labelColors = {
   "Visite": { label: `hsla(120, 85%, 35%,${bboxOpacity})`, value: `hsla(120, 85%, 55%,${bboxOpacity})` },
   "Temps": { label: `hsla(240, 85%, 45%,${bboxOpacity})`, value: `hsla(240, 85%, 65%,${bboxOpacity})` },
   "Protéine C réactive": { label: `hsla(300, 85%, 40%,${bboxOpacity})`, value: `hsla(300, 85%, 60%,${bboxOpacity})` },
-  "Cholestérol total": { label: `hsla(30, 90%, 40%,${bboxOpacity})`, value: `hsla(30, 90%, 60%,${bboxOpacity})` },
+  "Cholestérol": { label: `hsla(30, 90%, 40%,${bboxOpacity})`, value: `hsla(30, 90%, 60%,${bboxOpacity})` },
   "Triglycérides": { label: `hsla(180, 85%, 35%,${bboxOpacity})`, value: `hsla(180, 85%, 55%,${bboxOpacity})` },
   "Cholestérol-HDL": { label: `hsla(270, 85%, 45%,${bboxOpacity})`, value: `hsla(270, 85%, 65%,${bboxOpacity})` },
   "Cholestérol-LDL": { label: `hsla(60, 90%, 35%,${bboxOpacity})`, value: `hsla(60, 90%, 55%,${bboxOpacity})` },
   "Cholestérol non-HDL": { label: `hsla(330, 85%, 40%,${bboxOpacity})`, value: `hsla(330, 85%, 60%,${bboxOpacity})` },
-  "Cholestérol-total": { label: `hsla(150, 85%, 35%,${bboxOpacity})`, value: `hsla(150, 85%, 55%,${bboxOpacity})` },
+  "Cholestérol total/C-HDL": { label: `hsla(150, 85%, 35%,${bboxOpacity})`, value: `hsla(150, 85%, 55%,${bboxOpacity})` },
   "Glucose": { label: `hsla(210, 85%, 45%,${bboxOpacity})`, value: `hsla(210, 85%, 65%,${bboxOpacity})` },
   "Insuline": { label: `hsla(45, 90%, 40%,${bboxOpacity})`, value: `hsla(45, 90%, 60%,${bboxOpacity})` }
 };
@@ -196,7 +196,7 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     // Affichage des polygones avec couleurs par label
     displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
     displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
-    displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
+    // displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
     displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
     // displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
 
@@ -229,6 +229,17 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
 
     // Effacer le tableau
     document.getElementById("table-container").innerHTML = "";
+    //Sort extract_values by y position of their label bbox
+    extract_values = Object.fromEntries(Object.entries(extract_values).sort((a, b) => {
+      const labelA = label_bbox[a[0]];
+
+      const labelB = label_bbox[b[0]];
+      if (!labelA || !labelB) return 0;
+      const yA = labelA ? labelA[0][1] : 0;
+      const yB = labelB ? labelB[0][1] : 0;
+      return yA - yB;
+    }));
+
     // Génération du tableau éditable
     generateEditableTable(extract_values);
     // Pagination après le tableau
@@ -331,6 +342,7 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
       } else if (currentCategory !== 'interventions' && labelColors[label] && labelColors[label][boxType]) {
         fillColor = labelColors[label][boxType];
       }
+
       polygon.setAttribute("fill", fillColor);
       polygon.setAttribute("stroke", strokeColor);
       polygon.setAttribute("stroke-width", strokeWidth);
@@ -339,6 +351,7 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
       const tooltipText = index !== null
         ? `${label}[${index}] = ${v ?? ""}`
         : `${label} = ${v ?? ""}`;
+      // console.log(`Applying color for "${label}": ${tooltipText}`);
 
       polygon.addEventListener("mouseenter", () => {
         tooltip.textContent = tooltipText;
