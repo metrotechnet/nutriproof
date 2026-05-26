@@ -245,37 +245,7 @@ class OCRDocument:
             text = re.sub(r"[^0-9]", "", text)
             results.append({"col": cell.get("col"), "text": text})
         return results
-    
-    # def __init__(self):
-    #     # Initialize pyocr tool (Tesseract)
-    #     _trace("OCRDocument.__init__: calling pyocr.get_available_tools()")
-    #     tools = pyocr.get_available_tools()
-    #     _trace(f"OCRDocument.__init__: tools={[t.get_name() for t in tools]}")
-    #     if not tools:
-    #         _trace("OCRDocument.__init__: NO OCR TOOL FOUND")
-    #         raise RuntimeError("No OCR tool found. Please install Tesseract.")
-    #     # Prefer the C-API (libtesseract) tool over the shell wrapper because the
-    #     # C-API honors our patched tessdata directory (with fra+eng+osd), while the
-    #     # shell wrapper invokes the `tesseract` CLI which may resolve a different
-    #     # tessdata path and miss the French language pack.
-    #     self.ocr_tool = None
-    #     for t in tools:
-    #         name = t.get_name()
-    #         if 'C-API' in name or 'libtesseract' in name.lower():
-    #             self.ocr_tool = t
-    #             _trace(f"OCRDocument.__init__: selected C-API tool: {name}")
-    #             break
-    #     if self.ocr_tool is None:
-    #         self.ocr_tool = tools[0]
-    #         _trace(f"OCRDocument.__init__: C-API not found, falling back to: {self.ocr_tool.get_name()}")
-    #     try:
-    #         langs = self.ocr_tool.get_available_languages()
-    #         _trace(f"OCRDocument.__init__: tool={self.ocr_tool.get_name()} langs={langs}")
-    #     except Exception as e:
-    #         _trace(f"OCRDocument.__init__: get_available_languages failed: {e}")
-    #     print(f"Using OCR tool: {self.ocr_tool.get_name()}")
-
-
+  
     def _can_convert_to_float(self, val):
         """Helper method to safely check if a value can be converted to float."""
         if val is None:
@@ -870,14 +840,6 @@ class OCRDocument:
                     row = cell.get("row")
                     col = cell.get("col")
                     if not offsets or offsets[0] != 0:
-                        # Extract one value per position offset: same row, col+offset.
-                        # When off > 0 (value cell, not the label itself), also
-                        # peek at the cells directly above and below: if those
-                        # neighbors contain any text ("mark"), append it to the
-                        # value so a check / tick that landed in an adjacent
-                        # row isn't lost.
-                        values = []
-                        value_bboxes = []
                         # For each offset, get the number of dark pixels in the cell.
                         # Find the offset with the maximum dark pixel count, and set total to offset_weight of that offset (if >0), else 0.
                         offset_weight = {1: 1.0, 2: 0.5}
