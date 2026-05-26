@@ -19,7 +19,7 @@ class GridDetector:
     def __init__(self, cluster_tolerance: int = 10):
         self.cluster_tolerance = cluster_tolerance
 
-    def detect_grid_cells(self, image_path: str) -> Dict:
+    def detect_grid_cells(self, image) -> Dict:
         if cv2 is None:
             return {
                 "error": "OpenCV is not available. Please install opencv-python-headless.",
@@ -29,10 +29,10 @@ class GridDetector:
                 "checked_cells": [],
             }
 
-        gray = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        gray = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2GRAY)
         if gray is None:
             return {
-                "error": f"Unable to read image: {image_path}",
+                "error": f"Unable to process image.",
                 "rows": [],
                 "cols": [],
                 "cells": [],
