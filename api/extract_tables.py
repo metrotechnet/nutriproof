@@ -15,7 +15,7 @@ import pyocr.builders
 from typing import List, Dict
 import pandas as pd
 import xlwt
-
+import numpy as np
 
 
 def _trace(msg):
@@ -175,7 +175,32 @@ class OCRDocument:
         except Exception as e:
             _trace(f"OCRDocument.__init__: get_available_languages failed: {e}")
         print(f"Using OCR tool: {self.ocr_tool.get_name()}")
+    def enhance_and_resize_image(self, crop, scale=1.0, filter=False):
+        """
+        Enhance the cropped image: binarize, filter, resize, and convert to RGB numpy array.
+        Args:
+            crop: PIL Image to process.
+            scale: Resize factor (default 1.0).
+        Returns:
+           Numpy array (RGB, uint8) of the processed image.
+        """
+        # Ensure grayscale for binarization
+        if crop.mode != 'L':
+            crop = crop.convert('L')
+        crop = crop.point(lambda p: 0 if p < 180 else 255, '1')
 
+        if filter:
+            # Morphological dilation  using np
+            crop = crop.filter(ImageFilter.MinFilter(3))
+            # crop = crop.filter(ImageFilter.MinFilter(3))
+        
+        if(scale != 1.0):
+            w, h = crop.size
+            new_size = (int(w * scale), int(h * scale))
+            crop = crop.resize(new_size, Image.LANCZOS).convert('RGB')
+
+        return np.array(crop.convert('RGB'))
+    
     def read_row0_digits(self, cells, gray_img=None):
         """
         OCR manuscript digits in row 0 using digit-only Tesseract config.
@@ -364,8 +389,8 @@ class OCRDocument:
         return len(fitz.open(pdf_path))
 
     # Récupère la mise en page d'un document
-    def get_document_layout(self, file_path, mime_type="application/pdf",
-                            split_lines_to_words=False, handwriting=True):
+    def get_document_layout(self, image=None,
+                            split_lines_to_words=False):
         """Run OCR on ``file_path`` and return a list of layout blocks.
 
         Args:
@@ -380,131 +405,80 @@ class OCRDocument:
                 non-dict penalty, preserve spacing). Set False to fall back to
                 the standard printed-text configuration.
         """
-        _trace(f"get_document_layout: start file={file_path} split_lines_to_words={split_lines_to_words} handwriting={handwriting}")
         try:
-            # Tesseract/pyocr path only
-            image = Image.open(file_path)
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
             lang = "fra+eng"
-            make_ctx = _handwriting_mode if handwriting else _null_context
-            with make_ctx():
-                _trace("get_document_layout: pass 1 (LineBoxBuilder, PSM=6) start")
-                line_builder = pyocr.builders.LineBoxBuilder()
-                line_builder.tesseract_layout = 6
-                line_boxes = self.ocr_tool.image_to_string(
-                    image,
-                    lang=lang,
-                    builder=line_builder
-                )
-                _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
-                line_word_boxes = []
-                if split_lines_to_words:
-                    _trace("get_document_layout: pass 1b (WordBoxBuilder, PSM=6) start")
-                    line_word_builder = pyocr.builders.WordBoxBuilder()
-                    line_word_builder.tesseract_layout = 6
-                    line_word_boxes = self.ocr_tool.image_to_string(
-                        image,
-                        lang=lang,
-                        builder=line_word_builder
-                    )
-                    _trace(f"get_document_layout: pass 1b done, {len(line_word_boxes)} word boxes")
-                    block_vector = []
-                    line_regions = []
+
+            # Pass 1: line-level boxes (PSM 6)
+            line_builder = pyocr.builders.LineBoxBuilder()
+            line_builder.tesseract_layout = 6
+            line_boxes = self.ocr_tool.image_to_string(image, lang=lang, builder=line_builder)
+            _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
+
+            def pos_to_bbox(pos):
+                return [
+                    [pos[0][0], pos[0][1]],
+                    [pos[1][0], pos[0][1]],
+                    [pos[1][0], pos[1][1]],
+                    [pos[0][0], pos[1][1]],
+                ]
+
+            block_vector = []
+
+            if split_lines_to_words:
+                # Pass 1b: word-level boxes (PSM 6) — split lines into individual words
+                _trace("get_document_layout: pass 1b (WordBoxBuilder, PSM=6) start")
+                wb_builder = pyocr.builders.WordBoxBuilder()
+                wb_builder.tesseract_layout = 6
+                word_boxes_psm6 = self.ocr_tool.image_to_string(image, lang=lang, builder=wb_builder)
+
+                line_regions = []
                 for line_box in line_boxes:
                     text = line_box.content.strip()
                     if not text:
                         continue
                     pos = line_box.position
                     line_regions.append(pos)
-                    if split_lines_to_words:
-                        (lx1, ly1), (lx2, ly2) = pos
-                        emitted = 0
-                        for wb in line_word_boxes:
-                            wtext = wb.content.strip()
-                            if not wtext:
-                                continue
-                            wpos = wb.position
-                            wcx = (wpos[0][0] + wpos[1][0]) / 2
-                            wcy = (wpos[0][1] + wpos[1][1]) / 2
-                            if not (lx1 <= wcx <= lx2 and ly1 <= wcy <= ly2):
-                                continue
-                            wbbox = [
-                                [wpos[0][0], wpos[0][1]],
-                                [wpos[1][0], wpos[0][1]],
-                                [wpos[1][0], wpos[1][1]],
-                                [wpos[0][0], wpos[1][1]],
-                            ]
-                            block_vector.append({
-                                "page": 1,
-                                "text": wtext + "\n",
-                                "type": "word",
-                                "bounding_box": wbbox
-                            })
+                    (lx1, ly1), (lx2, ly2) = pos
+                    emitted = 0
+                    for wb in word_boxes_psm6:
+                        wtext = wb.content.strip()
+                        if not wtext:
+                            continue
+                        wpos = wb.position
+                        wcx = (wpos[0][0] + wpos[1][0]) / 2
+                        wcy = (wpos[0][1] + wpos[1][1]) / 2
+                        if lx1 <= wcx <= lx2 and ly1 <= wcy <= ly2:
+                            block_vector.append({"page": 1, "text": wtext + "\n", "type": "word", "bounding_box": pos_to_bbox(wpos)})
                             emitted += 1
-                        if emitted == 0:
-                            bbox = [
-                                [pos[0][0], pos[0][1]],
-                                [pos[1][0], pos[0][1]],
-                                [pos[1][0], pos[1][1]],
-                                [pos[0][0], pos[1][1]],
-                            ]
-                            block_vector.append({
-                                "page": 1,
-                                "text": text + "\n",
-                                "type": "paragraph",
-                                "bounding_box": bbox
-                            })
-                    else:
-                        bbox = [
-                            [pos[0][0], pos[0][1]],
-                            [pos[1][0], pos[0][1]],
-                            [pos[1][0], pos[1][1]],
-                            [pos[0][0], pos[1][1]],
-                        ]
-                        block_vector.append({
-                            "page": 1,
-                            "text": text + "\n",
-                            "type": "paragraph",
-                            "bounding_box": bbox
-                        })
+                    if emitted == 0:
+                        block_vector.append({"page": 1, "text": text + "\n", "type": "paragraph", "bounding_box": pos_to_bbox(pos)})
+
+                # Pass 2: sparse word boxes (PSM 11) — catch text outside line regions
                 _trace("get_document_layout: pass 2 (WordBoxBuilder, PSM=11) start")
-                word_builder = pyocr.builders.WordBoxBuilder()
-                word_builder.tesseract_layout = 11
-                with make_ctx():
-                    word_boxes = self.ocr_tool.image_to_string(
-                        image,
-                        lang=lang,
-                        builder=word_builder
-                    )
-                _trace(f"get_document_layout: pass 2 done, {len(word_boxes)} word boxes")
-                for word_box in word_boxes:
-                    text = word_box.content.strip()
+                wb_builder2 = pyocr.builders.WordBoxBuilder()
+                wb_builder2.tesseract_layout = 11
+                word_boxes_psm11 = self.ocr_tool.image_to_string(image, lang=lang, builder=wb_builder2)
+                _trace(f"get_document_layout: pass 2 done, {len(word_boxes_psm11)} word boxes")
+                for wb in word_boxes_psm11:
+                    text = wb.content.strip()
                     if not text:
                         continue
-                    pos = word_box.position
+                    pos = wb.position
                     wcx = (pos[0][0] + pos[1][0]) / 2
                     wcy = (pos[0][1] + pos[1][1]) / 2
-                    covered = False
-                    for lr in line_regions:
-                        if lr[0][0] <= wcx <= lr[1][0] and lr[0][1] <= wcy <= lr[1][1]:
-                            covered = True
-                            break
-                    if covered:
+                    if any(lr[0][0] <= wcx <= lr[1][0] and lr[0][1] <= wcy <= lr[1][1] for lr in line_regions):
                         continue
-                    bbox = [
-                        [pos[0][0], pos[0][1]],
-                        [pos[1][0], pos[0][1]],
-                        [pos[1][0], pos[1][1]],
-                        [pos[0][0], pos[1][1]],
-                    ]
-                    block_vector.append({
-                        "page": 1,
-                        "text": text + "\n",
-                        "type": "word",
-                        "bounding_box": bbox
-                    })
-                _trace(f"get_document_layout: returning {len(block_vector)} blocks")
-                return block_vector
+                    block_vector.append({"page": 1, "text": text + "\n", "type": "word", "bounding_box": pos_to_bbox(pos)})
+            else:
+                for line_box in line_boxes:
+                    text = line_box.content.strip()
+                    if not text:
+                        continue
+                    block_vector.append({"page": 1, "text": text + "\n", "type": "paragraph", "bounding_box": pos_to_bbox(line_box.position)})
+
+            _trace(f"get_document_layout: returning {len(block_vector)} blocks")
+            return block_vector
         except Exception as e:
             import traceback
             _trace(f"get_document_layout: EXCEPTION: {e}")
@@ -645,10 +619,16 @@ class OCRDocument:
             label_bbox_ordered, value_bbox_ordered, extract_values_ordered = \
                 self._match_labels_to_cells(config_data, cells, gray_img=gray_img)
 
+            # Set Phase, Visite, Date and Matricule values by OCRing row ""
+            extract_values_ordered['Phase'] = None
+            extract_values_ordered['Visite'] = None
+            extract_values_ordered['Date'] = None
+            extract_values_ordered["# Du Participant"] = None
+            
             # OCR manuscript digits in row 0
-            row0_digits = self.read_row0_digits(cells, gray_img=gray_img)
-            with open(os.path.join(project_path, f"row0_digits_{pageid}.json"), "w", encoding="utf-8") as f:
-                json.dump(row0_digits, f, indent=4, ensure_ascii=False)
+            # row0_digits = self.read_row0_digits(cells, gray_img=gray_img)
+            # with open(os.path.join(project_path, f"row0_digits_{pageid}.json"), "w", encoding="utf-8") as f:
+            #     json.dump(row0_digits, f, indent=4, ensure_ascii=False)
 
             with open(os.path.join(project_path, f"label_bbox_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(label_bbox_ordered, f, indent=4, ensure_ascii=False)

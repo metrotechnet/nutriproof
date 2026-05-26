@@ -1,3 +1,4 @@
+from PIL import Image
 from flask import Blueprint, request, jsonify, current_app
 import os
 import sys
@@ -82,7 +83,6 @@ def process_ocr():
                     # extract page from pdf
                     _trace(f"run_extraction: get_pdf_image idx={idx}")
                     chunk_file = ocr_document.get_pdf_image(local_path+filename, local_path, page_index=idx, dpi=300)
-                    _trace(f"run_extraction: chunk_file={chunk_file}")
                     
                     # Set progress
                     progress = f"{idx + 1}/{nbr_pages} pages"
@@ -90,15 +90,22 @@ def process_ocr():
                     
                     # Get page ID
                     pageid = os.path.splitext(os.path.basename(chunk_file))[0]
-                    
-
-
+ 
                     # Choose extraction path based on the user-selected category.
                     if category == "interventions":
+                        #Load image and enhance it for better OCR results (especially for handwritten forms). use _enhance_and_resize_image
+                        image = Image.open(chunk_file).convert('RGB')
+                        
+                        # image_np = np.array(image)
+                        resized_image = ocr_document.enhance_and_resize_image(image,filter=True)
+                        
+                        #Save resized image to send to frontend
+                        debug_resized_path = os.path.join(local_path, f"{pageid}.png")
+                        Image.fromarray(resized_image).save(debug_resized_path)
+
                          # Get document layout
                         _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
-                        layout = ocr_document.get_document_layout(chunk_file, mime_type="image/png", split_lines_to_words=True)
-                        _trace(f"run_extraction: get_document_layout returned type={type(layout).__name__}")
+                        layout = ocr_document.get_document_layout(image, split_lines_to_words=True)
                         
                         # Save layout to JSON
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
@@ -108,7 +115,7 @@ def process_ocr():
 
 
                         # Detect grid/cell positions and checked boxes (for handwritten forms).
-                        grid_data = grid_detector.detect_grid_cells(chunk_file)
+                        grid_data = grid_detector.detect_grid_cells(resized_image)
                         grid_ok = not grid_data.get("error")
                         if grid_ok:
                             grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
@@ -117,10 +124,15 @@ def process_ocr():
                             ocr_document.extract_tables_with_grid(CONFIG_PATH, "interventions", grid_json_path, local_path, pageid)
                             _trace(f"run_extraction: extract_tables_with_grid done pageid={pageid}")
                     else:
+                        #Load image and enhance it for better OCR results (especially for handwritten forms). use _enhance_and_resize_image
+                        image = Image.open(chunk_file).convert('RGB')
+                        
+                        # image_np = np.array(image)
+                        # resized_image = ocr_document.enhance_and_resize_image(image)
+
                         # Get document layout
                         _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
-                        layout = ocr_document.get_document_layout(chunk_file, mime_type="image/png", split_lines_to_words=False)
-                        _trace(f"run_extraction: get_document_layout returned type={type(layout).__name__}")
+                        layout = ocr_document.get_document_layout(image, split_lines_to_words=False)
                         
                         # Save layout to JSON
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")

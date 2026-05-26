@@ -43,12 +43,6 @@
       "key": "Cholestérol-HDL"
     },
     {
-      "label": "Cholestérol-LDL",
-      "text": ["Cholestérol LDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
-      "key": "Cholestérol-LDL"
-    },
-    {
       "label": "Cholestérol non-HDL",
       "text": ["Cholestérol non HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
@@ -56,9 +50,15 @@
     },
     {
       "label": "Cholestérol total/C-HDL",
-      "text": ["Cholestérol total/C-HDL"],
+      "text": ["Cholestérol total"],
       "parse": "a number that should be a float (with a comma or period) or integer",
-      "key": "Cholestérol-total/C-HDL"
+      "key": "Cholestérol-total"
+    },
+    {
+      "label": "Cholestérol-LDL",
+      "text": ["Cholestérol LDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-LDL"
     },
     {
       "label": "Glucose",
