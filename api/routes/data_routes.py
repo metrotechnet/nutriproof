@@ -7,6 +7,13 @@ from api.routes.helpers import load_project_info
 data_bp = Blueprint('data', __name__)
 
 
+@data_bp.route("/get_form_types")
+def get_form_types():
+    """Return a dict {category_key: display_label} for all configured form types."""
+    form_labels = current_app.config.get('FORM_LABELS', {})
+    return jsonify(form_labels)
+
+
 def _resolve_key_order(project_id, document_id):
     """Return the label list for the document's category.
 

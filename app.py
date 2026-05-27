@@ -229,10 +229,12 @@ def create_app():
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         config = json.load(f)
     #Build a dict {category: [labels...]} so consumers can pick the right one per document
-    key_order = {
-        category: [item.get("label") for item in items if "label" in item]
-        for category, items in config.items()
-    }
+    key_order = {}
+    form_labels = {}
+    for category, value in config.items():
+        items = value.get("fields", []) if isinstance(value, dict) else value
+        key_order[category] = [item.get("label") for item in items if "label" in item]
+        form_labels[category] = value.get("label", category) if isinstance(value, dict) else category
 
     # Initialisation de l'application Flask
     app = Flask(__name__,
@@ -247,6 +249,7 @@ def create_app():
     app.config['OCR_DOCUMENT'] = ocr_document
     app.config['TASK_MANAGER'] = task_manager
     app.config['KEY_ORDER'] = key_order
+    app.config['FORM_LABELS'] = form_labels
 
     app.config['DEMO_MODE'] = DEMO_MODE
     app.config['DEMO_MAX_PAGES'] = DEMO_MAX_PAGES

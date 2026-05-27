@@ -92,7 +92,7 @@ def process_ocr():
                     pageid = os.path.splitext(os.path.basename(chunk_file))[0]
  
                     # Choose extraction path based on the user-selected category.
-                    if category == "interventions":
+                    if category in ("interventions", "interventions2"):
                         #Load image and enhance it for better OCR results (especially for handwritten forms). use _enhance_and_resize_image
                         image = Image.open(chunk_file).convert('RGB')
                         
@@ -121,7 +121,7 @@ def process_ocr():
                             grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
                             with open(grid_json_path, "w", encoding="utf-8") as f:
                                 json.dump(grid_data, f, indent=4, ensure_ascii=False)
-                            ocr_document.extract_tables_with_grid(CONFIG_PATH, "interventions", grid_json_path, local_path, pageid)
+                            ocr_document.extract_tables_with_grid(CONFIG_PATH, category, grid_json_path, local_path, pageid)
                             _trace(f"run_extraction: extract_tables_with_grid done pageid={pageid}")
                     else:
                         #Load image and enhance it for better OCR results (especially for handwritten forms). use _enhance_and_resize_image

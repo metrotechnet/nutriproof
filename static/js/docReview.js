@@ -6,6 +6,7 @@ let value_bbox = {};
 let all_blocks = [];
 let checked_boxes = [];
 let grid_cells = [];
+let all_detected_grid_cells = [];
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -112,6 +113,7 @@ async function loadPage(project_id, index, init_scroll=false) {
     checked_boxes = responses[4] || [];
     const gridData = responses[5] || {};
     grid_cells = gridData.cells || [];
+    all_detected_grid_cells = gridData.all_detected_cells || [];
   // Exemple d'utilisation :
     // label_bbox = adjustBboxHeight(label_bbox, 40);
     // value_bbox = adjustBboxHeight(value_bbox, 40);
@@ -195,6 +197,7 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     const scaleY =  imgHeight / imageElement.naturalHeight;
     // Affichage des polygones avec couleurs par label
     displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
+    // displayDetectedGridCandidates(svg, all_detected_grid_cells, 0, 0, scaleX, scaleY);
     displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
     // displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
     displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
@@ -339,7 +342,7 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
         fillColor = "rgba(255, 215, 0, 0.25)";   // gold tint
         strokeColor = "rgba(255, 140, 0, 0.9)";   // orange outline
         strokeWidth = 1.5;
-      } else if (currentCategory !== 'interventions' && labelColors[label] && labelColors[label][boxType]) {
+      } else if (currentCategory == 'bilan_lipidique' && labelColors[label] && labelColors[label][boxType]) {
         fillColor = labelColors[label][boxType];
       }
 
@@ -439,7 +442,10 @@ function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
     contour.addEventListener("mouseenter", () => {
       const row = (cell.row ?? "?");
       const col = (cell.col ?? "?");
-      tooltip.textContent = `Grille r${row} c${col}`;
+      //display bbox w and h in tooltip
+      const w = Math.round((cell.bbox[1][0] - cell.bbox[0][0]) * scaleX);
+      const h = Math.round((cell.bbox[2][1] - cell.bbox[1][1]) * scaleY);
+      tooltip.textContent = `Grille r${row ?? "?"} c${col ?? "?"} (${w}x${h}px)`;
       tooltip.style.opacity = 1;
     });
     contour.addEventListener("mousemove", (e) => {
@@ -461,6 +467,47 @@ function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
     label.setAttribute("pointer-events", "none");
     label.textContent = `r${cell.row ?? "?"}c${cell.col ?? "?"}`;
     svg.appendChild(label);
+  });
+}
+
+function displayDetectedGridCandidates(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
+  if (!gridCells || !gridCells.length) return;
+
+  gridCells.forEach((cell) => {
+    const bbox = cell.bbox;
+    if (!bbox || bbox.length !== 4) return;
+
+    const x = bbox[0][0] * scaleX + offsetX;
+    const y = bbox[0][1] * scaleY + offsetY;
+    const w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
+    const h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
+
+    const contour = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    contour.setAttribute("x", x);
+    contour.setAttribute("y", y);
+    contour.setAttribute("width", w);
+    contour.setAttribute("height", h);
+    contour.setAttribute("fill", "rgba(255, 0, 0, 0.04)");
+    contour.setAttribute("stroke", "rgba(255, 0, 0, 0.7)");
+    contour.setAttribute("stroke-width", "1");
+    contour.setAttribute("stroke-dasharray", "4 2");
+    contour.style.pointerEvents = "auto";
+
+    contour.addEventListener("mouseenter", () => {
+      const rawW = Math.round((cell.bbox[1][0] - cell.bbox[0][0]) * scaleX);
+      const rawH = Math.round((cell.bbox[2][1] - cell.bbox[1][1]) * scaleY);
+      tooltip.textContent = `Contour brut (${rawW}x${rawH}px)`;
+      tooltip.style.opacity = 1;
+    });
+    contour.addEventListener("mousemove", (e) => {
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+    });
+    contour.addEventListener("mouseleave", () => {
+      tooltip.style.opacity = 0;
+    });
+
+    svg.appendChild(contour);
   });
 }
 
@@ -601,8 +648,8 @@ function generateEditableTable(data, containerId = "table-container") {
     paramCell.textContent = key;
     paramCell.dataset.originalKey = key;
     
-    // Apply label color if available (not for interventions)
-    if (currentCategory !== 'interventions' && labelColors[key] && labelColors[key].label) {
+    // Apply label color if available (only for bilan_lipidique)
+    if (currentCategory === 'bilan_lipidique' && labelColors[key] && labelColors[key].label) {
       paramCell.style.backgroundColor = labelColors[key].label;
     }
 
