@@ -1,11 +1,19 @@
 let projectId = 'main';
 let selectedCategory = null; // chosen by the user before each upload
 
-// Available form types (label shown to user -> backend category key)
-const FORM_TYPES = {
-    'bilan_lipidique': 'Bilan lipidique',
-    'interventions':   'Interventions',
-};
+// Available form types (category key -> display label), populated from /get_form_types
+let FORM_TYPES = {};
+
+// Chargement des projets (initialisation)
+window.addEventListener('DOMContentLoaded', async function () {
+    startSpinner("Chargement des projets...");
+    try {
+        const res = await fetch('/get_form_types');
+        if (res.ok) FORM_TYPES = await res.json();
+    } catch (e) { /* keep empty fallback */ }
+    await loadProjects();
+    stopSpinner();
+});
 
 // Ask the user which form type they are about to upload.
 async function askFormType() {
@@ -45,14 +53,6 @@ function startSpinner(message) {
 function stopSpinner() {
     Swal.close();
 }
-
-// Chargement des projets (initialisation)
-window.addEventListener('DOMContentLoaded', async function () {
-    // Chargement initial
-    startSpinner("Chargement des projets...");
-    await loadProjects();
-    stopSpinner();
-});
 
 // Nouveau fichier pour le projet projectId
 const btnNewFile = document.getElementById('btn-new-file');

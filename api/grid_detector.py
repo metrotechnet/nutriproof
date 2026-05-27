@@ -19,6 +19,26 @@ class GridDetector:
     def __init__(self, cluster_tolerance: int = 10):
         self.cluster_tolerance = cluster_tolerance
 
+    @staticmethod
+    def _candidate_parts(candidate):
+        """Normalize candidate shape to (x, y, bw, bh, contour_or_none)."""
+        if len(candidate) >= 5:
+            return candidate[0], candidate[1], candidate[2], candidate[3], candidate[4]
+        return candidate[0], candidate[1], candidate[2], candidate[3], None
+
+    def _save_debug_contours(self, base_img, candidates, filename, color=(0, 255, 0), thickness=2):
+        """Save remaining contours/boxes for a detection stage."""
+        if cv2 is None:
+            return
+        debug_img = base_img.copy()
+        for cand in candidates:
+            x, y, bw, bh, cnt = self._candidate_parts(cand)
+            if cnt is not None:
+                cv2.drawContours(debug_img, [cnt], -1, color, thickness)
+            else:
+                cv2.rectangle(debug_img, (x, y), (x + bw, y + bh), color, thickness)
+        cv2.imwrite(os.path.join("debug", filename), debug_img)
+
     def detect_grid_cells(self, image) -> Dict:
         if cv2 is None:
             return {
@@ -26,6 +46,7 @@ class GridDetector:
                 "rows": [],
                 "cols": [],
                 "cells": [],
+                "all_detected_cells": [],
                 "checked_cells": [],
             }
 
@@ -36,6 +57,7 @@ class GridDetector:
                 "rows": [],
                 "cols": [],
                 "cells": [],
+                "all_detected_cells": [],
                 "checked_cells": [],
             }
 
@@ -50,52 +72,66 @@ class GridDetector:
         )
         os.makedirs("debug", exist_ok=True)
 
-        # Save binary image for debugging
-        binary_inv_color = cv2.cvtColor(binary_inv, cv2.COLOR_GRAY2BGR)
-        cv2.imwrite("debug/binary_inv.png", binary_inv_color)
-
+ 
         h, w = binary_inv.shape
         # Contour-component approach for irregular grids made of isolated boxes.
         pre = cv2.morphologyEx(
             binary_inv,
-            cv2.MORPH_CLOSE,
+            cv2.MORPH_DILATE,
             cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)),
-            iterations=1,
+            iterations=3,
         )
 
-        contours, _ = cv2.findContours(pre, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        image_area = float(h * w)
-        min_bbox_area = max(40.0, image_area // 600 )
-        max_bbox_area = image_area * 0.35
+        # Save binary image for debugging
+        binary_inv_color = cv2.cvtColor(pre, cv2.COLOR_GRAY2BGR)
+        cv2.imwrite("debug/binary_inv.png", binary_inv_color)
 
+        contours, _ = cv2.findContours(pre, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Filter contour by shape analysis (rectangle-like only).
+        
+        # First pass: minimal hard filters only (absolute pixel size, aspect, lines).
         candidates = []
         for cnt in contours:
             x, y, bw, bh = cv2.boundingRect(cnt)
-            if bw < 8 or bh < 8:
+            if bw < 40 or bw> 0.3*w or bh < 40 or bh > 500:
                 continue
 
-            bbox_area = float(bw * bh)
-            if bbox_area < min_bbox_area or bbox_area > max_bbox_area:
+            contour_area = cv2.contourArea(cnt)
+            rect_area = float(bw * bh)
+            if contour_area <= 0 or rect_area <= 0:
+                continue
+            # Rectangle fill ratio (extent): reject very hollow/irregular shapes.
+            extent = contour_area / rect_area
+            if extent < 0.8:
                 continue
 
-            aspect_ratio = bw / float(bh)
-            if aspect_ratio < 0.15 or aspect_ratio > 12.0:
-                continue
+            candidates.append((x, y, bw, bh, cnt))
 
-            # Discard likely full-page rule lines.
-            if bw > int(0.65 * w) and bh < max(8, h // 100):
-                continue
-            if bh > int(0.65 * h) and bw < max(8, w // 100):
-                continue
+        # self._save_debug_contours(binary_inv_color, candidates, "contours_step1_candidates.png", color=(255, 0, 0), thickness=2)
 
-            candidates.append((x, y, bw, bh))
+        all_detected_cells = [
+            {
+                "bbox": self._to_bbox(x, y, x + bw, y + bh),
+                "source": "raw_contour",
+            }
+            for (x, y, bw, bh, _) in candidates
+        ]
 
+ 
         # Remove near-duplicate nested boxes.
-        deduped: List[Tuple[int, int, int, int]] = []
-        for box in sorted(candidates, key=lambda b: b[2] * b[3], reverse=True):
-            if any(self._bbox_iou(box, kept) > 0.82 for kept in deduped):
+        deduped = []
+        for box in sorted(candidates, key=lambda b: self._candidate_parts(b)[2] * self._candidate_parts(b)[3], reverse=True):
+            bx = self._candidate_parts(box)
+            if any(
+                   self._bbox_iou((bx[0], bx[1], bx[2], bx[3]), (kx[0], kx[1], kx[2], kx[3])) > 0.82
+                   or self._bbox_contained((bx[0], bx[1], bx[2], bx[3]), (kx[0], kx[1], kx[2], kx[3]), min_ratio=0.9)
+                   for kx in (self._candidate_parts(kept) for kept in deduped)):
                 continue
             deduped.append(box)
+
+        # self._save_debug_contours(binary_inv_color, deduped, "contours_step2_deduped.png", color=(0, 255, 0), thickness=2)
+
 
         if len(deduped) < 2:
             return {
@@ -103,35 +139,27 @@ class GridDetector:
                 "rows": [],
                 "cols": [],
                 "cells": [],
+                "all_detected_cells": all_detected_cells,
                 "checked_cells": [],
             }
 
-        median_h = int(np.median([b[3] for b in deduped]))
-        median_w = int(np.median([b[2] for b in deduped]))
+        median_h = int(np.median([self._candidate_parts(b)[3] for b in deduped]))
+        median_w = int(np.median([self._candidate_parts(b)[2] for b in deduped]))
         row_tol = max(self.cluster_tolerance, int(median_h * 0.15))
         col_tol = max(self.cluster_tolerance, int(median_w * 0.6))
 
-        row_centers = [y + bh // 2 for (_, y, _, bh) in deduped]
-        col_centers = [x + bw // 2 for (x, _, bw, _) in deduped]
+        row_centers = [self._candidate_parts(b)[1] + self._candidate_parts(b)[3] // 2 for b in deduped]
+        col_centers = [self._candidate_parts(b)[0] + self._candidate_parts(b)[2] // 2 for b in deduped]
         rows = self._cluster_coordinates(row_centers, row_tol)
         cols = self._cluster_coordinates(col_centers, col_tol)
 
-        # One distinct color per row cluster for debug visualization.
-        row_colors = [
-            (60, 180, 75), (230, 25, 75), (0, 130, 200), (245, 130, 48),
-            (145, 30, 180), (70, 240, 240), (240, 50, 230), (210, 245, 60),
-            (250, 190, 212), (0, 128, 128), (220, 190, 255), (170, 110, 40),
-        ]
 
-        rng = np.random.default_rng(42)
 
         cells = []
         cell_boxes: List[Tuple[int, int, int, int]] = []
         # Two-pass rendering: fill pass first, then borders/labels on top.
-        fill_layer = binary_inv_color.copy()
-        overlay = binary_inv_color.copy()
-
-        for (x, y, bw, bh) in sorted(deduped, key=lambda b: (b[1], b[0])):
+        for box in sorted(deduped, key=lambda b: (self._candidate_parts(b)[1], self._candidate_parts(b)[0])):
+            x, y, bw, bh, _ = self._candidate_parts(box)
             x1, y1 = x, y
             x2, y2 = x + bw, y + bh
 
@@ -148,37 +176,10 @@ class GridDetector:
             })
             cell_boxes.append((x1, y1, x2, y2))
 
-        # Drop cells that significantly overlap more than one other cell.
-        # Such cells are typically container/outer rectangles wrapping smaller
-        # inner cells and should not be treated as data cells.
-        overlap_ratio_threshold = 0.5
-        keep_flags = [True] * len(cells)
-        for i, (ax1, ay1, ax2, ay2) in enumerate(cell_boxes):
-            a_area = max(1, (ax2 - ax1) * (ay2 - ay1))
-            overlap_count = 0
-            for j, (bx1, by1, bx2, by2) in enumerate(cell_boxes):
-                if i == j:
-                    continue
-                ix1 = max(ax1, bx1)
-                iy1 = max(ay1, by1)
-                ix2 = min(ax2, bx2)
-                iy2 = min(ay2, by2)
-                iw = ix2 - ix1
-                ih = iy2 - iy1
-                if iw <= 0 or ih <= 0:
-                    continue
-                inter = iw * ih
-                b_area = max(1, (bx2 - bx1) * (by2 - by1))
-                smaller_area = min(a_area, b_area)
-                if inter / smaller_area >= overlap_ratio_threshold:
-                    overlap_count += 1
-                    if overlap_count > 1:
-                        break
-            if overlap_count > 1:
-                keep_flags[i] = False
+     
 
-        cells = [c for c, keep in zip(cells, keep_flags) if keep]
-        cell_boxes = [b for b, keep in zip(cell_boxes, keep_flags) if keep]
+        # final_stage = [(x1, y1, x2 - x1, y2 - y1) for (x1, y1, x2, y2) in cell_boxes]
+        # self._save_debug_contours(binary_inv_color, final_stage, "contours_step3_final_cells.png", color=(0, 0, 255), thickness=2)
 
         # Re-index row/col after filtering so indices are contiguous and
         # the returned rows/cols arrays only contain clusters still in use.
@@ -216,6 +217,7 @@ class GridDetector:
             "rows": rows,
             "cols": cols,
             "cells": cells,
+            "all_detected_cells": all_detected_cells,
             "checked_cells": [],
         }
 
@@ -280,5 +282,24 @@ class GridDetector:
         if union <= 0:
             return 0.0
         return inter / union
+
+    @staticmethod
+    def _bbox_contained(inner: Tuple[int, int, int, int], outer: Tuple[int, int, int, int], min_ratio: float = 0.9) -> bool:
+        """True if `inner` lies mostly inside `outer` by area overlap ratio."""
+        ix1, iy1, iw, ih = inner
+        ox1, oy1, ow, oh = outer
+        ix2, iy2 = ix1 + iw, iy1 + ih
+        ox2, oy2 = ox1 + ow, oy1 + oh
+
+        inter_x1 = max(ix1, ox1)
+        inter_y1 = max(iy1, oy1)
+        inter_x2 = min(ix2, ox2)
+        inter_y2 = min(iy2, oy2)
+        inter_w = max(0, inter_x2 - inter_x1)
+        inter_h = max(0, inter_y2 - inter_y1)
+        inter = float(inter_w * inter_h)
+
+        inner_area = float(max(1, iw * ih))
+        return (inter / inner_area) >= min_ratio
 
 

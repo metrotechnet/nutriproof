@@ -410,7 +410,8 @@ class OCRDocument:
         try:
             #Read config
             with open(config_json_path, "r", encoding="utf-8") as f:
-                config_data = json.load(f).get(key_order, [])
+                _raw = json.load(f).get(key_order, {})
+                config_data = _raw.get("fields", _raw) if isinstance(_raw, dict) else _raw
 
             # target_text = [item["text"] for item in config_data if "text" in item]
             target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
@@ -440,7 +441,7 @@ class OCRDocument:
                     extract_values[label] = value_result['value']
                     value_bboxes[label] = value_result['value_bbox']
 
-            
+
             # Sauvegarde ordonnée selon labels
             from collections import OrderedDict
             labels = [d['label'] for d in config_data]
@@ -497,7 +498,8 @@ class OCRDocument:
         try:
             #Read config (only the requested category, e.g. "interventions")
             with open(config_json_path, 'r', encoding='utf-8') as f:
-                config_data = json.load(f).get(key_order, [])
+                _raw = json.load(f).get(key_order, {})
+                config_data = _raw.get("fields", _raw) if isinstance(_raw, dict) else _raw
 
             # target_text = [item["text"] for item in config_data if "text" in item]
             target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
@@ -766,7 +768,7 @@ class OCRDocument:
             if not label:
                 continue
             snippets = [_norm(t) for t in param.get("text", []) if t]
-            offsets = _parse_positions(param.get("positions"))
+            offsets = _parse_positions(param.get("parse"))
             if snippets:
                 label_specs.append((label, snippets, offsets))
 
@@ -844,7 +846,7 @@ class OCRDocument:
         # Determine parsing mode from format_instructions
         parse_mode = "number"  # default
         allowed_values = None
-        if format_instructions:
+        if format_instructions and isinstance(format_instructions, str):
             fi = format_instructions.lower()
             if "string" in fi and "digit" in fi:
                 parse_mode = "digits_string"
@@ -971,10 +973,9 @@ class OCRDocument:
         #         }
 
         # return {'value': None, 'value_bbox': None}
-    
-    
 
-        # create a function:    For each 'parameters' in the list, find the matching 'block' by it with a word in the `text` string (case-insensitive, typo-tolerant)
+        return {'value': None, 'value_bbox': None}
+
     def find_matching_block(self, blocks, target):
         """
         Find a matching block by searching for target text(s).
