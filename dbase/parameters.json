@@ -34,19 +34,19 @@
     },
     {
       "label": "Triglycérides",
-      "text": ["Triglycérides"],
+      "text": ["Triglycérides","Triglycerides"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Triglycérides"
     },
     {
       "label": "Cholestérol-HDL",
-      "text": ["Cholestérol HDL","Cholestérol-HDL"],
+      "text": ["Cholestérol HDL","Cholestérol-HDL","Cholesterol HDL","Cholesterol-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-hdl"
     },
     {
       "label": "Cholestérol non-HDL",
-      "text": ["Cholestérol non HDL","Cholestérol non-HDL"],
+      "text": ["Cholestérol non HDL","Cholestérol non-HDL","Cholesterol non HDL","Cholesterol non-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-non-hdl"
     },
@@ -58,7 +58,7 @@
     },
     {
       "label": "Cholestérol-LDL",
-      "text": ["Cholestérol LDL","Cholestérol-LDL"],
+      "text": ["Cholestérol LDL","Cholestérol-LDL","Cholesterol LDL","Cholesterol-LDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-ldl"
     },
