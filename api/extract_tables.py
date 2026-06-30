@@ -332,6 +332,7 @@ class OCRDocument:
             line_builder = pyocr.builders.LineBoxBuilder()
             line_builder.tesseract_layout = 6
             line_boxes = self.ocr_tool.image_to_string(image, lang=lang, builder=line_builder)
+
             _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
 
             def pos_to_bbox(pos):
@@ -396,8 +397,12 @@ class OCRDocument:
                         continue
                     block_vector.append({"page": 1, "text": text + "\n", "type": "paragraph", "bounding_box": pos_to_bbox(line_box.position)})
 
-            _trace(f"get_document_layout: returning {len(block_vector)} blocks")
-            return block_vector
+            merged_blocks = self._merge_overlapping_blocks(block_vector)
+            _trace(
+                f"get_document_layout: returning {len(merged_blocks)} blocks "
+                f"(merged from {len(block_vector)})"
+            )
+            return merged_blocks
         except Exception as e:
             import traceback
             _trace(f"get_document_layout: EXCEPTION: {e}")
@@ -648,6 +653,101 @@ class OCRDocument:
         ys = [pt[1] for pt in bb]
         return (min(xs), min(ys), max(xs), max(ys))
 
+    @staticmethod
+    def _merge_rect_to_bbox(rect):
+        x1, y1, x2, y2 = rect
+        return [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+
+    @staticmethod
+    def _rect_intersection(a, b):
+        ax1, ay1, ax2, ay2 = a
+        bx1, by1, bx2, by2 = b
+        ix1 = max(ax1, bx1)
+        iy1 = max(ay1, by1)
+        ix2 = min(ax2, bx2)
+        iy2 = min(ay2, by2)
+        if ix2 <= ix1 or iy2 <= iy1:
+            return 0
+        return (ix2 - ix1) * (iy2 - iy1)
+
+    @staticmethod
+    def _rect_area(rect):
+        x1, y1, x2, y2 = rect
+        return max(0, x2 - x1) * max(0, y2 - y1)
+
+    def _merge_overlapping_blocks(self, blocks, iou_threshold=0.6, contain_threshold=0.9):
+        """Merge OCR blocks that likely represent the same content.
+
+        Two blocks are merged when they overlap strongly (high IoU) or when one
+        is mostly contained in the other. This removes duplicate bboxes that can
+        appear across OCR passes.
+        """
+        if not blocks:
+            return blocks
+
+        groups = []
+        for block in blocks:
+            rect = self._block_rect(block)
+            if rect is None:
+                continue
+
+            merged_into_group = False
+            for group in groups:
+                grect = group["rect"]
+                inter = self._rect_intersection(rect, grect)
+                if inter <= 0:
+                    continue
+
+                area_a = self._rect_area(rect)
+                area_b = self._rect_area(grect)
+                union = max(1, area_a + area_b - inter)
+                iou = inter / union
+                contain = inter / max(1, min(area_a, area_b))
+
+                if iou >= iou_threshold or contain >= contain_threshold:
+                    group["items"].append((block, rect))
+                    group["rect"] = (
+                        min(grect[0], rect[0]),
+                        min(grect[1], rect[1]),
+                        max(grect[2], rect[2]),
+                        max(grect[3], rect[3]),
+                    )
+                    merged_into_group = True
+                    break
+
+            if not merged_into_group:
+                groups.append({"rect": rect, "items": [(block, rect)]})
+
+        merged_blocks = []
+        for group in groups:
+            items = group["items"]
+            items.sort(key=lambda it: (it[1][1], it[1][0]))
+
+            seen = set()
+            text_parts = []
+            for block, _ in items:
+                raw = (block.get("text") or "").strip()
+                if not raw:
+                    continue
+                key = raw.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                text_parts.append(raw)
+
+            merged_text = (" ".join(text_parts)).strip()
+            block_type = "paragraph" if any((b.get("type") == "paragraph") for b, _ in items) else (items[0][0].get("type") or "word")
+            page = items[0][0].get("page", 1)
+
+            merged_blocks.append({
+                "page": page,
+                "text": (merged_text + "\n") if merged_text else "",
+                "type": block_type,
+                "bounding_box": self._merge_rect_to_bbox(group["rect"]),
+            })
+
+        return merged_blocks
+
     def _find_texts_in_cell(self, cell, block_rects):
         """Return the concatenated text of every OCR block whose bbox overlaps
         the cell's bbox (fully or partially). Each matching block contributes
@@ -867,11 +967,24 @@ class OCRDocument:
 
         def extract_number(text):
             """Extract a number (float or int) from text."""
-            # Try to find a number pattern (supports comma and period as decimal)
-            numbers = re.findall(r'-?\d+[.,]\d+|-?\d+', text)
-            if numbers:
-                num_str = numbers[0].replace(',', '.')
+            fixed = apply_ocr_fixes(text or "")
+
+            # Accept OCR noise between decimal separator and fractional part
+            # (examples: "1,: 30", "2, 32", "4. ; 05").
+            dec_match = re.search(r'(-?\d+)\s*[.,]\s*[^\d-]*\s*(\d+)', fixed)
+            if dec_match:
                 try:
+                    num_str = f"{dec_match.group(1)}.{dec_match.group(2)}"
+                    val = float(num_str)
+                    return int(val) if val == int(val) else val
+                except ValueError:
+                    pass
+
+            # Fallback: regular number extraction (decimal or integer).
+            numbers = re.findall(r'-?\d+[.,]\d+|-?\d+', fixed)
+            if numbers:
+                try:
+                    num_str = numbers[0].replace(',', '.')
                     val = float(num_str)
                     return int(val) if val == int(val) else val
                 except ValueError:
@@ -883,15 +996,75 @@ class OCRDocument:
             match = re.search(r'\d{3,4}', apply_ocr_fixes(text))
             return match.group(0) if match else None
 
+        def _levenshtein_with_limit(a, b, max_dist=2):
+            """Return edit distance if <= max_dist, else None (fast early stop)."""
+            if abs(len(a) - len(b)) > max_dist:
+                return None
+            prev = list(range(len(b) + 1))
+            for i, ca in enumerate(a, start=1):
+                curr = [i]
+                row_min = curr[0]
+                for j, cb in enumerate(b, start=1):
+                    cost = 0 if ca == cb else 1
+                    curr.append(min(
+                        prev[j] + 1,
+                        curr[j - 1] + 1,
+                        prev[j - 1] + cost,
+                    ))
+                    if curr[j] < row_min:
+                        row_min = curr[j]
+                if row_min > max_dist:
+                    return None
+                prev = curr
+            return prev[-1] if prev[-1] <= max_dist else None
+
+        def _find_fuzzy_span(haystack, needle, max_diff=2):
+            """Return (start, end) best span for needle in haystack.
+
+            Prefers exact regex match, then falls back to fuzzy match allowing
+            up to ``max_diff`` edit operations.
+            """
+            m = re.search(re.escape(needle), haystack, re.IGNORECASE)
+            if m:
+                return m.start(), m.end()
+
+            hs = haystack or ""
+            nd = (needle or "").strip()
+            if not hs or not nd:
+                return None
+
+            hs_l = hs.lower()
+            nd_l = nd.lower()
+            nlen = len(nd_l)
+            min_len = max(1, nlen - max_diff)
+            max_len = min(len(hs_l), nlen + max_diff)
+
+            best = None  # (distance, start, end)
+            for win_len in range(min_len, max_len + 1):
+                for i in range(0, len(hs_l) - win_len + 1):
+                    cand = hs_l[i:i + win_len]
+                    dist = _levenshtein_with_limit(cand, nd_l, max_diff)
+                    if dist is None:
+                        continue
+                    if best is None or dist < best[0]:
+                        best = (dist, i, i + win_len)
+                        if dist == 0:
+                            return best[1], best[2]
+
+            if best is None:
+                return None
+            return best[1], best[2]
+
         # First, try to extract the value from the label block itself
         # (e.g. "Cholestérol total 3,81 mmol/L" contains both label and value)
         label_block_text = label_block['text'].strip()
         # Find the label text(s) in the block and take what comes after
         search_targets = [label_text] if isinstance(label_text, str) else label_text
         for lt in search_targets:
-            match_pos = re.search(re.escape(lt), label_block_text, re.IGNORECASE)
-            if match_pos:
-                remainder = label_block_text[match_pos.end():]
+            span = _find_fuzzy_span(label_block_text, lt, max_diff=2)
+            if span:
+                print(label_block_text)
+                remainder = label_block_text[span[1]:]
                 if remainder.strip():
                     inline_value = None
                     if parse_mode == "digits_string":
@@ -987,15 +1160,66 @@ class OCRDocument:
         Returns:
             The first block that matches any of the target strings, or None if no match found
         """
+        def _norm(s):
+            return re.sub(r"\s+", " ", (s or "").lower()).strip()
+
+        def _levenshtein_with_limit(a, b, max_dist=2):
+            """Return edit distance if <= max_dist, else None (fast early stop)."""
+            if abs(len(a) - len(b)) > max_dist:
+                return None
+            prev = list(range(len(b) + 1))
+            for i, ca in enumerate(a, start=1):
+                curr = [i]
+                row_min = curr[0]
+                for j, cb in enumerate(b, start=1):
+                    cost = 0 if ca == cb else 1
+                    curr.append(min(
+                        prev[j] + 1,      # deletion
+                        curr[j - 1] + 1,  # insertion
+                        prev[j - 1] + cost  # substitution
+                    ))
+                    if curr[j] < row_min:
+                        row_min = curr[j]
+                if row_min > max_dist:
+                    return None
+                prev = curr
+            return prev[-1] if prev[-1] <= max_dist else None
+
         # Convert single string to list for uniform processing
         targets = [target] if isinstance(target, str) else target
-        
-        # Try to match any of the target strings
+
+        # Pass 1: exact/regex contains match (existing behavior)
         for target_text in targets:
+            if not target_text:
+                continue
             pattern = re.compile(re.escape(target_text), re.IGNORECASE)
             for block in blocks:
-                if pattern.search(block['text']):
+                if pattern.search(block.get('text', '')):
                     return block
+
+        # Pass 2: fuzzy partial match allowing 1-2 character differences
+        max_diff = 2
+        for target_text in targets:
+            t = _norm(target_text)
+            if not t:
+                continue
+            t_len = len(t)
+            min_len = max(1, t_len - max_diff)
+
+            for block in blocks:
+                b = _norm(block.get('text', ''))
+                if not b:
+                    continue
+
+                max_len = min(len(b), t_len + max_diff)
+
+                # Compare target against every candidate substring in the block
+                # with near-equal length so we tolerate OCR one/two-char noise.
+                for win_len in range(min_len, max_len + 1):
+                    for i in range(0, len(b) - win_len + 1):
+                        candidate = b[i:i + win_len]
+                        if _levenshtein_with_limit(candidate, t, max_diff) is not None:
+                            return block
         return None
 
    

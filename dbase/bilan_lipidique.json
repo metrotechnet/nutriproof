@@ -23,43 +23,43 @@
     },
     {
       "label": "Protéine C réactive",
-      "text": ["Protéine C réactive"],
+      "text": ["Protéine C réactive","Proteine C reactive"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Protéine-C-réactive"
     },
     {
       "label": "Cholestérol",
-      "text": ["Cholestérol"],
+      "text": ["Cholestérol","Cholesterol"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-total"
     },
     {
       "label": "Triglycérides",
-      "text": ["Triglycérides"],
+      "text": ["Triglycérides","Triglycerides"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Triglycérides"
     },
     {
       "label": "Cholestérol-HDL",
-      "text": ["Cholestérol HDL"],
+      "text": ["Cholestérol-HDL","Cholesterol-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-HDL"
     },
     {
       "label": "Cholestérol-LDL",
-      "text": ["Cholestérol LDL"],
+      "text": ["Cholestérol-LDL","Cholesterol-LDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-LDL"
     },
     {
       "label": "Cholestérol non-HDL",
-      "text": ["Cholestérol non HDL"],
+      "text": ["Cholestérol non-HDL","Cholesterol non-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-non-HDL"
     },
     {
       "label": "Cholestérol total/C-HDL",
-      "text": ["Cholestérol total/C-HDL"],
+      "text": ["Cholestérol total/C-HDL","Cholesterol total/C-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-total"
     },
