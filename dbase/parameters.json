@@ -1,6 +1,7 @@
 {
-  "bilan_lipidique": {
-    "label": "Bilan lipidique",
+  
+  "bilan_lipidique_1": {
+    "label": "Bilan lipidique 1 (ancienne version)",
     "fields": [
     {
       "label": "Matricule",
@@ -28,7 +29,84 @@
     },
     {
       "label": "Cholestérol",
-      "text": ["Cholestérol","Cholestérol total"],
+      "text": ["total"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-total"
+    },
+    {
+      "label": "Triglycérides",
+      "text": ["Triglycérides"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Triglycérides"
+    },
+    {
+      "label": "Cholestérol-HDL",
+      "text": ["-HDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-hdl"
+    },
+    {
+      "label": "Cholestérol non-HDL",
+      "text": ["non-HDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-non-hdl"
+    },
+    {
+      "label": "Cholestérol total/C-HDL",
+      "text": ["Chol-HDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-chdl"
+    },
+    {
+      "label": "Cholestérol-LDL",
+      "text": ["-LDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-ldl"
+    },
+    {
+      "label": "Glucose",
+      "text": ["Glucose"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Glucose"
+    },
+    {
+      "label": "Insuline",
+      "text": ["Insuline"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Insuline"
+    }
+    ]
+  },
+  "bilan_lipidique_2": {
+    "label": "Bilan lipidique 2 (nouvelle version)",
+    "fields": [
+    {
+      "label": "Matricule",
+      "text": ["SAT2", "RZ-000"],
+      "parse": "a string with three or four digits in a row",
+      "key": "Matricule"
+    },
+    {
+      "label": "Visite",
+      "text": ["Visite"],
+      "parse": "a digit; put 0 if nothing is detected",
+      "key": "Visite"
+    },
+    {
+      "label": "Temps",
+      "text": ["Temps"],
+      "parse": "a digit that should be one of -15, 0, 30, 60; if 14 is detected, replace it with -15",
+      "key": "Temps"
+    },
+    {
+      "label": "Protéine C réactive",
+      "text": ["Protéine C réactive"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Protéine-C-réactive"
+    },
+    {
+      "label": "Cholestérol",
+      "text": ["Cholestérol"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-total"
     },
@@ -40,25 +118,25 @@
     },
     {
       "label": "Cholestérol-HDL",
-      "text": ["Cholestérol HDL","Cholestérol-HDL","Cholesterol HDL","Cholesterol-HDL"],
+      "text": ["HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-hdl"
     },
     {
       "label": "Cholestérol non-HDL",
-      "text": ["Cholestérol non HDL","Cholestérol non-HDL","Cholesterol non HDL","Cholesterol non-HDL"],
+      "text": ["non HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-non-hdl"
     },
     {
       "label": "Cholestérol total/C-HDL",
-      "text": ["C-HDL","Chol-HDL"],
+      "text": ["C-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-chdl"
     },
     {
       "label": "Cholestérol-LDL",
-      "text": ["Cholestérol LDL","Cholestérol-LDL","Cholesterol LDL","Cholesterol-LDL"],
+      "text": ["LDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-ldl"
     },

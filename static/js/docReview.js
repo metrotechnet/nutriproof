@@ -232,16 +232,19 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
 
     // Effacer le tableau
     document.getElementById("table-container").innerHTML = "";
-    //Sort extract_values by y position of their label bbox
-    extract_values = Object.fromEntries(Object.entries(extract_values).sort((a, b) => {
-      const labelA = label_bbox[a[0]];
-
-      const labelB = label_bbox[b[0]];
-      if (!labelA || !labelB) return 0;
-      const yA = labelA ? labelA[0][1] : 0;
-      const yB = labelB ? labelB[0][1] : 0;
-      return yA - yB;
-    }));
+    // Keep a deterministic order for the table:
+    // 1) config/JSON key order from label_bbox
+    // 2) fallback alphabetical for keys not present in label_bbox
+    const labelOrder = Object.keys(label_bbox || {});
+    const rankByLabelOrder = new Map(labelOrder.map((k, idx) => [k, idx]));
+    extract_values = Object.fromEntries(
+      Object.entries(extract_values).sort((a, b) => {
+        const rankA = rankByLabelOrder.has(a[0]) ? rankByLabelOrder.get(a[0]) : Number.MAX_SAFE_INTEGER;
+        const rankB = rankByLabelOrder.has(b[0]) ? rankByLabelOrder.get(b[0]) : Number.MAX_SAFE_INTEGER;
+        if (rankA !== rankB) return rankA - rankB;
+        return a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' });
+      })
+    );
 
     // Génération du tableau éditable
     generateEditableTable(extract_values);
@@ -342,7 +345,7 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
         fillColor = "rgba(255, 215, 0, 0.25)";   // gold tint
         strokeColor = "rgba(255, 140, 0, 0.9)";   // orange outline
         strokeWidth = 1.5;
-      } else if (currentCategory == 'bilan_lipidique' && labelColors[label] && labelColors[label][boxType]) {
+      } else if (currentCategory.startsWith('bilan_lipidique_') && labelColors[label] && labelColors[label][boxType]) {
         fillColor = labelColors[label][boxType];
       }
 
@@ -649,7 +652,7 @@ function generateEditableTable(data, containerId = "table-container") {
     paramCell.dataset.originalKey = key;
     
     // Apply label color if available (only for bilan_lipidique)
-    if (currentCategory === 'bilan_lipidique' && labelColors[key] && labelColors[key].label) {
+    if (currentCategory.startsWith('bilan_lipidique_') && labelColors[key] && labelColors[key].label) {
       paramCell.style.backgroundColor = labelColors[key].label;
     }
 
