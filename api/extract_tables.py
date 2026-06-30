@@ -207,9 +207,10 @@ class OCRDocument:
 
         Steps:
         1) grayscale
-        2) resize x2
-        3) adaptive threshold
-        4) morphology close
+        2) Otsu binary threshold (white background, black text)
+        3) morphology close on text foreground (vertical kernel)
+        4) edge detection to recover thin strokes
+        5) close and fill contours to solidify character loops
         """
         if image is None:
             return image, 1.0
@@ -223,11 +224,25 @@ class OCRDocument:
         else:
             gray = np_img
 
-        # Resize for OCR readability
-        scale_factor = 2.0
-        gray = cv2.resize(gray, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+        # Denoise before thresholding and edge extraction.
+        # gray_blur = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        return Image.fromarray(gray), scale_factor
+        # White background + black text.
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # Closing acts on white foreground, so invert: text becomes white.
+        text_fg = cv2.bitwise_not(binary)
+        text_fg = cv2.dilate(text_fg, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
+
+        # Recover faint/fragmented contours and merge them into the foreground text mask.
+        edges = cv2.Canny(gray, 50, 150)
+        edges = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3)), iterations=1)
+
+        text_fg = cv2.bitwise_or(text_fg, edges)
+    
+        # Restore expected polarity: white background, black text.
+        # processed = cv2.bitwise_not(text_fg)
+        return Image.fromarray(text_fg), 1.0
     
     def read_row0_digits(self, cells, gray_img=None):
         """
@@ -354,10 +369,10 @@ class OCRDocument:
         """
         try:
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
-            # image, ocr_scale = self.preprocess_image_for_ocr(image)
+            image, ocr_scale = self.preprocess_image_for_ocr(image)
             #Save image for debug
-            # debug_image_path = os.path.join("debug", "preprocessed_image.png")
-            # image.save(debug_image_path)
+            debug_image_path = os.path.join("debug", "preprocessed_image.png")
+            image.save(debug_image_path)
             # _trace(f"get_document_layout: preprocessed image saved to {debug_image_path}")
 
             _trace(f"get_document_layout: preprocessed image size={image.size} mode={image.mode}")
@@ -1195,7 +1210,7 @@ class OCRDocument:
             target: Either a string or a list of strings to search for
             
         Returns:
-            The first block that matches any of the target strings, or None if no match found
+            The best block match across all candidates, or None if no match found
         """
         def _norm(s):
             return re.sub(r"\s+", " ", (s or "").lower()).strip()
@@ -1222,42 +1237,67 @@ class OCRDocument:
                 prev = curr
             return prev[-1] if prev[-1] <= max_dist else None
 
+        def _best_fuzzy_distance(haystack, needle, max_dist=2):
+            """Smallest edit distance between needle and any substring in haystack.
+            Returns None when no substring is within max_dist.
+            """
+            if not haystack or not needle:
+                return None
+
+            nlen = len(needle)
+            min_len = max(1, nlen - max_dist)
+            max_len = min(len(haystack), nlen + max_dist)
+            best = None
+
+            for win_len in range(min_len, max_len + 1):
+                for i in range(0, len(haystack) - win_len + 1):
+                    candidate = haystack[i:i + win_len]
+                    dist = _levenshtein_with_limit(candidate, needle, max_dist)
+                    if dist is None:
+                        continue
+                    if best is None or dist < best:
+                        best = dist
+                        if best == 0:
+                            return 0
+            return best
+
         # Convert single string to list for uniform processing
-        targets = [target] if isinstance(target, str) else target
+        targets = [target] if isinstance(target, str) else (target or [])
+        targets = [t for t in targets if t]
+        if not targets:
+            return None
 
-        # Pass 1: exact/regex contains match (existing behavior)
-        for target_text in targets:
-            if not target_text:
-                continue
-            pattern = re.compile(re.escape(target_text), re.IGNORECASE)
-            for block in blocks:
-                if pattern.search(block.get('text', '')):
-                    return block
-
-        # Pass 2: fuzzy partial match allowing 1-2 character differences
+        # Score all candidates and keep the best one.
+        # Score tuple order: (match_type, edit_distance, -target_len)
+        # match_type: 0 exact contains, 1 fuzzy; lower is better.
+        best_score = None
+        best_block = None
         max_diff = 2
-        for target_text in targets:
-            t = _norm(target_text)
-            if not t:
+        for block in blocks:
+            block_text = block.get('text', '')
+            b = _norm(block_text)
+            if not b:
                 continue
-            t_len = len(t)
-            min_len = max(1, t_len - max_diff)
 
-            for block in blocks:
-                b = _norm(block.get('text', ''))
-                if not b:
+            for target_text in targets:
+                t = _norm(target_text)
+                if not t:
                     continue
 
-                max_len = min(len(b), t_len + max_diff)
+                # Exact contains takes priority.
+                if re.search(re.escape(t), b, re.IGNORECASE):
+                    score = (0, 0, -len(t))
+                else:
+                    dist = _best_fuzzy_distance(b, t, max_dist=max_diff)
+                    if dist is None:
+                        continue
+                    score = (1, dist, -len(t))
 
-                # Compare target against every candidate substring in the block
-                # with near-equal length so we tolerate OCR one/two-char noise.
-                for win_len in range(min_len, max_len + 1):
-                    for i in range(0, len(b) - win_len + 1):
-                        candidate = b[i:i + win_len]
-                        if _levenshtein_with_limit(candidate, t, max_diff) is not None:
-                            return block
-        return None
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best_block = block
+
+        return best_block
 
    
     # Crée un fichier CSV avec les données extraites

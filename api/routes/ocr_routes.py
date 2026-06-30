@@ -17,10 +17,7 @@ def _trace(msg):
         sys.stderr.write(line + "\n"); sys.stderr.flush()
     except Exception:
         pass
-    try:
-        sys.stdout.write(line + "\n"); sys.stdout.flush()
-    except Exception:
-        pass
+
 
 
 # Process OCR
@@ -133,7 +130,10 @@ def process_ocr():
                         # Get document layout
                         _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
                         layout = ocr_document.get_document_layout(image, split_lines_to_words=False)
-                        
+                        #Print all lines in layout for debugging
+                        for line in layout:
+                            _trace(f"{line['text']}")
+
                         # Save layout to JSON
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
                         with open(layout_json_path, "w", encoding="utf-8") as f:
