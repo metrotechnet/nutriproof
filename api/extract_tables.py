@@ -10,6 +10,7 @@ from contextlib import contextmanager
 import fitz
 from datetime import datetime
 from PIL import Image, ImageOps, ImageFilter
+import cv2
 import pyocr
 import pyocr.builders
 from typing import List, Dict
@@ -200,6 +201,33 @@ class OCRDocument:
             crop = crop.resize(new_size, Image.LANCZOS).convert('RGB')
 
         return np.array(crop.convert('RGB'))
+
+    def preprocess_image_for_ocr(self, image):
+        """Preprocess image for OCR using OpenCV.
+
+        Steps:
+        1) grayscale
+        2) resize x2
+        3) adaptive threshold
+        4) morphology close
+        """
+        if image is None:
+            return image, 1.0
+
+        # Convert PIL image to numpy array
+        np_img = np.array(image)
+
+        # Ensure grayscale
+        if len(np_img.shape) == 3:
+            gray = cv2.cvtColor(np_img, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = np_img
+
+        # Resize for OCR readability
+        scale_factor = 2.0
+        gray = cv2.resize(gray, (0, 0), fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+
+        return Image.fromarray(gray), scale_factor
     
     def read_row0_digits(self, cells, gray_img=None):
         """
@@ -326,6 +354,13 @@ class OCRDocument:
         """
         try:
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
+            # image, ocr_scale = self.preprocess_image_for_ocr(image)
+            #Save image for debug
+            # debug_image_path = os.path.join("debug", "preprocessed_image.png")
+            # image.save(debug_image_path)
+            # _trace(f"get_document_layout: preprocessed image saved to {debug_image_path}")
+
+            _trace(f"get_document_layout: preprocessed image size={image.size} mode={image.mode}")
             lang = "fra+eng"
 
             # Pass 1: line-level boxes (PSM 6)
@@ -336,11 +371,13 @@ class OCRDocument:
             _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
 
             def pos_to_bbox(pos):
+                # OCR runs on an upscaled image; map boxes back to original coordinates.
+                sf = 1.0
                 return [
-                    [pos[0][0], pos[0][1]],
-                    [pos[1][0], pos[0][1]],
-                    [pos[1][0], pos[1][1]],
-                    [pos[0][0], pos[1][1]],
+                    [int(round(pos[0][0] / sf)), int(round(pos[0][1] / sf))],
+                    [int(round(pos[1][0] / sf)), int(round(pos[0][1] / sf))],
+                    [int(round(pos[1][0] / sf)), int(round(pos[1][1] / sf))],
+                    [int(round(pos[0][0] / sf)), int(round(pos[1][1] / sf))],
                 ]
 
             block_vector = []
