@@ -371,8 +371,8 @@ class OCRDocument:
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
             image, ocr_scale = self.preprocess_image_for_ocr(image)
             #Save image for debug
-            debug_image_path = os.path.join("debug", "preprocessed_image.png")
-            image.save(debug_image_path)
+            # debug_image_path = os.path.join("debug", "preprocessed_image.png")
+            # image.save(debug_image_path)
             # _trace(f"get_document_layout: preprocessed image saved to {debug_image_path}")
 
             _trace(f"get_document_layout: preprocessed image size={image.size} mode={image.mode}")
@@ -1220,46 +1220,6 @@ class OCRDocument:
                 except ValueError:
                     return None
 
-            def _extract_reference_upper_bound(s):
-                """Extract an upper reference bound from patterns like '<1,70'."""
-                m = re.search(r'[<≤]\s*(-?\d+(?:[.,]\d+)?)', s or "")
-                if not m:
-                    return None
-                try:
-                    return float(m.group(1).replace(',', '.'))
-                except ValueError:
-                    return None
-
-            def _choose_decimal_candidate(raw_num_str, context_text):
-                """Handle OCR confusion of leading 1 misread as 4 (e.g. 4,90 vs 1,90)."""
-                norm = raw_num_str.replace(',', '.')
-                cands = [norm]
-
-                # Common handwriting OCR confusion: leading "1" seen as "4".
-                if re.match(r'^4[.,]\d+$', raw_num_str):
-                    cands.append('1' + norm[1:])
-
-                if len(cands) == 1:
-                    return cands[0]
-
-                bound = _extract_reference_upper_bound(context_text)
-                if bound is None:
-                    return cands[0]
-
-                scored = []
-                for c in cands:
-                    try:
-                        v = float(c)
-                    except ValueError:
-                        continue
-                    scored.append((abs(v - bound), v, c))
-
-                if not scored:
-                    return cands[0]
-
-                scored.sort(key=lambda t: t[0])
-                return scored[0][2]
-
             # Accept OCR noise between decimal separator and fractional part
             # (examples: "1,: 30", "2, 32", "4. ; 05").
             for text_part in candidate_texts:
@@ -1279,7 +1239,7 @@ class OCRDocument:
                 if numbers:
                     try:
                         raw = numbers[0]
-                        num_str = _choose_decimal_candidate(raw, fixed)
+                        num_str = raw.replace(',', '.')
                         if '.' in num_str:
                             normalized = _format_decimal_2(num_str)
                             if normalized is not None:
