@@ -148,6 +148,8 @@ def _null_context():
     yield
 
 class OCRDocument:
+    _MATCH_INF = 10**6
+
     def __init__(self, ocr_engine='paddle'):
         """
         ocr_engine: 'tesseract' (pyocr)
@@ -224,24 +226,22 @@ class OCRDocument:
         else:
             gray = np_img
 
-        # Denoise before thresholding and edge extraction.
-        # gray_blur = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        # White background + black text.
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # White background + black text using local adaptive thresholding
+        # (more robust on uneven lighting / paper shadows than global Otsu).
+        gray_f = cv2.GaussianBlur(gray, (5, 5), 0)
+        binary = cv2.adaptiveThreshold(
+            gray_f,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            31,
+            8,
+        )
 
         # Closing acts on white foreground, so invert: text becomes white.
         text_fg = cv2.bitwise_not(binary)
-        text_fg = cv2.dilate(text_fg, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), iterations=1)
 
-        # Recover faint/fragmented contours and merge them into the foreground text mask.
-        edges = cv2.Canny(gray, 50, 150)
-        edges = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3)), iterations=1)
-
-        text_fg = cv2.bitwise_or(text_fg, edges)
-    
-        # Restore expected polarity: white background, black text.
-        # processed = cv2.bitwise_not(text_fg)
         return Image.fromarray(text_fg), 1.0
     
     def read_row0_digits(self, cells, gray_img=None):
@@ -449,12 +449,9 @@ class OCRDocument:
                         continue
                     block_vector.append({"page": 1, "text": text + "\n", "type": "paragraph", "bounding_box": pos_to_bbox(line_box.position)})
 
-            merged_blocks = self._merge_overlapping_blocks(block_vector)
-            _trace(
-                f"get_document_layout: returning {len(merged_blocks)} blocks "
-                f"(merged from {len(block_vector)})"
-            )
-            return merged_blocks
+            # merged_blocks = self._merge_overlapping_blocks(block_vector)
+
+            return block_vector
         except Exception as e:
             import traceback
             _trace(f"get_document_layout: EXCEPTION: {e}")
@@ -485,15 +482,38 @@ class OCRDocument:
             label_bboxes = {}
             value_bboxes = {}
             extract_values = {}
-            for param in config_data:
-                if "label" not in param or "text" not in param:
-                    continue
-                label = param["label"]
-                text = param["text"]
-                block = self.find_matching_block(ocr_data, text)
-                if block:
-                    label_bboxes[label] = block['bounding_box']
-                    # Find numerical value for this label
+
+            # Global optimization: build a label<->OCR block score matrix,
+            # then solve a minimum-cost one-to-one assignment.
+            params_to_match = [p for p in config_data if "label" in p and "text" in p]
+            candidate_blocks = [b for b in ocr_data if (b.get("text") or "").strip()]
+
+            if params_to_match and candidate_blocks:
+                n_labels = len(params_to_match)
+                n_blocks = len(candidate_blocks)
+                cost = np.full((n_labels, n_blocks), float(self._MATCH_INF), dtype=float)
+
+                for i, param in enumerate(params_to_match):
+                    targets = param.get("text")
+                    for j, block in enumerate(candidate_blocks):
+                        c = self._block_match_cost(block.get("text", ""), targets)
+                        if c is not None:
+                            cost[i, j] = c
+
+                assignments = self._hungarian_assign(cost, invalid_cost=float(self._MATCH_INF))
+
+                for i, j, match_cost in assignments:
+                    if i >= n_labels or j >= n_blocks:
+                        continue
+                    if match_cost >= float(self._MATCH_INF):
+                        continue
+
+                    param = params_to_match[i]
+                    block = candidate_blocks[j]
+                    label = param["label"]
+                    text = param["text"]
+                    label_bboxes[label] = block.get('bounding_box')
+
                     value_result = self.find_next_value(ocr_data, block, text, target_parse.get(label))
                     extract_values[label] = value_result['value']
                     value_bboxes[label] = value_result['value_bbox']
@@ -549,6 +569,165 @@ class OCRDocument:
             _trace(f"extract_tables: EXCEPTION: {e}")
             _trace(traceback.format_exc())
             return {"error": str(e)}
+
+    @staticmethod
+    def _norm_text(s):
+        return re.sub(r"\s+", " ", (s or "").lower()).strip()
+
+    @staticmethod
+    def _levenshtein_with_limit(a, b, max_dist=2):
+        """Return edit distance if <= max_dist, else None (fast early stop)."""
+        if abs(len(a) - len(b)) > max_dist:
+            return None
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, start=1):
+            curr = [i]
+            row_min = curr[0]
+            for j, cb in enumerate(b, start=1):
+                cost = 0 if ca == cb else 1
+                curr.append(min(
+                    prev[j] + 1,
+                    curr[j - 1] + 1,
+                    prev[j - 1] + cost,
+                ))
+                if curr[j] < row_min:
+                    row_min = curr[j]
+            if row_min > max_dist:
+                return None
+            prev = curr
+        return prev[-1] if prev[-1] <= max_dist else None
+
+    def _best_fuzzy_distance(self, haystack, needle, max_dist=2):
+        """Smallest edit distance between needle and any substring in haystack."""
+        hs = self._norm_text(haystack)
+        nd = self._norm_text(needle)
+        if not hs or not nd:
+            return None
+
+        nlen = len(nd)
+        min_len = max(1, nlen - max_dist)
+        max_len = min(len(hs), nlen + max_dist)
+        best = None
+
+        for win_len in range(min_len, max_len + 1):
+            for i in range(0, len(hs) - win_len + 1):
+                candidate = hs[i:i + win_len]
+                dist = self._levenshtein_with_limit(candidate, nd, max_dist)
+                if dist is None:
+                    continue
+                if best is None or dist < best:
+                    best = dist
+                    if best == 0:
+                        return 0
+        return best
+
+    def _block_match_cost(self, block_text, targets):
+        """Return a comparable cost for matching one block to a target list.
+        Lower is better. None means no valid match.
+        """
+        b = self._norm_text(block_text)
+        if not b:
+            return None
+
+        ts = [targets] if isinstance(targets, str) else (targets or [])
+        ts = [self._norm_text(t) for t in ts if t]
+        if not ts:
+            return None
+
+        best = None
+        for t in ts:
+            if not t:
+                continue
+
+            # Strong exact match.
+            if re.search(re.escape(t), b, re.IGNORECASE):
+                cost = 0.0
+            else:
+                # Weaker fuzzy match.
+                dist = self._best_fuzzy_distance(b, t, max_dist=2)
+                if dist is None:
+                    continue
+                cost = 10.0 + float(dist)
+
+            if best is None or cost < best:
+                best = cost
+        return best
+
+    def _hungarian_assign(self, cost_matrix, invalid_cost=None):
+        """Solve minimum-cost assignment on a possibly rectangular matrix.
+        Returns list of (row_index, col_index, cost).
+        """
+        if cost_matrix is None or cost_matrix.size == 0:
+            return []
+
+        a = np.array(cost_matrix, dtype=float)
+        n_rows, n_cols = a.shape
+        n = n_rows
+        m = max(n_rows, n_cols)
+
+        # Pad columns for square-compatible Hungarian implementation.
+        if n_cols < m:
+            pad = np.full((n_rows, m - n_cols), float(self._MATCH_INF), dtype=float)
+            a = np.hstack([a, pad])
+
+        u = np.zeros(n + 1, dtype=float)
+        v = np.zeros(m + 1, dtype=float)
+        p = np.zeros(m + 1, dtype=int)
+        way = np.zeros(m + 1, dtype=int)
+
+        for i in range(1, n + 1):
+            p[0] = i
+            j0 = 0
+            minv = np.full(m + 1, np.inf, dtype=float)
+            used = np.zeros(m + 1, dtype=bool)
+
+            while True:
+                used[j0] = True
+                i0 = p[j0]
+                delta = np.inf
+                j1 = 0
+                for j in range(1, m + 1):
+                    if used[j]:
+                        continue
+                    cur = a[i0 - 1, j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j] = cur
+                        way[j] = j0
+                    if minv[j] < delta:
+                        delta = minv[j]
+                        j1 = j
+
+                for j in range(0, m + 1):
+                    if used[j]:
+                        u[p[j]] += delta
+                        v[j] -= delta
+                    else:
+                        minv[j] -= delta
+
+                j0 = j1
+                if p[j0] == 0:
+                    break
+
+            while True:
+                j1 = way[j0]
+                p[j0] = p[j1]
+                j0 = j1
+                if j0 == 0:
+                    break
+
+        assignments = []
+        for j in range(1, m + 1):
+            i = p[j]
+            if i == 0:
+                continue
+            row = i - 1
+            col = j - 1
+            if row < n_rows and col < n_cols:
+                c = float(cost_matrix[row, col])
+                if invalid_cost is None or c < invalid_cost:
+                    assignments.append((row, col, c))
+
+        return assignments
         
     def extract_tables_with_grid(self, config_json_path, key_order, grid_json_path, project_path, pageid):
         _trace(f"extract_tables_with_grid: start pageid={pageid} category={key_order}")
@@ -1009,7 +1188,15 @@ class OCRDocument:
                     allowed_values = [v.strip() for v in match.group(1).split(',')]
 
         # OCR error corrections
-        ocr_corrections = {'O': '0', 'I': '1', 'S': '5', 'G': '6'}
+        ocr_corrections = {
+            'O': '0',
+            'I': '1',
+            'i': '1',
+            'l': '1',
+            '|': '1',
+            'S': '5',
+            'G': '6',
+        }
 
         def apply_ocr_fixes(text):
             result = text
@@ -1021,26 +1208,86 @@ class OCRDocument:
             """Extract a number (float or int) from text."""
             fixed = apply_ocr_fixes(text or "")
 
+            # Lab lines often include reference ranges like "(<1,70)".
+            # Prefer the measured value segment before range/comparison markers.
+            primary_segment = re.split(r'[<(>≤≥]', fixed, maxsplit=1)[0]
+            candidate_texts = [primary_segment, fixed] if primary_segment != fixed else [fixed]
+
+            def _format_decimal_2(num_str):
+                """Normalize decimal representation to 2 fractional digits."""
+                try:
+                    return f"{float(num_str):.2f}"
+                except ValueError:
+                    return None
+
+            def _extract_reference_upper_bound(s):
+                """Extract an upper reference bound from patterns like '<1,70'."""
+                m = re.search(r'[<≤]\s*(-?\d+(?:[.,]\d+)?)', s or "")
+                if not m:
+                    return None
+                try:
+                    return float(m.group(1).replace(',', '.'))
+                except ValueError:
+                    return None
+
+            def _choose_decimal_candidate(raw_num_str, context_text):
+                """Handle OCR confusion of leading 1 misread as 4 (e.g. 4,90 vs 1,90)."""
+                norm = raw_num_str.replace(',', '.')
+                cands = [norm]
+
+                # Common handwriting OCR confusion: leading "1" seen as "4".
+                if re.match(r'^4[.,]\d+$', raw_num_str):
+                    cands.append('1' + norm[1:])
+
+                if len(cands) == 1:
+                    return cands[0]
+
+                bound = _extract_reference_upper_bound(context_text)
+                if bound is None:
+                    return cands[0]
+
+                scored = []
+                for c in cands:
+                    try:
+                        v = float(c)
+                    except ValueError:
+                        continue
+                    scored.append((abs(v - bound), v, c))
+
+                if not scored:
+                    return cands[0]
+
+                scored.sort(key=lambda t: t[0])
+                return scored[0][2]
+
             # Accept OCR noise between decimal separator and fractional part
             # (examples: "1,: 30", "2, 32", "4. ; 05").
-            dec_match = re.search(r'(-?\d+)\s*[.,]\s*[^\d-]*\s*(\d+)', fixed)
-            if dec_match:
-                try:
-                    num_str = f"{dec_match.group(1)}.{dec_match.group(2)}"
-                    val = float(num_str)
-                    return int(val) if val == int(val) else val
-                except ValueError:
-                    pass
+            for text_part in candidate_texts:
+                dec_match = re.search(r'(-?\d+)\s*[.,]\s*[^\d-]*\s*(\d+)', text_part)
+                if dec_match:
+                    try:
+                        num_str = f"{dec_match.group(1)}.{dec_match.group(2)}"
+                        normalized = _format_decimal_2(num_str)
+                        if normalized is not None:
+                            return normalized
+                    except ValueError:
+                        pass
 
             # Fallback: regular number extraction (decimal or integer).
-            numbers = re.findall(r'-?\d+[.,]\d+|-?\d+', fixed)
-            if numbers:
-                try:
-                    num_str = numbers[0].replace(',', '.')
-                    val = float(num_str)
-                    return int(val) if val == int(val) else val
-                except ValueError:
-                    pass
+            for text_part in candidate_texts:
+                numbers = re.findall(r'-?\d+[.,]\d+|-?\d+', text_part)
+                if numbers:
+                    try:
+                        raw = numbers[0]
+                        num_str = _choose_decimal_candidate(raw, fixed)
+                        if '.' in num_str:
+                            normalized = _format_decimal_2(num_str)
+                            if normalized is not None:
+                                return normalized
+                        val = float(num_str)
+                        return int(val) if val == int(val) else val
+                    except ValueError:
+                        pass
             return None
 
         def extract_digits_string(text):
@@ -1201,16 +1448,18 @@ class OCRDocument:
 
         return {'value': None, 'value_bbox': None}
 
-    def find_matching_block(self, blocks, target):
+    def find_matching_block(self, blocks, target, find_best_match=True):
         """
         Find a matching block by searching for target text(s).
         
         Args:
             blocks: List of OCR blocks
             target: Either a string or a list of strings to search for
+            find_best_match: When True, return the best-scored match across all
+                candidates. When False, return the first valid match.
             
         Returns:
-            The best block match across all candidates, or None if no match found
+            Matching block according to selected strategy, or None if no match found
         """
         def _norm(s):
             return re.sub(r"\s+", " ", (s or "").lower()).strip()
@@ -1267,7 +1516,6 @@ class OCRDocument:
         if not targets:
             return None
 
-        # Score all candidates and keep the best one.
         # Score tuple order: (match_type, edit_distance, -target_len)
         # match_type: 0 exact contains, 1 fuzzy; lower is better.
         best_score = None
@@ -1292,6 +1540,9 @@ class OCRDocument:
                     if dist is None:
                         continue
                     score = (1, dist, -len(t))
+
+                if not find_best_match:
+                    return block
 
                 if best_score is None or score < best_score:
                     best_score = score

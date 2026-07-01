@@ -131,8 +131,8 @@ def process_ocr():
                         _trace(f"run_extraction: calling get_document_layout pageid={pageid}")
                         layout = ocr_document.get_document_layout(image, split_lines_to_words=False)
                         #Print all lines in layout for debugging
-                        for line in layout:
-                            _trace(f"{line['text']}")
+                        # for line in layout:
+                        #     _trace(f"{line['text']}")
 
                         # Save layout to JSON
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")

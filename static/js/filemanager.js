@@ -54,6 +54,29 @@ function stopSpinner() {
     Swal.close();
 }
 
+function parseProjectDate(value) {
+    if (!value || value === '-') return null;
+
+    // Try native parsing first (ISO and common RFC formats).
+    const direct = new Date(value);
+    if (!Number.isNaN(direct.getTime())) return direct;
+
+    // Fallback for dd/mm/yyyy[ hh:mm[:ss]] style.
+    const m = String(value).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!m) return null;
+
+    let day = Number(m[1]);
+    let month = Number(m[2]) - 1;
+    let year = Number(m[3]);
+    const hour = Number(m[4] || 0);
+    const minute = Number(m[5] || 0);
+    const second = Number(m[6] || 0);
+
+    if (year < 100) year += 2000;
+    const parsed = new Date(year, month, day, hour, minute, second);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 // Nouveau fichier pour le projet projectId
 const btnNewFile = document.getElementById('btn-new-file');
 const fileBrowserMain = document.getElementById('file-browser-main');
@@ -90,7 +113,16 @@ async function loadProjects() {
     const mainProjectId = projectId;
     const mainDetails = await ProjectManager.getProject(mainProjectId);
     if(mainDetails && mainDetails.length) {
-        for (const file of mainDetails) {
+        const sortedDetails = [...mainDetails].sort((a, b) => {
+            const da = parseProjectDate(a?.upload_date);
+            const db = parseProjectDate(b?.upload_date);
+            const ta = da ? da.getTime() : 0;
+            const tb = db ? db.getTime() : 0;
+            if (ta !== tb) return ta - tb; // oldest first
+            return String(a?.document_id || '').localeCompare(String(b?.document_id || ''));
+        });
+
+        for (const file of sortedDetails) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="align-middle text-center">${file.document_id || '-'}</td>
