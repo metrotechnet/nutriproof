@@ -232,19 +232,58 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
 
     // Effacer le tableau
     document.getElementById("table-container").innerHTML = "";
-    // Keep a deterministic order for the table:
-    // 1) config/JSON key order from label_bbox
-    // 2) fallback alphabetical for keys not present in label_bbox
+    // Keep parameter table order aligned with JSON definition order.
+    // 1) keys order from label_bbox (built from config JSON order on backend)
+    // 2) append any remaining keys in their existing insertion order
     const labelOrder = Object.keys(label_bbox || {});
-    const rankByLabelOrder = new Map(labelOrder.map((k, idx) => [k, idx]));
-    extract_values = Object.fromEntries(
-      Object.entries(extract_values).sort((a, b) => {
-        const rankA = rankByLabelOrder.has(a[0]) ? rankByLabelOrder.get(a[0]) : Number.MAX_SAFE_INTEGER;
-        const rankB = rankByLabelOrder.has(b[0]) ? rankByLabelOrder.get(b[0]) : Number.MAX_SAFE_INTEGER;
-        if (rankA !== rankB) return rankA - rankB;
-        return a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' });
-      })
-    );
+    const entries = Object.entries(extract_values || {});
+
+    const normalizeKey = (s) =>
+      String(s || "")
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[-_/]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Keep both exact and normalized views so keys like
+    // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
+    const byKey = new Map(entries);
+    const byNorm = new Map();
+    for (const [k, v] of entries) {
+      const nk = normalizeKey(k);
+      if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
+    }
+    const orderedEntries = [];
+
+    for (const key of labelOrder) {
+      if (byKey.has(key)) {
+        orderedEntries.push([key, byKey.get(key)]);
+        byKey.delete(key);
+        const nk = normalizeKey(key);
+        if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
+          byNorm.delete(nk);
+        }
+      } else {
+        const nk = normalizeKey(key);
+        if (byNorm.has(nk)) {
+          const [realKey, value] = byNorm.get(nk);
+          orderedEntries.push([realKey, value]);
+          byNorm.delete(nk);
+          byKey.delete(realKey);
+        }
+      }
+    }
+
+    for (const [key, value] of entries) {
+      if (byKey.has(key)) {
+        orderedEntries.push([key, value]);
+        byKey.delete(key);
+      }
+    }
+
+    extract_values = Object.fromEntries(orderedEntries);
 
     // Génération du tableau éditable
     generateEditableTable(extract_values);
@@ -338,7 +377,7 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
       // Default fill; for "target" polygons (value bboxes coming from a
       // positions array) use a distinct semi-transparent highlight so they
       // stand out from regular label/value boxes.
-      let fillColor = "rgba(200, 200, 200, 0)";
+      let fillColor = "rgba(80, 160, 255, 0.18)";
       let strokeColor = "none";
       let strokeWidth = 0;
       if (isListOfBoxes && boxType === "value") {
@@ -646,19 +685,25 @@ function generateEditableTable(data, containerId = "table-container") {
   for (const [key, value] of Object.entries(data)) {
     const row = document.createElement("tr");
 
+    const hasMappedColor = currentCategory.startsWith('bilan_lipidique_')
+      && labelColors[key];
+    const labelBgColor = hasMappedColor && labelColors[key].label
+      ? labelColors[key].label
+      : "rgba(80, 160, 255, 0.12)";
+    const valueBgColor = hasMappedColor && labelColors[key].value
+      ? labelColors[key].value
+      : "rgba(80, 160, 255, 0.12)";
+
     const paramCell = document.createElement("td");
     paramCell.contentEditable = "false";
     paramCell.textContent = key;
     paramCell.dataset.originalKey = key;
-    
-    // Apply label color if available (only for bilan_lipidique)
-    if (currentCategory.startsWith('bilan_lipidique_') && labelColors[key] && labelColors[key].label) {
-      paramCell.style.backgroundColor = labelColors[key].label;
-    }
+    paramCell.style.backgroundColor = labelBgColor;
 
     const valueCell = document.createElement("td");
     valueCell.contentEditable = "true";
     valueCell.textContent = value !== null ? value : "";
+    valueCell.style.backgroundColor = valueBgColor;
 
     paramCell.addEventListener("input", () => {
       const oldKey = paramCell.dataset.originalKey;

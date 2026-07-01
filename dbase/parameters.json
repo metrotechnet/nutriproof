@@ -46,6 +46,12 @@
       "key": "Cholestérol-hdl"
     },
     {
+      "label": "Cholestérol-LDL",
+      "text": ["-LDL"],
+      "parse": "a number that should be a float (with a comma or period) or integer",
+      "key": "Cholestérol-ldl"
+    },
+    {
       "label": "Cholestérol non-HDL",
       "text": ["non-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
@@ -57,12 +63,7 @@
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-chdl"
     },
-    {
-      "label": "Cholestérol-LDL",
-      "text": ["-LDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
-      "key": "Cholestérol-ldl"
-    },
+
     {
       "label": "Glucose",
       "text": ["Glucose"],
@@ -118,25 +119,26 @@
     },
     {
       "label": "Cholestérol-HDL",
-      "text": ["HDL"],
+      "text": ["Cholestérol-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-hdl"
     },
+
     {
       "label": "Cholestérol non-HDL",
-      "text": ["non HDL"],
+      "text": ["Cholestérol non-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-non-hdl"
     },
     {
       "label": "Cholestérol total/C-HDL",
-      "text": ["C-HDL"],
+      "text": ["Cholestérol total/C-HDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-chdl"
     },
-    {
-      "label": "Cholestérol-LDL",
-      "text": ["LDL"],
+        {
+      "label": "Cholestérol LDL",
+      "text": ["Cholestérol LDL"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Cholestérol-ldl"
     },
@@ -151,190 +153,6 @@
       "text": ["Insuline"],
       "parse": "a number that should be a float (with a comma or period) or integer",
       "key": "Insuline"
-    }
-    ]
-  },
-  "interventions": {
-    "label": "Interventions 1",
-    "fields": [
-    {
-      "label": "Phase",
-      "text": ["PHASE"],
-      "key": "Phase",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Visite",
-      "text": ["VISITE"],
-      "key": "Visite",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Date",
-      "text": ["OBSERVATION"],
-      "key": "Date",
-      "parse": ["0"] 
-    },
-    {
-      "label": "# Du Participant",
-      "text": ["PARTICIPANT"],
-      "key": "Participant",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Assiette du GAC",
-      "text": ["GAC"],
-      "key": "AssietteDuGAC",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Grains entiers",
-      "text": ["GRAINS"],
-      "key": "GrainsEntiers",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Protéines végétales",
-      "text": ["VÉGÉTALES"],
-      "key": "ProteinesVegetales",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Eau",
-      "text": ["EAU"],
-      "key": "Eau",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "10-15%",
-      "text": ["15%"],
-      "key": "DixQuinzePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "20-30%",
-      "text": ["30%"],
-      "key": "VingtTrentePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "55-60%",
-      "text": ["60%"],
-      "key": "CinquanteCinqSoixantePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Activité physique",
-      "text": ["PHYSIQUE"],
-      "key": "ActivitePhysique",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Habitudes de sommeil",
-      "text": ["SOMMEIL"],
-      "key": "HabitudesDeSommeil",
-      "parse": ["1", "2", "3"]   
-    }
-    ]
-  },
-  "interventions2": {
-    "label": "Interventions 2",
-    "fields": [
-    {
-      "label": "Phase",
-      "text": ["PHASE"],
-      "key": "Phase",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Visite",
-      "text": ["VISITE"],
-      "key": "Visite",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Date",
-      "text": ["OBSERVATION"],
-      "key": "Date",
-      "parse": ["0"] 
-    },
-    {
-      "label": "# Du Participant",
-      "text": ["PARTICIPANT"],
-      "key": "Participant",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Féculents",
-      "text": ["féculents"],
-      "key": "Feculents",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Viandes et substituts",
-      "text": ["viandes"],
-      "key": "ViandesEtSubstituts",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Fruits et autres aliments",
-      "text": ["fruits"],
-      "key": "FruitsEtAutresAliments",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Légumes",
-      "text": ["légumes","legumes"],
-      "key": "Legumes",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Lait et substituts",
-      "text": ["lait"],
-      "key": "LaitEtSubstituts",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Matières grasses",
-      "text": ["grasses"],
-      "key": "MatieresGrasses",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "500kcal/jour",
-      "text": ["500kcal"],
-      "key": "CinqCentKcalJour",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "20-25%",
-      "text": ["25%"],
-      "key": "VingtCinqPourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "25-30%",
-      "text": ["30%"],
-      "key": "VingtCinqTrentePourcent",
-      "parse": ["1", "2", "3"]   
-    },    
-    {
-      "label": "45-50%",
-      "text": ["50%"],
-      "key": "QuaranteCinqCinquantePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Activité physique",
-      "text": ["physique"],
-      "key": "ActivitePhysique",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Habitudes de sommeil",
-      "text": ["sommeil"],
-      "key": "HabitudesDeSommeil",
-      "parse": ["1", "2", "3"]   
     }
     ]
   }
