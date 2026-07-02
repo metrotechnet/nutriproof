@@ -13,8 +13,6 @@ from PIL import Image, ImageOps, ImageFilter
 import cv2
 import pyocr
 import pyocr.builders
-from typing import List, Dict
-import pandas as pd
 import xlwt
 import numpy as np
 
@@ -466,24 +464,20 @@ class OCRDocument:
     # Récupère la mise en page d'un document
     def get_document_layout(self, image=None,
                             split_lines_to_words=False):
-        """Run OCR on ``file_path`` and return a list of layout blocks.
+        """Run OCR on a PIL image and return normalized text layout blocks.
 
         Args:
-            file_path: Path to the image to OCR.
-            mime_type: Unused, kept for backward compatibility.
-            split_lines_to_words: When True, detected lines are exploded into
-                individual word blocks (one block per word) using the word-level
-                bounding boxes returned by Tesseract. When False (default), each
-                line is emitted as a single ``paragraph`` block.
-            handwriting: When True (default), runs Tesseract with the LSTM
-                engine in "handwriting" mode (dictionaries disabled, no
-                non-dict penalty, preserve spacing). Set False to fall back to
-                the standard printed-text configuration.
+            image: PIL image instance to OCR.
+            split_lines_to_words: Reserved for backward compatibility. The
+                current implementation always returns one block per detected line.
+
+        Returns:
+            list[dict]: OCR blocks with keys ``page``, ``text``, ``type`` and
+            ``bounding_box``. If OCR fails, returns ``{"error": ...}``.
         """
         try:
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
-            raw_gray_image = image.convert('L') if image is not None else image
-            image, ocr_scale, no_lines_image = self.preprocess_image_for_ocr(image)
+            image, _, _ = self.preprocess_image_for_ocr(image)
             #Save image for debug
             # debug_image_path = os.path.join("debug", "preprocessed_image.png")
             # image.save(debug_image_path)
@@ -549,6 +543,19 @@ class OCRDocument:
     
   # Extrait les tableaux d'un document
     def extract_tables(self, config_json_path, key_order, ocr_json_path, project_path,  pageid ):
+        """Extract configured values from OCR blocks and persist JSON outputs.
+
+        Args:
+            config_json_path: Path to parameter configuration JSON.
+            key_order: Configuration section key to process.
+            ocr_json_path: Path to OCR layout JSON (list of text blocks).
+            project_path: Output directory for generated JSON files.
+            pageid: Page identifier used in output filenames.
+
+        Returns:
+            dict: ``label_bbox``, ``value_bbox`` and ``extract_values`` maps,
+            or ``{"error": ...}`` when extraction cannot proceed.
+        """
         _trace(f"extract_tables: start pageid={pageid}")
         try:
             #Read config
@@ -556,8 +563,6 @@ class OCRDocument:
                 _raw = json.load(f).get(key_order, {})
                 config_data = _raw.get("fields", _raw) if isinstance(_raw, dict) else _raw
 
-            # target_text = [item["text"] for item in config_data if "text" in item]
-            target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
             target_parse = {param["label"]: param["parse"] for param in config_data if "label" in param and "parse" in param}
             # Load OCR layout data
             with open(ocr_json_path, 'r', encoding='utf-8') as f:
@@ -857,6 +862,19 @@ class OCRDocument:
         return assignments
         
     def extract_tables_with_grid(self, config_json_path, key_order, grid_json_path, project_path, pageid):
+        """Extract values using grid-detected cells and persist JSON outputs.
+
+        Args:
+            config_json_path: Path to parameter configuration JSON.
+            key_order: Configuration section key to process.
+            grid_json_path: Path to grid detection JSON file.
+            project_path: Output directory for generated JSON files.
+            pageid: Page identifier used in output filenames.
+
+        Returns:
+            dict: ``label_bbox``, ``value_bbox`` and ``extract_values`` maps,
+            or ``{"error": ...}`` when extraction cannot proceed.
+        """
         _trace(f"extract_tables_with_grid: start pageid={pageid} category={key_order}")
         try:
             #Read config (only the requested category, e.g. "interventions")
@@ -864,9 +882,6 @@ class OCRDocument:
                 _raw = json.load(f).get(key_order, {})
                 config_data = _raw.get("fields", _raw) if isinstance(_raw, dict) else _raw
 
-            # target_text = [item["text"] for item in config_data if "text" in item]
-            target_text = {param["label"]: param["text"] for param in config_data if "label" in param and "text" in param}
-            
             # Load grid detection data
             with open(grid_json_path, 'r', encoding='utf-8') as f:
                 grid_data = json.load(f)
@@ -1274,32 +1289,29 @@ class OCRDocument:
                     
     def find_next_value(self, blocks, label_block, label_text, format_instructions=None):
         """
-        Finds the next numerical value near the label block using spatial proximity.
-        Looks for blocks to the right of or just below the label, then extracts
-        the first number found.
+        Extract a value for a matched label block using parse constraints.
+
+        The method first tries to parse inline text in the label block
+        (after the matched alias), then falls back to parsing the full block
+        when an allowed-value constraint is present.
         
         Args:
-            blocks: List of OCR blocks
-            label_block: The block containing the label
-            label_text: The text of the label to search for
-            format_instructions: Parse hint from config (e.g. "a number", "a string with digits")
+            blocks: OCR blocks for the current page.
+            label_block: OCR block containing the label alias.
+            label_text: Label alias string or list of aliases.
+            format_instructions: Parse hint from config (examples: fixed
+                digit width, allowed-values list, generic number).
             
         Returns:
-            dict with 'value' and 'value_bbox'
+            dict: ``{"value": ..., "value_bbox": ...}``.
         """
         if not label_block:
             return {'value': None, 'value_bbox': None}
 
         try:
-            label_idx = blocks.index(label_block)
+            blocks.index(label_block)
         except ValueError:
             return {'value': None, 'value_bbox': None}
-
-        # Get label bounding box center Y and right edge X
-        label_bbox = label_block['bounding_box']
-        label_cy = (label_bbox[0][1] + label_bbox[2][1]) / 2
-        label_right = label_bbox[1][0]
-        label_height = abs(label_bbox[2][1] - label_bbox[0][1])
 
         # Determine parsing mode from format_instructions
         parse_mode = "number"  # default
@@ -1340,10 +1352,14 @@ class OCRDocument:
                     except ValueError:
                         allowed_values.append(token)
 
-        parse_has_minus_15 = False
+        parse_negative_allowed_abs = set()
         if format_instructions and isinstance(format_instructions, str):
             _fi_norm = re.sub(r'[−–—]', '-', format_instructions.lower())
-            parse_has_minus_15 = bool(re.search(r'(?<!\d)-\s*15(?!\d)', _fi_norm))
+            for m in re.finditer(r'-(\d+)', _fi_norm):
+                try:
+                    parse_negative_allowed_abs.add(abs(int(m.group(1))))
+                except ValueError:
+                    continue
 
         # OCR error corrections
         ocr_corrections = {
@@ -1436,23 +1452,38 @@ class OCRDocument:
 
             raw_text = text or ""
 
-            has_minus_15_allowed = (-15.0 in allowed_num_values) or parse_has_minus_15
+            negative_allowed_abs = set(parse_negative_allowed_abs)
+            for f in allowed_num_values:
+                if float(f).is_integer() and f < 0:
+                    negative_allowed_abs.add(abs(int(f)))
 
-            # Strong signal for Temps-like values: explicit minus before 15.
-            if has_minus_15_allowed and re.search(r'[\-−–—]\s*1\s*[5sS]', raw_text):
-                return -15
+            # Strong signal: explicit minus followed by an allowed absolute value.
+            if negative_allowed_abs:
+                explicit_neg = re.search(r'[\-−–—]\s*(\d+)', raw_text)
+                if explicit_neg:
+                    try:
+                        abs_val = abs(int(explicit_neg.group(1)))
+                        if abs_val in negative_allowed_abs:
+                            return -abs_val
+                    except ValueError:
+                        pass
 
-            # OCR often drops separators/signs around "temps" and returns forms
-            # like "temps15" or "temps 15". Treat those as -15 when this value
-            # is allowed.
-            if has_minus_15_allowed:
-                near_temps_or_start = re.search(
-                    r'(?:^|\btemps\b)\s*[:;.,-]?\s*[\-−–—]?\s*1\s*[45sS](?!\d)',
+            # OCR can drop minus signs near the "temps" token or at line start.
+            # If a nearby unsigned value matches an allowed negative absolute value,
+            # map it to the negative form.
+            if negative_allowed_abs:
+                near_label_or_start = re.search(
+                    r'(?:^|\btemps\b)\s*[:;.,-]?\s*[\-−–—]?\s*(\d+)(?!\d)',
                     raw_text,
                     re.IGNORECASE,
                 )
-                if near_temps_or_start:
-                    return -15
+                if near_label_or_start:
+                    try:
+                        abs_val = abs(int(near_label_or_start.group(1)))
+                        if abs_val in negative_allowed_abs:
+                            return -abs_val
+                    except ValueError:
+                        pass
 
             fixed = apply_ocr_fixes(raw_text)
 
@@ -1463,6 +1494,17 @@ class OCRDocument:
                 norm = tok.replace(',', '.')
                 try:
                     f = float(norm)
+
+                    # If OCR drops minus and only the negative counterpart is allowed,
+                    # coerce unsigned integer token to that negative value.
+                    if negative_allowed_abs and not tok.strip().startswith('-') and f.is_integer():
+                        abs_val = abs(int(f))
+                        if abs_val in negative_allowed_abs:
+                            pos_allowed = any(float(v) == abs_val for v in allowed_num_values)
+                            neg_allowed = any(float(v) == -abs_val for v in allowed_num_values) or (abs_val in parse_negative_allowed_abs)
+                            if neg_allowed and not pos_allowed:
+                                return -abs_val
+
                     candidates = [str(f)]
                     if f.is_integer():
                         candidates.append(str(int(f)))
@@ -1471,17 +1513,6 @@ class OCRDocument:
                 except ValueError:
                     if norm in normalized_allowed:
                         return norm
-
-            # OCR heuristic for Temps-like fields: '-15' is often read as '14' or '15'
-            # when the minus sign is dropped and digits are noisy.
-            if has_minus_15_allowed:
-                for tok in re.findall(token_pattern, fixed):
-                    try:
-                        v = int(float(tok.replace(',', '.')))
-                        if v in (14, 15, -14):
-                            return -15
-                    except ValueError:
-                        continue
 
             return None
 
@@ -1602,65 +1633,6 @@ class OCRDocument:
                     'value': line_value,
                     'value_bbox': label_block['bounding_box']
                 }
-
-        # Score candidate blocks by spatial proximity
-        # candidates = []
-        # for i, block in enumerate(blocks):
-        #     if i == label_idx:
-        #         continue
-        #     bbox = block['bounding_box']
-        #     block_cx = (bbox[0][0] + bbox[1][0]) / 2
-        #     block_cy = (bbox[0][1] + bbox[2][1]) / 2
-        #     block_left = bbox[0][0]
-
-        #     # Must be to the right of label or just below
-        #     dy = block_cy - label_cy
-        #     dx = block_left - label_right
-
-        #     # Candidate: same line (within label_height tolerance) and to the right
-        #     same_line = abs(dy) < label_height * 1.2 and dx > -20
-        #     # Candidate: just below (within 2x label height) and roughly aligned
-        #     just_below = 0 < dy < label_height * 3 and abs(block_left - label_bbox[0][0]) < label_height * 3
-
-        #     if same_line or just_below:
-        #         # Priority: same-line blocks first, then below; closer is better
-        #         priority = 0 if same_line else 1
-        #         distance = abs(dx) + abs(dy)
-        #         candidates.append((priority, distance, i, block))
-
-        # # Sort: same-line first, then by distance
-        # candidates.sort(key=lambda c: (c[0], c[1]))
-
-        # # Try to extract value from candidates
-        # for _, _, _, block in candidates:
-        #     text = block['text'].strip()
-        #     if not text:
-        #         continue
-
-        #     value = None
-        #     if parse_mode == "digits_string":
-        #         value = extract_digits_string(text)
-        #     else:
-        #         value = extract_number(text)
-        #         # If we got a number but there are allowed values, check
-        #         if value is not None and allowed_values:
-        #             if str(int(value) if isinstance(value, float) and value == int(value) else value) not in allowed_values:
-        #                 # Apply OCR fixes and retry
-        #                 value = extract_number(apply_ocr_fixes(text))
-
-        #     if value is not None:
-        #         # Handle allowed values constraint
-        #         if allowed_values:
-        #             str_val = str(int(value)) if isinstance(value, (int, float)) else str(value)
-        #             if str_val not in allowed_values:
-        #                 continue  # Skip, not in allowed set
-
-        #         return {
-        #             'value': value,
-        #             'value_bbox': block['bounding_box']
-        #         }
-
-        # return {'value': None, 'value_bbox': None}
 
         return {'value': None, 'value_bbox': None}
 
