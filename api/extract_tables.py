@@ -1354,6 +1354,7 @@ class OCRDocument:
             '|': '1',
             'S': '5',
             'G': '6',
+            'é': '6',
         }
 
         def apply_ocr_fixes(text):
@@ -1481,6 +1482,7 @@ class OCRDocument:
                             return -15
                     except ValueError:
                         continue
+
             return None
 
         def _levenshtein_with_limit(a, b, max_dist=2):
