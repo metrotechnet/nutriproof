@@ -5,14 +5,17 @@ Bundles app.py + api/ + templates/ + static/ + dbase/ + config/ into a one-folde
 """
 
 import os
+from PyInstaller.utils.hooks import collect_dynamic_libs, collect_submodules
 
 block_cipher = None
 project_root = os.path.abspath('.')
+cv2_binaries = collect_dynamic_libs('cv2')
+cv2_hiddenimports = collect_submodules('cv2')
 
 a = Analysis(
     ['app.py'],
     pathex=[project_root],
-    binaries=[],
+    binaries=cv2_binaries,
     datas=[
         ('templates', 'templates'),
         ('static', 'static'),
@@ -20,6 +23,7 @@ a = Analysis(
         ('api', 'api'),
     ],
     hiddenimports=[
+        'cv2',
         'waitress',
         'flask',
         'pyocr',
@@ -53,7 +57,7 @@ a = Analysis(
         'google.cloud.firestore',
         'google.cloud.firestore_v1',
         'grpc',
-    ],
+    ] + cv2_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
