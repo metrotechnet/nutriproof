@@ -242,7 +242,120 @@ class OCRDocument:
         # Closing acts on white foreground, so invert: text becomes white.
         text_fg = cv2.bitwise_not(binary)
 
-        return Image.fromarray(text_fg), 1.0
+        # Also build a variant with long horizontal ruling lines removed.
+        # This helps recover digits touching table separators.
+        no_lines_pil = None
+        try:
+            inv = text_fg.copy()
+            _, inv = cv2.threshold(inv, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+
+            kernel_w = max(25, inv.shape[1] // 24)
+            horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_w, 1))
+            horizontal_lines = cv2.morphologyEx(inv, cv2.MORPH_OPEN, horizontal_kernel)
+            text_wo_lines = cv2.subtract(inv, horizontal_lines)
+
+            # Use the line-free binary as the main OCR output.
+            text_fg = cv2.medianBlur(text_wo_lines, 3)
+            no_lines_pil = Image.fromarray(text_fg)
+        except Exception as e:
+            _trace(f"preprocess_image_for_ocr: no-lines generation failed: {e}")
+
+        return Image.fromarray(text_fg), 1.0, no_lines_pil
+
+    def _merge_word_boxes_to_lines(self, word_boxes, y_overlap_ratio=0.45, max_y_center_delta=18, gap_ratio=2.2, min_abs_gap=12):
+        """Merge WordBoxBuilder outputs into line-like boxes.
+
+        Group words by vertical proximity and produce one merged bbox per line.
+
+        ``gap_ratio`` and ``min_abs_gap`` are kept for backward compatibility
+        with previous tuning calls, but are intentionally unused here.
+        """
+        entries = []
+        for wb in word_boxes or []:
+            text = (getattr(wb, "content", "") or "").strip()
+            pos = getattr(wb, "position", None)
+            if not text or not pos:
+                continue
+            (x1, y1), (x2, y2) = pos
+            if x2 <= x1 or y2 <= y1:
+                continue
+            entries.append({
+                "text": text,
+                "x1": int(x1),
+                "y1": int(y1),
+                "x2": int(x2),
+                "y2": int(y2),
+                "yc": float(y1 + y2) / 2.0,
+                "h": max(1, int(y2 - y1)),
+            })
+
+        if not entries:
+            return []
+
+        entries.sort(key=lambda e: (e["y1"], e["x1"]))
+
+        # First pass: assign each word to a coarse line by Y proximity.
+        coarse_lines = []
+        for e in entries:
+            best_idx = None
+            best_score = None
+            for i, line in enumerate(coarse_lines):
+                ly1, ly2 = line["y1"], line["y2"]
+                inter = max(0, min(e["y2"], ly2) - max(e["y1"], ly1))
+                min_h = max(1, min(e["h"], ly2 - ly1))
+                overlap_ratio = inter / float(min_h)
+                center_delta = abs(e["yc"] - line["yc"])
+
+                if overlap_ratio < y_overlap_ratio and center_delta > max_y_center_delta:
+                    continue
+
+                score = (center_delta, -overlap_ratio)
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best_idx = i
+
+            if best_idx is None:
+                coarse_lines.append({
+                    "words": [e],
+                    "y1": e["y1"],
+                    "y2": e["y2"],
+                    "yc": e["yc"],
+                })
+            else:
+                line = coarse_lines[best_idx]
+                line["words"].append(e)
+                line["y1"] = min(line["y1"], e["y1"])
+                line["y2"] = max(line["y2"], e["y2"])
+                line["yc"] = sum(w["yc"] for w in line["words"]) / float(len(line["words"]))
+
+        # Second pass: merge every word in each coarse line into one output line.
+        for line in coarse_lines:
+            words = sorted(line["words"], key=lambda w: w["x1"])
+            if not words:
+                continue
+
+        out = []
+        for line in coarse_lines:
+            words = sorted(line["words"], key=lambda w: w["x1"])
+            if not words:
+                continue
+            x1 = min(w["x1"] for w in words)
+            y1 = min(w["y1"] for w in words)
+            x2 = max(w["x2"] for w in words)
+            y2 = max(w["y2"] for w in words)
+            text = " ".join(w["text"] for w in words).strip()
+            if not text:
+                continue
+            out.append({
+                "content": text,
+                "position": ((x1, y1), (x2, y2)),
+            })
+
+        out.sort(key=lambda l: (l["position"][0][1], l["position"][0][0]))
+        return out
+
+
+
     
     def read_row0_digits(self, cells, gray_img=None):
         """
@@ -369,7 +482,8 @@ class OCRDocument:
         """
         try:
             _trace(f"get_document_layout: image opened size={image.size} mode={image.mode}")
-            image, ocr_scale = self.preprocess_image_for_ocr(image)
+            raw_gray_image = image.convert('L') if image is not None else image
+            image, ocr_scale, no_lines_image = self.preprocess_image_for_ocr(image)
             #Save image for debug
             # debug_image_path = os.path.join("debug", "preprocessed_image.png")
             # image.save(debug_image_path)
@@ -378,12 +492,28 @@ class OCRDocument:
             _trace(f"get_document_layout: preprocessed image size={image.size} mode={image.mode}")
             lang = "fra+eng"
 
-            # Pass 1: line-level boxes (PSM 6)
-            line_builder = pyocr.builders.LineBoxBuilder()
-            line_builder.tesseract_layout = 6
-            line_boxes = self.ocr_tool.image_to_string(image, lang=lang, builder=line_builder)
+            wb_builder = pyocr.builders.WordBoxBuilder()
+            wb_builder.tesseract_layout = 6
+            word_boxes_psm6 = self.ocr_tool.image_to_string(image, lang=lang, builder=wb_builder)
 
-            _trace(f"get_document_layout: pass 1 done, {len(line_boxes)} line boxes")
+            line_boxes = self._merge_word_boxes_to_lines(word_boxes_psm6)
+
+            # Fallback to Tesseract line segmentation when reconstruction
+            # from words yields nothing.
+            if not line_boxes:
+                line_builder = pyocr.builders.LineBoxBuilder()
+                line_builder.tesseract_layout = 6
+                line_boxes = self.ocr_tool.image_to_string(image, lang=lang, builder=line_builder)
+
+            def _line_text(lb):
+                if isinstance(lb, dict):
+                    return (lb.get("content") or "").strip()
+                return (getattr(lb, "content", "") or "").strip()
+
+            def _line_pos(lb):
+                if isinstance(lb, dict):
+                    return lb.get("position")
+                return getattr(lb, "position", None)
 
             def pos_to_bbox(pos):
                 # OCR runs on an upscaled image; map boxes back to original coordinates.
@@ -396,62 +526,21 @@ class OCRDocument:
                 ]
 
             block_vector = []
+            for line_box in line_boxes:
+                text = _line_text(line_box)
+                pos = _line_pos(line_box)
+                if not text or not pos:
+                    continue
+                block_vector.append({
+                    "page": 1,
+                    "text": text + "\n",
+                    "type": "paragraph",
+                    "bounding_box": pos_to_bbox(pos),
+                })
 
-            if split_lines_to_words:
-                # Pass 1b: word-level boxes (PSM 6) — split lines into individual words
-                _trace("get_document_layout: pass 1b (WordBoxBuilder, PSM=6) start")
-                wb_builder = pyocr.builders.WordBoxBuilder()
-                wb_builder.tesseract_layout = 6
-                word_boxes_psm6 = self.ocr_tool.image_to_string(image, lang=lang, builder=wb_builder)
-
-                line_regions = []
-                for line_box in line_boxes:
-                    text = line_box.content.strip()
-                    if not text:
-                        continue
-                    pos = line_box.position
-                    line_regions.append(pos)
-                    (lx1, ly1), (lx2, ly2) = pos
-                    emitted = 0
-                    for wb in word_boxes_psm6:
-                        wtext = wb.content.strip()
-                        if not wtext:
-                            continue
-                        wpos = wb.position
-                        wcx = (wpos[0][0] + wpos[1][0]) / 2
-                        wcy = (wpos[0][1] + wpos[1][1]) / 2
-                        if lx1 <= wcx <= lx2 and ly1 <= wcy <= ly2:
-                            block_vector.append({"page": 1, "text": wtext + "\n", "type": "word", "bounding_box": pos_to_bbox(wpos)})
-                            emitted += 1
-                    if emitted == 0:
-                        block_vector.append({"page": 1, "text": text + "\n", "type": "paragraph", "bounding_box": pos_to_bbox(pos)})
-
-                # Pass 2: sparse word boxes (PSM 11) — catch text outside line regions
-                _trace("get_document_layout: pass 2 (WordBoxBuilder, PSM=11) start")
-                wb_builder2 = pyocr.builders.WordBoxBuilder()
-                wb_builder2.tesseract_layout = 11
-                word_boxes_psm11 = self.ocr_tool.image_to_string(image, lang=lang, builder=wb_builder2)
-                _trace(f"get_document_layout: pass 2 done, {len(word_boxes_psm11)} word boxes")
-                for wb in word_boxes_psm11:
-                    text = wb.content.strip()
-                    if not text:
-                        continue
-                    pos = wb.position
-                    wcx = (pos[0][0] + pos[1][0]) / 2
-                    wcy = (pos[0][1] + pos[1][1]) / 2
-                    if any(lr[0][0] <= wcx <= lr[1][0] and lr[0][1] <= wcy <= lr[1][1] for lr in line_regions):
-                        continue
-                    block_vector.append({"page": 1, "text": text + "\n", "type": "word", "bounding_box": pos_to_bbox(pos)})
-            else:
-                for line_box in line_boxes:
-                    text = line_box.content.strip()
-                    if not text:
-                        continue
-                    block_vector.append({"page": 1, "text": text + "\n", "type": "paragraph", "bounding_box": pos_to_bbox(line_box.position)})
-
-            # merged_blocks = self._merge_overlapping_blocks(block_vector)
 
             return block_vector
+
         except Exception as e:
             import traceback
             _trace(f"get_document_layout: EXCEPTION: {e}")
@@ -515,6 +604,39 @@ class OCRDocument:
                     label_bboxes[label] = block.get('bounding_box')
 
                     value_result = self.find_next_value(ocr_data, block, text, target_parse.get(label))
+                    extract_values[label] = value_result['value']
+                    value_bboxes[label] = value_result['value_bbox']
+
+                # Fallback pass: complete missing labels without one-to-one exclusivity.
+                # This allows multiple labels present on the same OCR line
+                # (e.g. "Visite" and "Temps") to reuse the same block.
+                for param in params_to_match:
+                    label = param["label"]
+                    if extract_values.get(label) is not None:
+                        continue
+
+                    targets = param.get("text")
+                    best_block = None
+                    best_cost = float(self._MATCH_INF)
+
+                    for block in candidate_blocks:
+                        c = self._block_match_cost(block.get("text", ""), targets)
+                        if c is None:
+                            continue
+                        if c < best_cost:
+                            best_cost = c
+                            best_block = block
+
+                    if best_block is None or best_cost >= float(self._MATCH_INF):
+                        continue
+
+                    label_bboxes[label] = best_block.get('bounding_box')
+                    value_result = self.find_next_value(
+                        ocr_data,
+                        best_block,
+                        targets,
+                        target_parse.get(label),
+                    )
                     extract_values[label] = value_result['value']
                     value_bboxes[label] = value_result['value_bbox']
 
@@ -643,6 +765,11 @@ class OCRDocument:
             if re.search(re.escape(t), b, re.IGNORECASE):
                 cost = 0.0
             else:
+                # Avoid fuzzy matching for very short labels (e.g. "-hdl", "-ldl"),
+                # which otherwise spuriously match unrelated tokens like "id"/"chul".
+                if len(t) <= 4:
+                    continue
+
                 # Weaker fuzzy match.
                 dist = self._best_fuzzy_distance(b, t, max_dist=2)
                 if dist is None:
@@ -1177,15 +1304,46 @@ class OCRDocument:
         # Determine parsing mode from format_instructions
         parse_mode = "number"  # default
         allowed_values = None
+        min_digits = 3
+        max_digits = 4
         if format_instructions and isinstance(format_instructions, str):
             fi = format_instructions.lower()
-            if "string" in fi and "digit" in fi:
+            # fi_norm = re.sub(r'[−–—]', '-', fi)
+
+            # Case 1: fixed-width digit string, e.g. "a 4 digit number".
+            if "digit" in fi and ("string" in fi or "number" in fi):
                 parse_mode = "digits_string"
-            if "one of" in fi:
-                # Extract allowed values like "one of 0, 6, 18"
-                match = re.search(r'one of\s+([\d,\s\-]+)', fi)
-                if match:
-                    allowed_values = [v.strip() for v in match.group(1).split(',')]
+
+                if re.search(r'\b(4|four)\s*-?\s*digit', fi):
+                    min_digits = 4
+                    max_digits = 4
+                elif re.search(r'\b(3|three)\s*-?\s*digit', fi):
+                    min_digits = 3
+                    max_digits = 3
+
+            # Case 2: allowed numbers list, e.g. "one of 0, 6, 18"
+            # or "allowed numbers (0, 6, 18)".
+            list_match = re.search(r'(?:one of|allowed\s+numbers?|allowed\s+numers?|allowed\s+values?)\s*[:\-]?\s*\(?\s*([\d\s,\-]+)\s*\)?', fi)
+            if list_match:
+                allowed_values = []
+                for raw_v in list_match.group(1).split(','):
+                    token = raw_v.strip()
+                    if not token:
+                        continue
+                    token_num = token.replace(',', '.')
+                    try:
+                        f = float(token_num)
+                        if f.is_integer():
+                            allowed_values.append(int(f))
+                        else:
+                            allowed_values.append(f)
+                    except ValueError:
+                        allowed_values.append(token)
+
+        parse_has_minus_15 = False
+        if format_instructions and isinstance(format_instructions, str):
+            _fi_norm = re.sub(r'[−–—]', '-', format_instructions.lower())
+            parse_has_minus_15 = bool(re.search(r'(?<!\d)-\s*15(?!\d)', _fi_norm))
 
         # OCR error corrections
         ocr_corrections = {
@@ -1251,9 +1409,79 @@ class OCRDocument:
             return None
 
         def extract_digits_string(text):
-            """Extract a string of 3-4 consecutive digits."""
-            match = re.search(r'\d{3,4}', apply_ocr_fixes(text))
+            """Extract a string of N consecutive digits based on parse hints."""
+            match = re.search(rf'\d{{{min_digits},{max_digits}}}', apply_ocr_fixes(text or ""))
             return match.group(0) if match else None
+
+        def extract_allowed_value(text, allowed):
+            """Return the first numeric token that matches an allowed value."""
+            if not allowed:
+                return None
+
+            allowed_num_values = []
+            normalized_allowed = set()
+            for v in allowed:
+                s = str(v).strip().replace(",", ".")
+                if not s:
+                    continue
+                try:
+                    f = float(s)
+                    allowed_num_values.append(f)
+                    if f.is_integer():
+                        normalized_allowed.add(str(int(f)))
+                    normalized_allowed.add(str(f))
+                except ValueError:
+                    normalized_allowed.add(s)
+
+            raw_text = text or ""
+
+            has_minus_15_allowed = (-15.0 in allowed_num_values) or parse_has_minus_15
+
+            # Strong signal for Temps-like values: explicit minus before 15.
+            if has_minus_15_allowed and re.search(r'[\-−–—]\s*1\s*[5sS]', raw_text):
+                return -15
+
+            # OCR often drops separators/signs around "temps" and returns forms
+            # like "temps15" or "temps 15". Treat those as -15 when this value
+            # is allowed.
+            if has_minus_15_allowed:
+                near_temps_or_start = re.search(
+                    r'(?:^|\btemps\b)\s*[:;.,-]?\s*[\-−–—]?\s*1\s*[45sS](?!\d)',
+                    raw_text,
+                    re.IGNORECASE,
+                )
+                if near_temps_or_start:
+                    return -15
+
+            fixed = apply_ocr_fixes(raw_text)
+
+            # Match standalone numeric tokens only (avoid digits embedded in words,
+            # e.g. "LABO" -> "LAB0" after OCR fixes).
+            token_pattern = r'(?<![A-Za-z0-9])-?\d+(?:[.,]\d+)?(?![A-Za-z0-9])'
+            for tok in re.findall(token_pattern, fixed):
+                norm = tok.replace(',', '.')
+                try:
+                    f = float(norm)
+                    candidates = [str(f)]
+                    if f.is_integer():
+                        candidates.append(str(int(f)))
+                    if any(c in normalized_allowed for c in candidates):
+                        return int(f) if f.is_integer() else f
+                except ValueError:
+                    if norm in normalized_allowed:
+                        return norm
+
+            # OCR heuristic for Temps-like fields: '-15' is often read as '14' or '15'
+            # when the minus sign is dropped and digits are noisy.
+            if has_minus_15_allowed:
+                for tok in re.findall(token_pattern, fixed):
+                    try:
+                        v = int(float(tok.replace(',', '.')))
+                        if v in (14, 15, -14):
+                            return -15
+                    except ValueError:
+                        continue
+            return None
 
         def _levenshtein_with_limit(a, b, max_dist=2):
             """Return edit distance if <= max_dist, else None (fast early stop)."""
@@ -1316,6 +1544,22 @@ class OCRDocument:
 
         # First, try to extract the value from the label block itself
         # (e.g. "Cholestérol total 3,81 mmol/L" contains both label and value)
+        def _allowed_contains(value, allowed):
+            if not allowed:
+                return True
+            try:
+                fv = float(value)
+            except (ValueError, TypeError):
+                return any(str(value) == str(a) for a in allowed)
+
+            for a in allowed:
+                try:
+                    if float(a) == fv:
+                        return True
+                except (ValueError, TypeError):
+                    continue
+            return any(str(value) == str(a) for a in allowed)
+
         label_block_text = label_block['text'].strip()
         # Find the label text(s) in the block and take what comes after
         search_targets = [label_text] if isinstance(label_text, str) else label_text
@@ -1326,26 +1570,36 @@ class OCRDocument:
                 remainder = label_block_text[span[1]:]
                 if remainder.strip():
                     inline_value = None
-                    if parse_mode == "digits_string":
+                    if allowed_values:
+                        # For constrained fields like "Visite", prefer direct token
+                        # matching from the allowed set before generic number parsing.
+                        inline_value = extract_allowed_value(remainder, allowed_values)
+                    if inline_value is None and parse_mode == "digits_string":
                         inline_value = extract_digits_string(remainder)
-                    else:
+                    elif inline_value is None:
                         inline_value = extract_number(remainder)
                         if inline_value is not None and allowed_values:
-                            str_val = str(int(inline_value)) if isinstance(inline_value, (int, float)) and inline_value == int(inline_value) else str(inline_value)
-                            if str_val not in allowed_values:
+                            if not _allowed_contains(inline_value, allowed_values):
                                 inline_value = extract_number(apply_ocr_fixes(remainder))
                                 if inline_value is not None:
-                                    str_val2 = str(int(inline_value)) if isinstance(inline_value, (int, float)) and inline_value == int(inline_value) else str(inline_value)
-                                    if str_val2 not in allowed_values:
+                                    if not _allowed_contains(inline_value, allowed_values):
                                         inline_value = None
                     if inline_value is not None:
                         return {
                             'value': inline_value,
                             'value_bbox': label_block['bounding_box']
                         }
-                    else: 
-                        return {'value': None, 'value_bbox': None}
-                # break
+                # Keep trying other label aliases before giving up.
+
+        # Fallback: attempt extraction from the full line when alias-based slicing
+        # didn't yield a value (common on noisy OCR mixed lines).
+        if allowed_values:
+            line_value = extract_allowed_value(label_block_text, allowed_values)
+            if line_value is not None:
+                return {
+                    'value': line_value,
+                    'value_bbox': label_block['bounding_box']
+                }
 
         # Score candidate blocks by spatial proximity
         # candidates = []
