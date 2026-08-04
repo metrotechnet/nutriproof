@@ -28,7 +28,7 @@
       "key": "Protéine-C-réactive"
     },
     {
-      "label": "Cholestérol",
+      "label": "Cholestérol total",
       "text": ["Cholestérol total"],
       "parse": "a number",
       "key": "Cholestérol-total"
@@ -58,7 +58,7 @@
       "key": "Cholestérol-non-hdl"
     },
     {
-      "label": "Cholestérol total/C-HDL",
+      "label": "Ratio Chol tot./Chol-HDL",
       "text": ["tot./Chol-HDL"],
       "parse": "a number",
       "key": "Cholestérol-chdl"

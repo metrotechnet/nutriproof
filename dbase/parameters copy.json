@@ -5,75 +5,75 @@
     "fields": [
     {
       "label": "Matricule",
-      "text": ["SAT2", "RZ-000"],
-      "parse": "a string with three or four digits in a row",
+      "text": ["SAT2", "RZ-SAT2"],
+      "parse": "4 digit number",
       "key": "Matricule"
     },
     {
       "label": "Visite",
       "text": ["Visite"],
-      "parse": "a digit; put 0 if nothing is detected",
+      "parse": "one of 0, 6, 18",
       "key": "Visite"
     },
     {
       "label": "Temps",
-      "text": ["Temps"],
-      "parse": "a digit that should be one of -15, 0, 30, 60; if 14 is detected, replace it with -15",
+      "text": ["temps"],
+      "parse": "one of -15, 0, 30, 60",
       "key": "Temps"
     },
     {
       "label": "Protéine C réactive",
       "text": ["Protéine C réactive"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Protéine-C-réactive"
     },
     {
       "label": "Cholestérol",
-      "text": ["total"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "text": ["Cholestérol total"],
+      "parse": "a number",
       "key": "Cholestérol-total"
     },
     {
       "label": "Triglycérides",
       "text": ["Triglycérides"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Triglycérides"
     },
     {
       "label": "Cholestérol-HDL",
-      "text": ["-HDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "text": ["Cholestérol-HDL"],
+      "parse": "a number",
       "key": "Cholestérol-hdl"
     },
     {
       "label": "Cholestérol-LDL",
-      "text": ["-LDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "text": ["Cholestérol-LDL"],
+      "parse": "a number",
       "key": "Cholestérol-ldl"
     },
     {
       "label": "Cholestérol non-HDL",
-      "text": ["non-HDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "text": ["Cholestérol non-HDL"],
+      "parse": "a number",
       "key": "Cholestérol-non-hdl"
     },
     {
       "label": "Cholestérol total/C-HDL",
-      "text": ["Chol-HDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "text": ["tot./Chol-HDL"],
+      "parse": "a number",
       "key": "Cholestérol-chdl"
     },
 
     {
       "label": "Glucose",
       "text": ["Glucose"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Glucose"
     },
     {
       "label": "Insuline",
       "text": ["Insuline"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Insuline"
     }
     ]
@@ -84,259 +84,75 @@
     {
       "label": "Matricule",
       "text": ["SAT2", "RZ-000"],
-      "parse": "a string with three or four digits in a row",
+      "parse": "4 digit number",
       "key": "Matricule"
     },
     {
       "label": "Visite",
       "text": ["Visite"],
-      "parse": "a digit; put 0 if nothing is detected",
+      "parse": "one of 0, 6, 18",
       "key": "Visite"
     },
     {
       "label": "Temps",
       "text": ["Temps"],
-      "parse": "a digit that should be one of -15, 0, 30, 60; if 14 is detected, replace it with -15",
+      "parse": "one of -15, 0, 30, 60",
       "key": "Temps"
     },
     {
       "label": "Protéine C réactive",
       "text": ["Protéine C réactive"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Protéine-C-réactive"
     },
     {
       "label": "Cholestérol",
       "text": ["Cholestérol"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Cholestérol-total"
     },
     {
       "label": "Triglycérides",
       "text": ["Triglycérides","Triglycerides"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Triglycérides"
     },
     {
       "label": "Cholestérol-HDL",
       "text": ["Cholestérol-HDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Cholestérol-hdl"
     },
 
     {
       "label": "Cholestérol non-HDL",
       "text": ["Cholestérol non-HDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Cholestérol-non-hdl"
     },
     {
       "label": "Cholestérol total/C-HDL",
       "text": ["Cholestérol total/C-HDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Cholestérol-chdl"
     },
         {
       "label": "Cholestérol LDL",
       "text": ["Cholestérol LDL"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Cholestérol-ldl"
     },
     {
       "label": "Glucose",
       "text": ["Glucose"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Glucose"
     },
     {
       "label": "Insuline",
       "text": ["Insuline"],
-      "parse": "a number that should be a float (with a comma or period) or integer",
+      "parse": "a number",
       "key": "Insuline"
-    }
-    ]
-  },
-  "interventions": {
-    "label": "Interventions 1",
-    "fields": [
-    {
-      "label": "Phase",
-      "text": ["PHASE"],
-      "key": "Phase",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Visite",
-      "text": ["VISITE"],
-      "key": "Visite",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Date",
-      "text": ["OBSERVATION"],
-      "key": "Date",
-      "parse": ["0"] 
-    },
-    {
-      "label": "# Du Participant",
-      "text": ["PARTICIPANT"],
-      "key": "Participant",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Assiette du GAC",
-      "text": ["GAC"],
-      "key": "AssietteDuGAC",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Grains entiers",
-      "text": ["GRAINS"],
-      "key": "GrainsEntiers",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Protéines végétales",
-      "text": ["VÉGÉTALES"],
-      "key": "ProteinesVegetales",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Eau",
-      "text": ["EAU"],
-      "key": "Eau",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "10-15%",
-      "text": ["15%"],
-      "key": "DixQuinzePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "20-30%",
-      "text": ["30%"],
-      "key": "VingtTrentePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "55-60%",
-      "text": ["60%"],
-      "key": "CinquanteCinqSoixantePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Activité physique",
-      "text": ["PHYSIQUE"],
-      "key": "ActivitePhysique",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Habitudes de sommeil",
-      "text": ["SOMMEIL"],
-      "key": "HabitudesDeSommeil",
-      "parse": ["1", "2", "3"]   
-    }
-    ]
-  },
-  "interventions2": {
-    "label": "Interventions 2",
-    "fields": [
-    {
-      "label": "Phase",
-      "text": ["PHASE"],
-      "key": "Phase",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Visite",
-      "text": ["VISITE"],
-      "key": "Visite",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Date",
-      "text": ["OBSERVATION"],
-      "key": "Date",
-      "parse": ["0"] 
-    },
-    {
-      "label": "# Du Participant",
-      "text": ["PARTICIPANT"],
-      "key": "Participant",
-      "parse": ["0"] 
-    },
-    {
-      "label": "Féculents",
-      "text": ["féculents"],
-      "key": "Feculents",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Viandes et substituts",
-      "text": ["viandes"],
-      "key": "ViandesEtSubstituts",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Fruits et autres aliments",
-      "text": ["fruits"],
-      "key": "FruitsEtAutresAliments",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Légumes",
-      "text": ["légumes","legumes"],
-      "key": "Legumes",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Lait et substituts",
-      "text": ["lait"],
-      "key": "LaitEtSubstituts",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Matières grasses",
-      "text": ["grasses"],
-      "key": "MatieresGrasses",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "500kcal/jour",
-      "text": ["500kcal"],
-      "key": "CinqCentKcalJour",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "20-25%",
-      "text": ["25%"],
-      "key": "VingtCinqPourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "25-30%",
-      "text": ["30%"],
-      "key": "VingtCinqTrentePourcent",
-      "parse": ["1", "2", "3"]   
-    },    
-    {
-      "label": "45-50%",
-      "text": ["50%"],
-      "key": "QuaranteCinqCinquantePourcent",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Activité physique",
-      "text": ["physique"],
-      "key": "ActivitePhysique",
-      "parse": ["1", "2", "3"]   
-    },
-    {
-      "label": "Habitudes de sommeil",
-      "text": ["sommeil"],
-      "key": "HabitudesDeSommeil",
-      "parse": ["1", "2", "3"]   
     }
     ]
   }

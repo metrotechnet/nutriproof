@@ -204,10 +204,10 @@ if getattr(sys, 'frozen', False):
         LOCAL_FOLDER = os.path.join(_base, 'NutriProof', 'uploads')
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
-
+print(LOCAL_FOLDER)
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.50'
+APP_VERSION = '1.1.51'
 
 def create_app():
 
