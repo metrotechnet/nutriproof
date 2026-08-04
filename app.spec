@@ -63,6 +63,8 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         'vertexai',
+        'uploads',
+        'uploads - Copie',
     ],
     noarchive=False,
     optimize=0,

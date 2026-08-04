@@ -4,7 +4,7 @@
 .DESCRIPTION
     1. Bundles the Python/Flask backend with PyInstaller
     2. Copies Tesseract OCR into a bundle folder
-    3. Creates uploads/ folder in the backend dist
+    3. Removes any stale upload folders from the backend dist
     4. Packages the app:
        - Default: portable folder with electron-packager
        - -Installer: NSIS installer with electron-builder (supports auto-update)
@@ -60,9 +60,16 @@ if (-not $SkipBackend) {
     & $venvPython -m PyInstaller app.spec --noconfirm
     if ($LASTEXITCODE -ne 0) { Write-Error "PyInstaller failed" }
 
-    # Create uploads folder in dist
-    $uploadsDir = Join-Path $ProjectRoot "dist\backend\uploads\main"
-    New-Item -ItemType Directory -Force -Path $uploadsDir | Out-Null
+    # Remove any stale upload folders from dist to avoid bundling them
+    $staleUploadDirs = @(
+        (Join-Path $ProjectRoot "dist\backend\uploads"),
+        (Join-Path $ProjectRoot "dist\backend\uploads - Copie")
+    )
+    foreach ($dir in $staleUploadDirs) {
+        if (Test-Path $dir) {
+            Remove-Item -Recurse -Force $dir
+        }
+    }
 
     Pop-Location
     Write-Host "Backend build complete." -ForegroundColor Green
