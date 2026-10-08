@@ -7,6 +7,9 @@ let all_blocks = [];
 let checked_boxes = [];
 let grid_cells = [];
 let all_detected_grid_cells = [];
+let field_visibility = {};
+let field_text = {};
+let field_type = {};
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -109,6 +112,9 @@ async function loadPage(project_id, index, init_scroll=false) {
     label_bbox = JSON.parse(responses[0].data_string || '{}');
     value_bbox = JSON.parse(responses[1].data_string || '{}');
     extract_values = JSON.parse(responses[2].data_string || '{}');
+    field_visibility = responses[2].field_visibility || {};
+    field_text = responses[2].field_text || {};
+    field_type = responses[2].field_type || {};
     all_blocks = responses[3] || [];
     checked_boxes = responses[4] || [];
     const gridData = responses[5] || {};
@@ -230,8 +236,11 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     svg.style.display = "block";
     viewerImage.appendChild(svg);  
 
-    // Effacer le tableau
-    document.getElementById("table-container").innerHTML = "";
+    // Effacer le tableau/pagination sans retirer la structure des slots
+    const tableValuesContainer = document.getElementById("table-values-container");
+    const paginationSlot = document.getElementById("pagination-slot");
+    if (tableValuesContainer) tableValuesContainer.innerHTML = "";
+    if (paginationSlot) paginationSlot.innerHTML = "";
     // Keep parameter table order aligned with JSON definition order.
     // 1) keys order from label_bbox (built from config JSON order on backend)
     // 2) append any remaining keys in their existing insertion order
@@ -283,7 +292,36 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
       }
     }
 
-    extract_values = Object.fromEntries(orderedEntries);
+    // Reorder question rows by matched cell vertical position (Y ascending).
+    // Keep non-question rows in their existing order.
+    const questionRows = [];
+    const nonQuestionRows = [];
+    orderedEntries.forEach(([k, v], idx) => {
+      if (field_type[k] !== "question") {
+        nonQuestionRows.push([k, v]);
+        return;
+      }
+      const bb = label_bbox?.[k];
+      const y = (Array.isArray(bb) && Array.isArray(bb[0]) && typeof bb[0][1] === "number")
+        ? bb[0][1]
+        : null;
+      questionRows.push({ k, v, y, idx });
+    });
+
+    const matchedQuestions = questionRows
+      .filter(r => r.y !== null)
+      .sort((a, b) => a.y - b.y);
+    const unmatchedQuestions = questionRows
+      .filter(r => r.y === null)
+      .sort((a, b) => a.idx - b.idx);
+
+    const finalEntries = [
+      ...nonQuestionRows,
+      ...matchedQuestions.map(r => [r.k, r.v]),
+      ...unmatchedQuestions.map(r => [r.k, r.v]),
+    ];
+
+    extract_values = Object.fromEntries(finalEntries);
 
     // Génération du tableau éditable
     generateEditableTable(extract_values);
@@ -651,7 +689,8 @@ function createPaginationControls(current, max) {
   nextBtn.onclick = nextPage;
 
   container.append(prevBtn, pageDiv, nextBtn);
-  document.getElementById("table-container").appendChild(container);
+  const slot = document.getElementById("pagination-slot") || document.getElementById("table-container");
+  slot.appendChild(container);
 }
 
 function previousPage() {
@@ -665,8 +704,8 @@ function nextPage() {
 }
 
 // === TABLE UI ===
-function generateEditableTable(data, containerId = "table-container") {
-  const container = document.getElementById(containerId);
+function generateEditableTable(data, containerId = "table-values-container") {
+  const container = document.getElementById(containerId) || document.getElementById("table-container");
   if (!container) return;
 
   const table = document.createElement("table");
@@ -683,20 +722,25 @@ function generateEditableTable(data, containerId = "table-container") {
   const tbody = document.createElement("tbody");
 
   for (const [key, value] of Object.entries(data)) {
+    if (field_visibility[key] === false) continue;
+
     const row = document.createElement("tr");
 
     const hasMappedColor = currentCategory.startsWith('bilan_lipidique_')
       && labelColors[key];
+    const isQuestion = field_type[key] === "question";
+    const defaultLabelBgColor = isQuestion ? "rgba(255, 193, 7, 0.18)" : "rgba(80, 160, 255, 0.12)";
+    const defaultValueBgColor = isQuestion ? "rgba(255, 193, 7, 0.10)" : "rgba(80, 160, 255, 0.12)";
     const labelBgColor = hasMappedColor && labelColors[key].label
       ? labelColors[key].label
-      : "rgba(80, 160, 255, 0.12)";
+      : defaultLabelBgColor;
     const valueBgColor = hasMappedColor && labelColors[key].value
       ? labelColors[key].value
-      : "rgba(80, 160, 255, 0.12)";
+      : defaultValueBgColor;
 
     const paramCell = document.createElement("td");
     paramCell.contentEditable = "false";
-    paramCell.textContent = key;
+    paramCell.textContent = field_text[key] || key;
     paramCell.dataset.originalKey = key;
     paramCell.style.backgroundColor = labelBgColor;
 
@@ -736,10 +780,10 @@ function sendTableToServer() {
   const table = document.querySelector(".param-table");
   if (!table) return;
 
-  const data = {};
+  const data = { ...extract_values };
   table.querySelectorAll("tbody tr").forEach(row => {
     const cells = row.querySelectorAll("td");
-    const key = cells[0].textContent.trim();
+    const key = cells[0].dataset.originalKey || cells[0].textContent.trim();
     const value = cells[1].textContent.trim();
     if (key) {
       data[key] = value;
@@ -847,5 +891,3 @@ function adjustBboxHeight(bboxObj, maxHeight) {
     });
     return bboxObj
 }
-
-

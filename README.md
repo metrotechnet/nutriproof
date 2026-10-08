@@ -111,7 +111,7 @@ Site : https://imx-nutriproof.web.app
 ---
 
 ## Configuration
-- `dbase/bilan_lipidique.json` : configuration des paramètres OCR à extraire
+- `dbase/parameters.json` : configuration des types de formulaires et paramètres OCR à extraire
 - `templates/` : templates HTML (index, review, maintenance)
 - `static/` : fichiers CSS, JS, images
 

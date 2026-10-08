@@ -231,10 +231,29 @@ def create_app():
     #Build a dict {category: [labels...]} so consumers can pick the right one per document
     key_order = {}
     form_labels = {}
+    field_visibility = {}
+    field_texts = {}
+    field_types = {}
     for category, value in config.items():
         items = value.get("fields", []) if isinstance(value, dict) else value
         key_order[category] = [item.get("label") for item in items if "label" in item]
         form_labels[category] = value.get("label", category) if isinstance(value, dict) else category
+        visibility_by_label = {}
+        text_by_label = {}
+        type_by_label = {}
+        for item in items:
+            if isinstance(item, dict) and "label" in item:
+                visibility_by_label[item["label"]] = bool(item.get("visible", True))
+                texts = item.get("text")
+                if isinstance(texts, list) and texts:
+                    text_by_label[item["label"]] = str(texts[0])
+                else:
+                    text_by_label[item["label"]] = str(item["label"])
+                raw_type = str(item.get("type", "information")).strip().lower()
+                type_by_label[item["label"]] = "question" if raw_type == "question" else "information"
+        field_visibility[category] = visibility_by_label
+        field_texts[category] = text_by_label
+        field_types[category] = type_by_label
 
     # Initialisation de l'application Flask
     app = Flask(__name__,
@@ -250,6 +269,9 @@ def create_app():
     app.config['TASK_MANAGER'] = task_manager
     app.config['KEY_ORDER'] = key_order
     app.config['FORM_LABELS'] = form_labels
+    app.config['FIELD_VISIBILITY'] = field_visibility
+    app.config['FIELD_TEXTS'] = field_texts
+    app.config['FIELD_TYPES'] = field_types
 
     app.config['DEMO_MODE'] = DEMO_MODE
     app.config['DEMO_MAX_PAGES'] = DEMO_MAX_PAGES

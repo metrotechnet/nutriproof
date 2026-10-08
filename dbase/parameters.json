@@ -1,159 +1,692 @@
 {
-  
   "bilan_lipidique_1": {
     "label": "Bilan lipidique 1 (ancienne version)",
     "fields": [
-    {
-      "label": "Matricule",
-      "text": ["SAT2", "RZ-SAT2"],
-      "parse": "4 digit number",
-      "key": "Matricule"
-    },
-    {
-      "label": "Visite",
-      "text": ["Visite"],
-      "parse": "one of 0, 6, 18",
-      "key": "Visite"
-    },
-    {
-      "label": "Temps",
-      "text": ["temps"],
-      "parse": "one of -15, 0, 30, 60",
-      "key": "Temps"
-    },
-    {
-      "label": "Protéine C réactive",
-      "text": ["Protéine C réactive"],
-      "parse": "a number",
-      "key": "Protéine-C-réactive"
-    },
-    {
-      "label": "Cholestérol total",
-      "text": ["Cholestérol total"],
-      "parse": "a number",
-      "key": "Cholestérol-total"
-    },
-    {
-      "label": "Triglycérides",
-      "text": ["Triglycérides"],
-      "parse": "a number",
-      "key": "Triglycérides"
-    },
-    {
-      "label": "Cholestérol-HDL",
-      "text": ["Cholestérol-HDL"],
-      "parse": "a number",
-      "key": "Cholestérol-hdl"
-    },
-    {
-      "label": "Cholestérol-LDL",
-      "text": ["Cholestérol-LDL"],
-      "parse": "a number",
-      "key": "Cholestérol-ldl"
-    },
-    {
-      "label": "Cholestérol non-HDL",
-      "text": ["Cholestérol non-HDL"],
-      "parse": "a number",
-      "key": "Cholestérol-non-hdl"
-    },
-    {
-      "label": "Ratio Chol tot./Chol-HDL",
-      "text": ["tot./Chol-HDL"],
-      "parse": "a number",
-      "key": "Cholestérol-chdl"
-    },
-
-    {
-      "label": "Glucose",
-      "text": ["Glucose"],
-      "parse": "a number",
-      "key": "Glucose"
-    },
-    {
-      "label": "Insuline",
-      "text": ["Insuline"],
-      "parse": "a number",
-      "key": "Insuline"
-    }
+      {
+        "label": "Matricule",
+        "text": [
+          "SAT2",
+          "RZ-SAT2"
+        ],
+        "parse": "4 digit number",
+        "key": "Matricule",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Visite",
+        "text": [
+          "Visite"
+        ],
+        "parse": "one of 0, 6, 18",
+        "key": "Visite",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Temps",
+        "text": [
+          "temps"
+        ],
+        "parse": "one of -15, 0, 30, 60",
+        "key": "Temps",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Protéine C réactive",
+        "text": [
+          "Protéine C réactive"
+        ],
+        "parse": "a number",
+        "key": "Protéine-C-réactive",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol total",
+        "text": [
+          "Cholestérol total"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-total",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Triglycérides",
+        "text": [
+          "Triglycérides"
+        ],
+        "parse": "a number",
+        "key": "Triglycérides",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol-HDL",
+        "text": [
+          "Cholestérol-HDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-hdl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol-LDL",
+        "text": [
+          "Cholestérol-LDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-ldl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol non-HDL",
+        "text": [
+          "Cholestérol non-HDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-non-hdl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Ratio Chol tot./Chol-HDL",
+        "text": [
+          "tot./Chol-HDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-chdl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Glucose",
+        "text": [
+          "Glucose"
+        ],
+        "parse": "a number",
+        "key": "Glucose",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Insuline",
+        "text": [
+          "Insuline"
+        ],
+        "parse": "a number",
+        "key": "Insuline",
+        "visible": true,
+        "type": "information"
+      }
     ]
   },
   "bilan_lipidique_2": {
     "label": "Bilan lipidique 2 (nouvelle version)",
     "fields": [
-    {
-      "label": "Matricule",
-      "text": ["SAT2", "RZ-000"],
-      "parse": "4 digit number",
-      "key": "Matricule"
-    },
-    {
-      "label": "Visite",
-      "text": ["Visite"],
-      "parse": "one of 0, 6, 18",
-      "key": "Visite"
-    },
-    {
-      "label": "Temps",
-      "text": ["Temps"],
-      "parse": "one of -15, 0, 30, 60",
-      "key": "Temps"
-    },
-    {
-      "label": "Protéine C réactive",
-      "text": ["Protéine C réactive"],
-      "parse": "a number",
-      "key": "Protéine-C-réactive"
-    },
-    {
-      "label": "Cholestérol",
-      "text": ["Cholestérol"],
-      "parse": "a number",
-      "key": "Cholestérol-total"
-    },
-    {
-      "label": "Triglycérides",
-      "text": ["Triglycérides","Triglycerides"],
-      "parse": "a number",
-      "key": "Triglycérides"
-    },
-    {
-      "label": "Cholestérol-HDL",
-      "text": ["Cholestérol-HDL"],
-      "parse": "a number",
-      "key": "Cholestérol-hdl"
-    },
-
-    {
-      "label": "Cholestérol non-HDL",
-      "text": ["Cholestérol non-HDL"],
-      "parse": "a number",
-      "key": "Cholestérol-non-hdl"
-    },
-    {
-      "label": "Cholestérol total/C-HDL",
-      "text": ["Cholestérol total/C-HDL"],
-      "parse": "a number",
-      "key": "Cholestérol-chdl"
-    },
-        {
-      "label": "Cholestérol LDL",
-      "text": ["Cholestérol LDL"],
-      "parse": "a number",
-      "key": "Cholestérol-ldl"
-    },
-    {
-      "label": "Glucose",
-      "text": ["Glucose"],
-      "parse": "a number",
-      "key": "Glucose"
-    },
-    {
-      "label": "Insuline",
-      "text": ["Insuline"],
-      "parse": "a number",
-      "key": "Insuline"
-    }
+      {
+        "label": "Matricule",
+        "text": [
+          "SAT2",
+          "RZ-000"
+        ],
+        "parse": "4 digit number",
+        "key": "Matricule",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Visite",
+        "text": [
+          "Visite"
+        ],
+        "parse": "one of 0, 6, 18",
+        "key": "Visite",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Temps",
+        "text": [
+          "Temps"
+        ],
+        "parse": "one of -15, 0, 30, 60",
+        "key": "Temps",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Protéine C réactive",
+        "text": [
+          "Protéine C réactive"
+        ],
+        "parse": "a number",
+        "key": "Protéine-C-réactive",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol",
+        "text": [
+          "Cholestérol"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-total",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Triglycérides",
+        "text": [
+          "Triglycérides",
+          "Triglycerides"
+        ],
+        "parse": "a number",
+        "key": "Triglycérides",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol-HDL",
+        "text": [
+          "Cholestérol-HDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-hdl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol non-HDL",
+        "text": [
+          "Cholestérol non-HDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-non-hdl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol total/C-HDL",
+        "text": [
+          "Cholestérol total/C-HDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-chdl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Cholestérol LDL",
+        "text": [
+          "Cholestérol LDL"
+        ],
+        "parse": "a number",
+        "key": "Cholestérol-ldl",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Glucose",
+        "text": [
+          "Glucose"
+        ],
+        "parse": "a number",
+        "key": "Glucose",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Insuline",
+        "text": [
+          "Insuline"
+        ],
+        "parse": "a number",
+        "key": "Insuline",
+        "visible": true,
+        "type": "information"
+      }
+    ]
+  },
+  "formulaire_suivi": {
+    "label": "Formulaire de suivi",
+    "fields": [
+      {
+        "label": "Projet",
+        "text": [
+          "Projet"
+        ],
+        "parse": "SAT2",
+        "key": "Projet",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "Section",
+        "text": [
+          "Section"
+        ],
+        "parse": "Projet",
+        "key": "Section",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "Centre",
+        "text": [
+          "Centre"
+        ],
+        "parse": "INAF",
+        "key": "Centre",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "nomat",
+        "text": [
+          "SAT2"
+        ],
+        "parse": "a 4 digit number",
+        "key": "nomat",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "seq",
+        "text": [
+          "Date de visite"
+        ],
+        "parse": "",
+        "key": "seq",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "tx",
+        "text": [
+          "tx"
+        ],
+        "parse": "IN",
+        "key": "tx",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "Phase/Visite (ex: P1V2)",
+        "text": [
+          "Phase/Visite"
+        ],
+        "parse": "one of Phase 1, Phase 2, Phase 3",
+        "key": "Visites",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Date de visite ( YYYY/MM/DD)",
+        "text": [
+          "Date de visite",
+          "Date de visite:"
+        ],
+        "parse": "a date in format YYYY/MM/DD",
+        "key": "date_visite",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Mode de rencontre (Présentiel=1, Distance=2)",
+        "text": [
+          "Mode de rencontre"
+        ],
+        "parse": "one of Présence, Distance",
+        "key": "mode_renc",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Poids (lb)",
+        "text": [
+          "Poids (lbs ou kg)",
+          "Poids (lbs ou kg):"
+        ],
+        "parse": "a number",
+        "key": "weight_lbs",
+        "visible": false,
+        "type": "information"
+      },
+      {
+        "label": "Poids (kg) (ex: 1160,3)",
+        "text": [
+          "Poids (lbs ou kg)",
+          "Poids (lbs ou kg):"
+        ],
+        "parse": "a number",
+        "key": "weight_kg",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Poids mesuré ou rapporté",
+        "text": [
+          "Poids mesuré ou rapporté?",
+          "Poids mesuré ou rapporté"
+        ],
+        "parse": "one of Mesuré, Rapporté",
+        "key": "poids_m",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Tour de taille",
+        "text": [
+          "Tour de taille (une mesure)",
+          "Tour de taille"
+        ],
+        "parse": "a number",
+        "key": "waistc",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Journal de bord complétés et remis",
+        "text": [
+          "Journal de bord complétés et remis"
+        ],
+        "parse": "one of Oui, Non",
+        "key": "jb_remis",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Fréquence de complétion",
+        "text": [
+          "Fréquence de complétion"
+        ],
+        "parse": "a number per week",
+        "key": "fq_comp",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Date du rappel",
+        "text": [
+          "Date du rappel",
+          "Date du rappel:"
+        ],
+        "parse": "a date in format YYYY/MM/DD",
+        "key": "date_rappel",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Groupe de randomisation",
+        "text": [
+          ""
+        ],
+        "parse": "one of Groupe #1, Groupe #2, Groupe #3",
+        "key": "group_rando",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Respect proportion GAC",
+        "text": [
+          "Avoir suivi les proportions de l'assiette du GAC"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "prop_gac",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Privilégié grains entiers",
+        "text": [
+          "Avoir privilégié les grains entiers par rapport aux grains raffinés (50% du temps et +)."
+        ],
+        "parse": "offset 1,2,3",
+        "key": "grains_entiers",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Protéines végétales",
+        "text": [
+          "Avoir privilégié les protéines végétales par rapport aux protéines animales."
+        ],
+        "parse": "offset 1,2,3",
+        "key": "prot_veg",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Privilégié l'eau",
+        "text": [
+          "Avoir privilégié l'eau comme boisson."
+        ],
+        "parse": "offset 1,2,3",
+        "key": "priv_eau",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "% protéines R24W",
+        "text": [
+          "10-15% en protéines",
+          "≥ 25% en protéines",
+          "20-25% en protéines"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "prot_r24",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "% lipides R24W",
+        "text": [
+          "20-30% en lipides",
+          "≤ 30% en lipides",
+          "25-30% en lipides"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "lip_r24",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "% glucides R24W",
+        "text": [
+          "55-60% en glucides",
+          "45% en glucides",
+          "45-50% en glucides"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "gluc_r24",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Act. Physique",
+        "text": [
+          "La pratique d'activité physique était adéquate"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "act_phys",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Sommeil",
+        "text": [
+          "Les habitudes de sommeil étaient adéquates"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "sommeil",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Protéines à chaque repas",
+        "text": [
+          "Avoir consommé environ 120g de viandes maigres (4 équivalents) par repas"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "prot_repas",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Fruits et légumes",
+        "text": [
+          "Avoir consommé 4-6 portions par jour de fruits et légumes"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "fruit_leg",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Gras insaturés",
+        "text": [
+          "Avoir privilégié les gras insaturés (poly/mono)"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "gras_insat",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Produits laitiers",
+        "text": [
+          "Avoir consommé 4 portions de produits laitiers par jour"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "prod_lait",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Faible IG",
+        "text": [
+          "Avoir privilégié les aliments ayant un indice glycémique faible (<55)"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "faib_ig",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Capsaïcine",
+        "text": [
+          "Avoir consommé de la capsaïcine quotidiennement, avant un repas (1x par jour)"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "capsa",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Privilégie aliments rassasiants",
+        "text": [
+          "Avoir privilégié des aliments rassasiants dans la majorité des repas"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "alim_rassa",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Fibres R24W",
+        "text": [
+          "25 g de fibres par jour"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "fibr_r24",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Calcium R24W",
+        "text": [
+          "1200 mg de calcium"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "calci_r24",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Nbr portions féculents",
+        "text": [
+          "Avoir respecté le nombre d'équivalents de féculents"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "port_fecul",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Nbr portions viandes",
+        "text": [
+          "Avoir respecté le nombre d'équivalents de viandes et substituts"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "port_viand",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Nbr portions fruits et sucres",
+        "text": [
+          "Avoir respecté le nombre d'équivalents de fruits et autres aliments"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "fruit_sucr",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Nbr portions légumes",
+        "text": [
+          "Avoir respecté le nombre d'équivalents de légumes"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "port_leg",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Nbr portions lait",
+        "text": [
+          "Avoir respecté le nombre d'équivalent de lait et substituts"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "port_laits",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Nbr portions MG",
+        "text": [
+          "Avoir respecté le nombre d'équivalents de matières grasses"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "port_mg",
+        "visible": true,
+        "type": "question"
+      },
+      {
+        "label": "Déficit 500 cal/jour R24W",
+        "text": [
+          "Avoir respecté le déficit calorique de 500kcal/jour"
+        ],
+        "parse": "offset 1,2,3",
+        "key": "def_cal",
+        "visible": true,
+        "type": "question"
+      }
     ]
   }
 }

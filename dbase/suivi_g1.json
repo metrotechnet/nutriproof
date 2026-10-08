@@ -1,0 +1,74 @@
+[
+  {
+    "label": "G1 - Respect proportion GAC",
+    "text": [
+      "Avoir suivi les proportions de l’assiette du GAC"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-Respect-proportion-GAC"
+  },
+  {
+    "label": "G1 - Privilégié grains entiers",
+    "text": [
+      "Avoir privilégié les grains entiers par rapport aux grains raffinés"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-Privilegie-grains-entiers"
+  },
+  {
+    "label": "G1 - Protéines végétales",
+    "text": [
+      "Avoir privilégié les protéines végétales par rapport aux protéines animales"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-Proteines-vegetales"
+  },
+  {
+    "label": "G1 - Privilégié l'eau",
+    "text": [
+      "Avoir privilégié l’eau comme boisson"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-Privilegie-eau"
+  },
+  {
+    "label": "G1 - % protéines R24W",
+    "text": [
+      "10-15% en protéines"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-pourcentage-proteines-R24W"
+  },
+  {
+    "label": "G1 - % lipides R24W",
+    "text": [
+      "20-30% en lipides"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-pourcentage-lipides-R24W"
+  },
+  {
+    "label": "G1 - % glucides R24W",
+    "text": [
+      "55-60% en glucides"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-pourcentage-glucides-R24W"
+  },
+  {
+    "label": "G1 - Act. Physique",
+    "text": [
+      "La pratique d’activité physique était adéquate (150 minutes par semaine)"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-Activite-physique"
+  },
+  {
+    "label": "G1 - Sommeil",
+    "text": [
+      "Les habitudes de sommeil étaient adéquates (7-8 heures par jour)"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G1-Sommeil"
+  }
+]

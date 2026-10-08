@@ -6,6 +6,8 @@ import io
 import csv
 import json
 import ctypes
+import unicodedata
+from difflib import SequenceMatcher
 from contextlib import contextmanager
 import fitz
 from datetime import datetime
@@ -30,6 +32,161 @@ def _trace(msg):
         sys.stdout.flush()
     except Exception:
         pass
+
+
+def _norm_for_match(text):
+    text = (text or "").lower().strip()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^a-z0-9%<>=]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _snippet_match_score(cell_text, snippet):
+    """Return similarity score in [0,1] between OCR cell text and snippet.
+
+    Combines:
+    - direct containment (strong signal)
+    - token coverage (robust to extra OCR words/noise)
+    - local sequence similarity on sliding windows (robust to long cells)
+    """
+    ct_m = _norm_for_match(cell_text)
+    sn_m = _norm_for_match(snippet)
+    if not ct_m or not sn_m:
+        return 0.0
+    if sn_m in ct_m:
+        return 1.0
+
+    sn_tokens = sn_m.split()
+    ct_tokens = ct_m.split()
+    if not sn_tokens or not ct_tokens:
+        return 0.0
+
+    ct_token_set = set(ct_tokens)
+    overlap = sum(1 for t in sn_tokens if t in ct_token_set)
+    token_coverage = overlap / max(1, len(sn_tokens))
+
+    def _extract_num_tokens(s):
+        toks = set()
+        for m in re.findall(r'\d+(?:[.,]\d+)?%?', s):
+            t = m.replace(",", ".")
+            if t.endswith("%"):
+                core = t[:-1]
+                try:
+                    fv = float(core)
+                    if fv.is_integer():
+                        core = str(int(fv))
+                    else:
+                        core = str(fv)
+                except ValueError:
+                    pass
+                toks.add(core + "%")
+            else:
+                try:
+                    fv = float(t)
+                    if fv.is_integer():
+                        toks.add(str(int(fv)))
+                    else:
+                        toks.add(str(fv))
+                except ValueError:
+                    toks.add(t)
+        return toks
+
+    def _extract_cmp_symbols(s):
+        # Normalize common comparator representations so
+        # "≤", "<=" and "=<" are treated the same (idem for ≥).
+        s = (s or "")
+        s = s.replace("=<", "<=").replace("=>", ">=")
+        symbols = set()
+        if "<=" in s or "≤" in s:
+            symbols.add("<=")
+        if ">=" in s or "≥" in s:
+            symbols.add(">=")
+        # Add strict symbols only when not part of <= or >=
+        if "<" in s and "<=" not in s and "≤" not in s:
+            symbols.add("<")
+        if ">" in s and ">=" not in s and "≥" not in s:
+            symbols.add(">")
+        return symbols
+
+    def _extract_range_bounds(s):
+        # Detect numeric ranges like "20-25", "20 - 25%", "10,5-15,0".
+        if not s:
+            return None
+        m = re.search(r'(\d+(?:[.,]\d+)?)\s*-\s*(\d+(?:[.,]\d+)?)(\s*%)?', s)
+        if not m:
+            return None
+        try:
+            lo = float(m.group(1).replace(",", "."))
+            hi = float(m.group(2).replace(",", "."))
+        except ValueError:
+            return None
+        if lo > hi:
+            lo, hi = hi, lo
+        has_percent = bool(m.group(3)) or "%" in s
+        return (lo, hi, has_percent)
+
+    sn_num = _extract_num_tokens(sn_m)
+    ct_num = _extract_num_tokens(ct_m)
+    sn_cmp = _extract_cmp_symbols(snippet)
+    ct_cmp = _extract_cmp_symbols(cell_text)
+    sn_range = _extract_range_bounds(snippet)
+    ct_range = _extract_range_bounds(cell_text)
+    num_overlap = 0.0
+    if sn_num:
+        num_overlap = len(sn_num.intersection(ct_num)) / max(1, len(sn_num))
+    cmp_overlap = 0.0
+    if sn_cmp:
+        cmp_overlap = len(sn_cmp.intersection(ct_cmp)) / max(1, len(sn_cmp))
+    range_overlap = 0.0
+    if sn_range and ct_range:
+        same_unit = (sn_range[2] == ct_range[2])
+        lo_close = abs(sn_range[0] - ct_range[0]) <= 0.6
+        hi_close = abs(sn_range[1] - ct_range[1]) <= 0.6
+        if same_unit and lo_close and hi_close:
+            range_overlap = 1.0
+
+    # Compare snippet with local windows of similar token length.
+    # This avoids punishing valid matches when cell text contains
+    # additional OCR noise before/after the snippet.
+    target = len(sn_tokens)
+    min_w = max(1, target - 1)
+    max_w = min(len(ct_tokens), target + 2)
+    best_local_ratio = 0.0
+
+    for w in range(min_w, max_w + 1):
+        for i in range(0, len(ct_tokens) - w + 1):
+            window_text = " ".join(ct_tokens[i:i + w])
+            ratio = SequenceMatcher(None, window_text, sn_m).ratio()
+            if ratio > best_local_ratio:
+                best_local_ratio = ratio
+
+    blended = (
+        0.38 * token_coverage
+        + 0.28 * best_local_ratio
+        + 0.18 * num_overlap
+        + 0.08 * cmp_overlap
+        + 0.08 * range_overlap
+    )
+    score = max(token_coverage, best_local_ratio, blended)
+
+    # Numeric anchors disambiguate very similar snippets
+    # (ex: "10-15% en protéines" vs "20-25% en protéines").
+    if sn_num and ct_num and num_overlap == 0.0:
+        score *= 0.55
+    if sn_cmp and ct_cmp and cmp_overlap == 0.0:
+        score *= 0.75
+    # Range/comparator mismatch disambiguation for near-identical snippets:
+    # e.g. "20-25% ..." should win over "≥ 25% ..." when cell shows a range.
+    if sn_range and ct_range and range_overlap == 0.0:
+        score *= 0.70
+    if sn_range and ct_cmp and not ct_range:
+        score *= 0.80
+    if sn_cmp and ct_range and not sn_range:
+        score *= 0.80
+
+    return score
+
 
 # Add Tesseract to PATH if not already there
 if sys.platform == "win32":
@@ -468,8 +625,8 @@ class OCRDocument:
 
         Args:
             image: PIL image instance to OCR.
-            split_lines_to_words: Reserved for backward compatibility. The
-                current implementation always returns one block per detected line.
+            split_lines_to_words: When True, return one block per detected word.
+                When False, return one block per detected line.
 
         Returns:
             list[dict]: OCR blocks with keys ``page``, ``text``, ``type`` and
@@ -520,9 +677,16 @@ class OCRDocument:
                 ]
 
             block_vector = []
-            for line_box in line_boxes:
-                text = _line_text(line_box)
-                pos = _line_pos(line_box)
+            source_boxes = word_boxes_psm6 if split_lines_to_words else line_boxes
+
+            # If word split is requested but no word boxes were detected,
+            # gracefully fall back to line boxes to avoid empty outputs.
+            if split_lines_to_words and not source_boxes:
+                source_boxes = line_boxes
+
+            for box in source_boxes:
+                text = _line_text(box)
+                pos = _line_pos(box)
                 if not text or not pos:
                     continue
                 block_vector.append({
@@ -913,9 +1077,25 @@ class OCRDocument:
 
 
             # Match config labels to cells and derive bboxes + values.
-            label_bbox_ordered, value_bbox_ordered, extract_values_ordered = \
+            label_bbox_ordered, value_bbox_ordered, extract_values_ordered, matched_text_ordered = \
                 self._match_labels_to_cells(config_data, cells, gray_img=gray_img)
 
+            # Reorder question fields by their visual position on the page.
+            # This keeps the review table aligned with reading order.
+            label_bbox_ordered, value_bbox_ordered, extract_values_ordered = \
+                self.reorder_questions_by_page_appearance(
+                    config_data,
+                    label_bbox_ordered,
+                    value_bbox_ordered,
+                    extract_values_ordered,
+                )
+
+            # Determine the dominant group (1/2/3) based on matched questions.
+            # matched_group = self.find_match_group(label_bbox_ordered)
+            # if matched_group and "Intervention nutritionnelle" in extract_values_ordered:
+            #     extract_values_ordered["Intervention nutritionnelle"] = matched_group
+            
+            
             # Set Phase, Visite, Date and Matricule values by OCRing row ""
             extract_values_ordered['Phase'] = None
             extract_values_ordered['Visite'] = None
@@ -933,6 +1113,8 @@ class OCRDocument:
                 json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"table_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+            with open(os.path.join(project_path, f"field_text_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(matched_text_ordered, f, indent=4, ensure_ascii=False)
 
             # All OCR blocks (for debug display in the frontend overlay).
             all_blocks = []
@@ -1180,7 +1362,7 @@ class OCRDocument:
         # print ratio and debug info
         row = cell.get("row", "?")
         col = cell.get("col", "?")
-        print(f"Cell dark: {dark}, total: {total} at row={row} col={col}")
+        # print(f"Cell dark: {dark}, total: {total} at row={row} col={col}")
 
         return dark   # threshold for "marked cell" can be adjusted based on testing
 
@@ -1189,8 +1371,8 @@ class OCRDocument:
         one of its target snippets and use that cell's text as both the label
         location and the extracted value.
 
-        Returns three ordered dicts keyed by label:
-        (label_bbox, value_bbox, extract_values).
+        Returns four ordered dicts keyed by label:
+        (label_bbox, value_bbox, extract_values, matched_texts).
         """
         from collections import OrderedDict
 
@@ -1201,6 +1383,7 @@ class OCRDocument:
         label_bbox_ordered = OrderedDict((label, None) for label in labels)
         value_bbox_ordered = OrderedDict((label, None) for label in labels)
         extract_values_ordered = OrderedDict((label, None) for label in labels)
+        matched_text_ordered = OrderedDict((label, None) for label in labels)
 
         # Build a (row, col) -> cell lookup for fast offset access.
         cells_by_rc = {}
@@ -1240,52 +1423,177 @@ class OCRDocument:
             label = param.get("label")
             if not label:
                 continue
-            snippets = [_norm(t) for t in param.get("text", []) if t]
+            snippets = [str(t).strip() for t in param.get("text", []) if t]
             offsets = _parse_positions(param.get("parse"))
             if snippets:
                 label_specs.append((label, snippets, offsets))
 
-        # For each cell, search every config label's snippets in the cell text.
-        # First matching label wins for that cell; first matching cell wins
-        # for that label.
+        # For each cell, score every config label's snippets against the cell
+        # text and keep the best candidate over a minimum confidence threshold.
+        # First accepted cell wins for that label.
+        min_match_score = 0.72
+        def _label_base(label):
+            if not isinstance(label, str):
+                return ""
+            stripped = re.sub(r'^\s*G[123]\s*-\s*', '', label, flags=re.IGNORECASE)
+            return _norm_for_match(stripped)
+
         for cell in cells:
             ct = _norm(cell.get("text", ""))
             if not ct:
                 continue
+            best_label = None
+            best_offsets = None
+            best_score = 0.0
+            scored_candidates = []
+            ## Score each label against the current cell's text.
             for label, snippets, offsets in label_specs:
                 if label_bbox_ordered[label] is not None:
                     continue  # already matched a previous cell
-                if any(snip in ct for snip in snippets):
-                    bbox = cell.get("bbox")
-                    label_bbox_ordered[label] = bbox
+                best_snippet = None
+                label_score = 0.0
+                for snip in snippets:
+                    s = _snippet_match_score(ct, snip)
+                    if s > label_score:
+                        label_score = s
+                        best_snippet = snip
+                scored_candidates.append((label, offsets, label_score, best_snippet))
+                if label_score > best_score:
+                    best_score = label_score
+                    best_label = label
+                    best_offsets = offsets
 
-                    row = cell.get("row")
-                    col = cell.get("col")
-                    if not offsets or offsets[0] != 0:
-                        # For each offset, get the number of dark pixels in the cell.
-                        # Find the offset with the maximum dark pixel count, and set total to offset_weight of that offset (if >0), else 0.
-                        offset_weight = {1: 1.0, 2: 0.5}
-                        max_dark = 0
-                        max_off = 0
-                        value_bboxes = []
-                        for off in offsets:
-                            target = cells_by_rc.get((row, col + off))
-                            value_bboxes.append(target.get("bbox") if target else None)
-                            if target is not None :
-                                dark = self._cell_has_mark(target, gray_img)
-                                if isinstance(dark, (int, float)) and dark > max_dark:
-                                    max_dark = dark
-                                    max_off = off
-                        total = offset_weight.get(max_off, 0) if max_dark > 0 else 0
-                        extract_values_ordered[label] = f"{total:g}"
-                        value_bbox_ordered[label] = value_bboxes
-                    else:
-                        # No positions configured: fall back to the label cell itself.
-                        extract_values_ordered[label] = (cell.get("text") or "").strip()
-                        value_bbox_ordered[label] = [cell.get("bbox")]
-                    break
+            if best_label is None or best_score < min_match_score:
+                continue
 
-        return label_bbox_ordered, value_bbox_ordered, extract_values_ordered
+            # Allow multi-match for duplicated group questions
+            # (e.g. "G1 - ... l'eau" and "G2 - ... l'eau").
+            best_base = _label_base(best_label)
+            labels_to_apply = [(best_label, best_offsets or [])]
+            best_snippet_by_label = {}
+            for cand_label, cand_offsets, cand_score, cand_best_snippet in scored_candidates:
+                best_snippet_by_label[cand_label] = cand_best_snippet
+            for cand_label, cand_offsets, cand_score, _cand_best_snippet in scored_candidates:
+                if cand_label == best_label or cand_score < min_match_score:
+                    continue
+                if _label_base(cand_label) == best_base:
+                    labels_to_apply.append((cand_label, cand_offsets or []))
+
+            for label, offsets in labels_to_apply:
+                bbox = cell.get("bbox")
+                label_bbox_ordered[label] = bbox
+                if best_snippet_by_label.get(label):
+                    matched_text_ordered[label] = best_snippet_by_label[label]
+
+                row = cell.get("row")
+                col = cell.get("col")
+                ## Determine the best offset for the value relative to the label cell.
+                if not offsets or offsets[0] != 0:
+                    # For each offset, get the number of dark pixels in the cell.
+                    # Find the offset with the maximum dark pixel count, and set total to offset_weight of that offset (if >0), else 0.
+                    offset_weight = {1: 1.0, 2: 0.5}
+                    max_dark = 0
+                    max_off = 0
+                    value_bboxes = []
+                    for off in offsets:
+                        target = cells_by_rc.get((row, col + off))
+                        value_bboxes.append(target.get("bbox") if target else None)
+                        if target is not None :
+                            dark = self._cell_has_mark(target, gray_img)
+                            if isinstance(dark, (int, float)) and dark > max_dark:
+                                max_dark = dark
+                                max_off = off
+                    total = offset_weight.get(max_off, 0) if max_dark > 0 else 0
+                    extract_values_ordered[label] = f"{total:g}"
+                    value_bbox_ordered[label] = value_bboxes
+                else:
+                    # No positions configured: fall back to the label cell itself.
+                    extract_values_ordered[label] = (cell.get("text") or "").strip()
+                    value_bbox_ordered[label] = [cell.get("bbox")]
+
+        return label_bbox_ordered, value_bbox_ordered, extract_values_ordered, matched_text_ordered
+
+    def find_match_group(self, label_bbox_by_question):
+        """Return the dominant group id (1/2/3) based on matched questions.
+
+        A question is counted when its label starts with ``G1 -``, ``G2 -`` or
+        ``G3 -`` and its matched bbox is not None.
+        """
+        if not isinstance(label_bbox_by_question, dict):
+            return None
+
+        counts = {"1": 0, "2": 0, "3": 0}
+        for label, bbox in label_bbox_by_question.items():
+            if bbox is None or not isinstance(label, str):
+                continue
+            m = re.match(r"^\s*G([123])\s*-", label, re.IGNORECASE)
+            if m:
+                grp = m.group(1)
+                if grp in counts:
+                    counts[grp] += 1
+
+        best_group = max(counts, key=counts.get)
+        return best_group if counts[best_group] > 0 else None
+
+    def reorder_questions_by_page_appearance(self, config_data, label_bbox, value_bbox, extract_values):
+        """Reorder only question labels by page appearance (top->bottom, left->right).
+
+        - Uses each question label bbox top-left corner for sorting.
+        - Keeps information labels in their original config order.
+        - Unmatched questions stay after matched questions (config order).
+        """
+        from collections import OrderedDict
+
+        if not isinstance(config_data, list):
+            return label_bbox, value_bbox, extract_values
+
+        ordered_labels = []
+        question_labels = []
+        question_types = {}
+
+        for item in config_data:
+            if not isinstance(item, dict):
+                continue
+            label = item.get("label")
+            if not label:
+                continue
+            ordered_labels.append(label)
+            item_type = str(item.get("type", "information")).strip().lower()
+            question_types[label] = item_type
+            if item_type == "question":
+                question_labels.append(label)
+
+        info_labels = [lbl for lbl in ordered_labels if question_types.get(lbl) != "question"]
+
+        def _bbox_key(lbl):
+            bb = label_bbox.get(lbl)
+            if not isinstance(bb, list) or len(bb) < 1:
+                return None
+            p0 = bb[0]
+            if not isinstance(p0, list) or len(p0) < 2:
+                return None
+            try:
+                return float(p0[1])  # y only
+            except Exception:
+                return None
+
+        matched_questions = []
+        unmatched_questions = []
+        for lbl in question_labels:
+            key = _bbox_key(lbl)
+            if key is None:
+                unmatched_questions.append(lbl)
+            else:
+                matched_questions.append((lbl, key))
+
+        matched_questions.sort(key=lambda t: t[1])
+        ordered_questions = [lbl for lbl, _ in matched_questions] + unmatched_questions
+        final_order = info_labels + ordered_questions
+
+        new_label_bbox = OrderedDict((lbl, label_bbox.get(lbl, None)) for lbl in final_order)
+        new_value_bbox = OrderedDict((lbl, value_bbox.get(lbl, None)) for lbl in final_order)
+        new_extract_values = OrderedDict((lbl, extract_values.get(lbl, None)) for lbl in final_order)
+        return new_label_bbox, new_value_bbox, new_extract_values
                     
     def find_next_value(self, blocks, label_block, label_text, format_instructions=None):
         """

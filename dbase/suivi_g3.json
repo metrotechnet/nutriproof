@@ -1,0 +1,98 @@
+[
+  {
+    "label": "G3 - Nbr portions féculents",
+    "text": [
+      "Avoir respecté le nombre d’équivalents de féculents 10"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Nbr-portions-feculents"
+  },
+  {
+    "label": "G3 - Nbr portions viandes",
+    "text": [
+      "Avoir respecté le nombre d’équivalents de viandes et substituts 12"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Nbr-portions-viandes"
+  },
+  {
+    "label": "G3 - Nbr portions fruits et sucres",
+    "text": [
+      "Avoir respecté le nombre d’équivalents de fruits et autres aliments 7"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Nbr-portions-fruits-et-sucres"
+  },
+  {
+    "label": "G3 - Nbr portions légumes",
+    "text": [
+      "Avoir respecté le nombre d’équivalents de légumes 9"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Nbr-portions-legumes"
+  },
+  {
+    "label": "G3 - Nbr portions lait",
+    "text": [
+      "Avoir respecté le nombre d’équivalents de lait et substituts 3"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Nbr-portions-lait"
+  },
+  {
+    "label": "G3 - Nbr portions MG",
+    "text": [
+      "Avoir respecté le nombre d’équivalents de matières grasses 7"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Nbr-portions-MG"
+  },
+  {
+    "label": "G3 - Déficit 500 cal/jour R24W",
+    "text": [
+      "Avoir respecté le déficit calorique de 500kcal/jour"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Deficit-500-cal-jour-R24W"
+  },
+  {
+    "label": "G3 - % protéines R24W",
+    "text": [
+      "20-25% en protéines"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-pourcentage-proteines-R24W"
+  },
+  {
+    "label": "G3 - % lipides R24W",
+    "text": [
+      "25-30% en lipides"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-pourcentage-lipides-R24W"
+  },
+  {
+    "label": "G3 - % glucides R24W",
+    "text": [
+      "45-50% en glucides"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-pourcentage-glucides-R24W"
+  },
+  {
+    "label": "G3 - Act. Physique",
+    "text": [
+      "La pratique d’activité physique était adéquate (150 minutes par semaine)"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Activite-physique"
+  },
+  {
+    "label": "G3 - Sommeil",
+    "text": [
+      "Les habitudes de sommeil étaient adéquates"
+    ],
+    "parse": "one of 1, 0.5, 0",
+    "key": "G3-Sommeil"
+  }
+]

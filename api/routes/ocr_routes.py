@@ -89,7 +89,7 @@ def process_ocr():
                     pageid = os.path.splitext(os.path.basename(chunk_file))[0]
  
                     # Choose extraction path based on the user-selected category.
-                    if category in ("interventions", "interventions2"):
+                    if category in ("formulaire_suivi"):
                         #Load image and enhance it for better OCR results (especially for handwritten forms). use _enhance_and_resize_image
                         image = Image.open(chunk_file).convert('RGB')
                         
