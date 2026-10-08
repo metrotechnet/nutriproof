@@ -196,6 +196,11 @@ def get_data(project_id, document_id, filename):
     all_types = current_app.config.get('FIELD_TYPES', {})
     category_types = all_types.get(category, {})
     field_type = {label: str(category_types.get(label, "information")) for label in key_order}
+    all_subsections = current_app.config.get('FIELD_SUBSECTIONS', {})
+    category_subsections = all_subsections.get(category, [])
+    all_subsection_by_label = current_app.config.get('FIELD_SUBSECTION_BY_LABEL', {})
+    category_subsection_by_label = all_subsection_by_label.get(category, {})
+    field_subsection = {label: category_subsection_by_label.get(label) for label in key_order}
 
     file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
     #Create default data dict from key_order labels
@@ -225,7 +230,9 @@ def get_data(project_id, document_id, filename):
             "category": category,
             "field_visibility": field_visibility,
             "field_text": field_text,
-            "field_type": field_type
+            "field_type": field_type,
+            "field_subsection": field_subsection,
+            "subsections": category_subsections
         })
     return jsonify("File not found"), 404
 

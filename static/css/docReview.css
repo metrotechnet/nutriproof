@@ -278,3 +278,13 @@ table th:nth-child(2) {
     background-color: #fef9e7;
     outline: none;
 }
+
+.param-table tr.group-separator-row td {
+    background-color: #e8f7e8;
+    color: #1f6b2f;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+    border-top: 2px solid #9dd49d;
+}

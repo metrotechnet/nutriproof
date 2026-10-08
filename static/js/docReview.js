@@ -10,6 +10,8 @@ let all_detected_grid_cells = [];
 let field_visibility = {};
 let field_text = {};
 let field_type = {};
+let field_subsection = {};
+let subsections = [];
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -115,6 +117,8 @@ async function loadPage(project_id, index, init_scroll=false) {
     field_visibility = responses[2].field_visibility || {};
     field_text = responses[2].field_text || {};
     field_type = responses[2].field_type || {};
+    field_subsection = responses[2].field_subsection || {};
+    subsections = responses[2].subsections || [];
     all_blocks = responses[3] || [];
     checked_boxes = responses[4] || [];
     const gridData = responses[5] || {};
@@ -292,36 +296,7 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
       }
     }
 
-    // Reorder question rows by matched cell vertical position (Y ascending).
-    // Keep non-question rows in their existing order.
-    const questionRows = [];
-    const nonQuestionRows = [];
-    orderedEntries.forEach(([k, v], idx) => {
-      if (field_type[k] !== "question") {
-        nonQuestionRows.push([k, v]);
-        return;
-      }
-      const bb = label_bbox?.[k];
-      const y = (Array.isArray(bb) && Array.isArray(bb[0]) && typeof bb[0][1] === "number")
-        ? bb[0][1]
-        : null;
-      questionRows.push({ k, v, y, idx });
-    });
-
-    const matchedQuestions = questionRows
-      .filter(r => r.y !== null)
-      .sort((a, b) => a.y - b.y);
-    const unmatchedQuestions = questionRows
-      .filter(r => r.y === null)
-      .sort((a, b) => a.idx - b.idx);
-
-    const finalEntries = [
-      ...nonQuestionRows,
-      ...matchedQuestions.map(r => [r.k, r.v]),
-      ...unmatchedQuestions.map(r => [r.k, r.v]),
-    ];
-
-    extract_values = Object.fromEntries(finalEntries);
+    extract_values = Object.fromEntries(orderedEntries);
 
     // Génération du tableau éditable
     generateEditableTable(extract_values);
@@ -720,9 +695,29 @@ function generateEditableTable(data, containerId = "table-values-container") {
   });
 
   const tbody = document.createElement("tbody");
+  const subsectionLabelById = {};
+  if (Array.isArray(subsections)) {
+    subsections.forEach(section => {
+      if (section && section.id) {
+        subsectionLabelById[section.id] = section.label || section.id;
+      }
+    });
+  }
+  let lastSubsectionId = null;
 
   for (const [key, value] of Object.entries(data)) {
     if (field_visibility[key] === false) continue;
+    const currentSubsectionId = field_subsection[key] || null;
+    if (currentSubsectionId && currentSubsectionId !== lastSubsectionId) {
+      const separatorRow = document.createElement("tr");
+      separatorRow.className = "group-separator-row";
+      const separatorCell = document.createElement("td");
+      separatorCell.colSpan = 2;
+      separatorCell.textContent = subsectionLabelById[currentSubsectionId] || currentSubsectionId;
+      separatorRow.appendChild(separatorCell);
+      tbody.appendChild(separatorRow);
+      lastSubsectionId = currentSubsectionId;
+    }
 
     const row = document.createElement("tr");
 
@@ -782,7 +777,9 @@ function sendTableToServer() {
 
   const data = { ...extract_values };
   table.querySelectorAll("tbody tr").forEach(row => {
+    if (row.classList.contains("group-separator-row")) return;
     const cells = row.querySelectorAll("td");
+    if (cells.length < 2) return;
     const key = cells[0].dataset.originalKey || cells[0].textContent.trim();
     const value = cells[1].textContent.trim();
     if (key) {

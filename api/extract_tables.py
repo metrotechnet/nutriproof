@@ -1080,20 +1080,27 @@ class OCRDocument:
             label_bbox_ordered, value_bbox_ordered, extract_values_ordered, matched_text_ordered = \
                 self._match_labels_to_cells(config_data, cells, gray_img=gray_img)
 
-            # Reorder question fields by their visual position on the page.
-            # This keeps the review table aligned with reading order.
-            label_bbox_ordered, value_bbox_ordered, extract_values_ordered = \
-                self.reorder_questions_by_page_appearance(
-                    config_data,
+            # Determine the dominant group (1/2/3) based on matched questions.
+            # If confidently detected, keep only question matches for that group.
+            matched_group = self.find_match_group(label_bbox_ordered)
+            if matched_group:
+                for group_field_label in ("Intervention nutritionnelle", "Groupe de randomisation"):
+                    if group_field_label in extract_values_ordered:
+                        extract_values_ordered[group_field_label] = matched_group
+                (
                     label_bbox_ordered,
                     value_bbox_ordered,
                     extract_values_ordered,
+                    matched_text_ordered,
+                ) = self._keep_only_detected_group_questions(
+                    matched_group,
+                    label_bbox_ordered,
+                    value_bbox_ordered,
+                    extract_values_ordered,
+                    matched_text_ordered,
                 )
-
-            # Determine the dominant group (1/2/3) based on matched questions.
-            # matched_group = self.find_match_group(label_bbox_ordered)
-            # if matched_group and "Intervention nutritionnelle" in extract_values_ordered:
-            #     extract_values_ordered["Intervention nutritionnelle"] = matched_group
+            else:
+                _trace("extract_tables_with_grid: group detection ambiguous/absent, keeping matches as-is")
             
             
             # Set Phase, Visite, Date and Matricule values by OCRing row ""
@@ -1518,6 +1525,7 @@ class OCRDocument:
 
         A question is counted when its label starts with ``G1 -``, ``G2 -`` or
         ``G3 -`` and its matched bbox is not None.
+        Returns ``None`` when there is no match or when multiple groups are tied.
         """
         if not isinstance(label_bbox_by_question, dict):
             return None
@@ -1532,8 +1540,53 @@ class OCRDocument:
                 if grp in counts:
                     counts[grp] += 1
 
-        best_group = max(counts, key=counts.get)
-        return best_group if counts[best_group] > 0 else None
+        best_count = max(counts.values())
+        if best_count <= 0:
+            return None
+
+        best_groups = [g for g, c in counts.items() if c == best_count]
+        if len(best_groups) != 1:
+            _trace(f"find_match_group: tie between groups {best_groups} with count={best_count}")
+            return None
+
+        return best_groups[0]
+
+    def _keep_only_detected_group_questions(
+        self,
+        matched_group,
+        label_bbox_ordered,
+        value_bbox_ordered,
+        extract_values_ordered,
+        matched_text_ordered,
+    ):
+        """Clear matches for group-prefixed questions not in ``matched_group``."""
+        if str(matched_group) not in {"1", "2", "3"}:
+            return label_bbox_ordered, value_bbox_ordered, extract_values_ordered, matched_text_ordered
+
+        kept = 0
+        removed = 0
+        for label in list(extract_values_ordered.keys()):
+            if not isinstance(label, str):
+                continue
+            m = re.match(r"^\s*G([123])\s*-", label, re.IGNORECASE)
+            if not m:
+                continue
+            label_group = m.group(1)
+            if label_group == str(matched_group):
+                kept += 1
+                continue
+
+            removed += 1
+            label_bbox_ordered[label] = None
+            value_bbox_ordered[label] = None
+            extract_values_ordered[label] = None
+            matched_text_ordered[label] = None
+
+        _trace(
+            f"_keep_only_detected_group_questions: matched_group={matched_group}, "
+            f"kept={kept}, removed={removed}"
+        )
+        return label_bbox_ordered, value_bbox_ordered, extract_values_ordered, matched_text_ordered
 
     def reorder_questions_by_page_appearance(self, config_data, label_bbox, value_bbox, extract_values):
         """Reorder only question labels by page appearance (top->bottom, left->right).

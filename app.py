@@ -234,13 +234,56 @@ def create_app():
     field_visibility = {}
     field_texts = {}
     field_types = {}
+    field_subsections = {}
+    field_subsection_by_label = {}
+
+    def _normalize_subsections(raw_subsections):
+        out = []
+        if not isinstance(raw_subsections, list):
+            return out
+        for section in raw_subsections:
+            if not isinstance(section, dict):
+                continue
+            section_id = str(section.get("id", "")).strip()
+            if not section_id:
+                continue
+            label = str(section.get("label", section_id))
+            match = section.get("match")
+            out.append({
+                "id": section_id,
+                "label": label,
+                "match": match if isinstance(match, dict) else {}
+            })
+        return out
+
+    def _matches_subsection(item, subsection):
+        match = subsection.get("match") or {}
+        label = str(item.get("label", ""))
+        item_type = str(item.get("type", "information")).strip().lower()
+
+        match_labels = match.get("labels")
+        if isinstance(match_labels, list):
+            return label in {str(v) for v in match_labels}
+
+        match_prefix = match.get("label_prefix")
+        if isinstance(match_prefix, str) and match_prefix:
+            return label.startswith(match_prefix)
+
+        match_type = str(match.get("type", "")).strip().lower()
+        if match_type:
+            return item_type == match_type
+
+        return False
+
     for category, value in config.items():
         items = value.get("fields", []) if isinstance(value, dict) else value
+        subsections = _normalize_subsections(value.get("subsections", [])) if isinstance(value, dict) else []
         key_order[category] = [item.get("label") for item in items if "label" in item]
         form_labels[category] = value.get("label", category) if isinstance(value, dict) else category
         visibility_by_label = {}
         text_by_label = {}
         type_by_label = {}
+        subsection_by_label = {}
         for item in items:
             if isinstance(item, dict) and "label" in item:
                 visibility_by_label[item["label"]] = bool(item.get("visible", True))
@@ -251,9 +294,15 @@ def create_app():
                     text_by_label[item["label"]] = str(item["label"])
                 raw_type = str(item.get("type", "information")).strip().lower()
                 type_by_label[item["label"]] = "question" if raw_type == "question" else "information"
+                for subsection in subsections:
+                    if _matches_subsection(item, subsection):
+                        subsection_by_label[item["label"]] = subsection["id"]
+                        break
         field_visibility[category] = visibility_by_label
         field_texts[category] = text_by_label
         field_types[category] = type_by_label
+        field_subsections[category] = subsections
+        field_subsection_by_label[category] = subsection_by_label
 
     # Initialisation de l'application Flask
     app = Flask(__name__,
@@ -272,6 +321,8 @@ def create_app():
     app.config['FIELD_VISIBILITY'] = field_visibility
     app.config['FIELD_TEXTS'] = field_texts
     app.config['FIELD_TYPES'] = field_types
+    app.config['FIELD_SUBSECTIONS'] = field_subsections
+    app.config['FIELD_SUBSECTION_BY_LABEL'] = field_subsection_by_label
 
     app.config['DEMO_MODE'] = DEMO_MODE
     app.config['DEMO_MAX_PAGES'] = DEMO_MAX_PAGES
