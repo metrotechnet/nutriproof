@@ -2,8 +2,6 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 import os
 import json
 import re
-from datetime import datetime, timezone
-import uuid
 
 from api.routes.helpers import load_project_info
 
@@ -52,82 +50,14 @@ def _page_id_from_data_filename(filename):
 
 
 def _table_paths_for_page(document_dir, page_id):
+    legacy_path = os.path.join(document_dir, f"table_{page_id}.json")
     return {
-        "legacy": os.path.join(document_dir, f"table_{page_id}.json"),
+        "legacy": legacy_path,
         "ocr": os.path.join(document_dir, f"table_ocr_{page_id}.json"),
-        "edited": os.path.join(document_dir, f"table_edited_{page_id}.json"),
     }
 
 
-def _data_links_path(document_dir):
-    return os.path.join(document_dir, "table_data_links.json")
-
-
-def _load_data_links(document_dir):
-    path = _data_links_path(document_dir)
-    default_obj = {"active_data_id": None, "page_data_ids": {}, "datasets": {}}
-    if not os.path.exists(path):
-        return default_obj
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            obj = json.load(f)
-        if not isinstance(obj, dict):
-            return default_obj
-        return {
-            "active_data_id": obj.get("active_data_id"),
-            "page_data_ids": obj.get("page_data_ids") if isinstance(obj.get("page_data_ids"), dict) else {},
-            "datasets": obj.get("datasets") if isinstance(obj.get("datasets"), dict) else {},
-        }
-    except Exception:
-        return default_obj
-
-
-def _save_data_links(document_dir, links):
-    path = _data_links_path(document_dir)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(links, f, indent=2, ensure_ascii=False)
-
-
-def _dataset_filename(data_id):
-    return f"table_data_{data_id}.json"
-
-
-def _new_data_id():
-    return uuid.uuid4().hex[:12]
-
-
-def _resolve_linked_table_path(document_dir, page_id):
-    links = _load_data_links(document_dir)
-    page_data_ids = links.get("page_data_ids", {})
-    datasets = links.get("datasets", {})
-    data_id = page_data_ids.get(page_id)
-    if not data_id:
-        return None, links
-    meta = datasets.get(data_id, {})
-    filename = meta.get("filename") if isinstance(meta, dict) else None
-    if not filename:
-        filename = _dataset_filename(data_id)
-    return os.path.join(document_dir, filename), links
-
-
-def _read_raw_table_for_page(document_dir, page_id):
-    path = _resolve_table_read_path(document_dir, page_id, source="raw")
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                return data
-        except Exception:
-            return {}
-    return {}
-
-
 def _resolve_table_read_path(document_dir, page_id, source="auto"):
-    if str(source or "").strip().lower() == "linked":
-        linked_path, _ = _resolve_linked_table_path(document_dir, page_id)
-        return linked_path or ""
-
     paths = _table_paths_for_page(document_dir, page_id)
     source_mode = str(source or "auto").strip().lower()
     if source_mode == "raw":
@@ -137,12 +67,8 @@ def _resolve_table_read_path(document_dir, page_id, source="auto"):
             return paths["legacy"]
         return paths["ocr"]
     if source_mode == "edited":
-        if os.path.exists(paths["edited"]):
-            return paths["edited"]
-        return paths["edited"]
+        return paths["legacy"]
     # auto
-    if os.path.exists(paths["edited"]):
-        return paths["edited"]
     if os.path.exists(paths["legacy"]):
         return paths["legacy"]
     return paths["ocr"]
@@ -153,10 +79,7 @@ def _resolve_table_write_path(document_dir, filename):
     if not m:
         return os.path.join(document_dir, filename), filename
     page_id = m.group(1)
-    linked_path, links = _resolve_linked_table_path(document_dir, page_id)
-    if linked_path:
-        return linked_path, os.path.basename(linked_path)
-    edited_name = f"table_edited_{page_id}.json"
+    edited_name = f"table_{page_id}.json"
     return os.path.join(document_dir, edited_name), edited_name
 
 
@@ -319,7 +242,6 @@ def get_data(project_id, document_id, filename):
 
     page_id = _page_id_from_data_filename(filename)
     source = request.args.get("source", "auto")
-    links = _load_data_links(document_dir)
     if page_id and filename.startswith("table_"):
         file_path = _resolve_table_read_path(document_dir, page_id, source=source)
     else:
@@ -353,22 +275,7 @@ def get_data(project_id, document_id, filename):
             "field_text": field_text,
             "field_type": field_type,
             "field_subsection": field_subsection,
-            "subsections": category_subsections,
-            "active_data_id": links.get("active_data_id"),
-            "page_data_id": links.get("page_data_ids", {}).get(page_id) if page_id else None
-        })
-    if page_id and filename.startswith("table_") and str(source).strip().lower() == "linked":
-        # Strict linked mode: if page has no linked edited dataset yet, return an empty table shape.
-        return jsonify({
-            "data_string": json.dumps(data),
-            "category": category,
-            "field_visibility": field_visibility,
-            "field_text": field_text,
-            "field_type": field_type,
-            "field_subsection": field_subsection,
-            "subsections": category_subsections,
-            "active_data_id": links.get("active_data_id"),
-            "page_data_id": links.get("page_data_ids", {}).get(page_id) if page_id else None
+            "subsections": category_subsections
         })
     return jsonify("File not found"), 404
 
@@ -405,106 +312,6 @@ def put_data():
             json.dump(data, f, indent=2, ensure_ascii=False)
 
         return jsonify({"message": "File saved", "filename": saved_filename}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@data_bp.route("/new_data_version", methods=["POST"])
-def new_data_version():
-    try:
-        LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
-        payload = request.get_json(silent=True) or {}
-        project_id = payload.get("project_id")
-        document_id = payload.get("document_id")
-        page_id = payload.get("page_id")
-        if not project_id or not document_id or not page_id:
-            return jsonify({"error": "Missing project_id or document_id or page_id"}), 400
-
-        document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
-        os.makedirs(document_dir, exist_ok=True)
-        raw_data = _read_raw_table_for_page(document_dir, page_id)
-
-        data_id = _new_data_id()
-        data_filename = _dataset_filename(data_id)
-        data_path = os.path.join(document_dir, data_filename)
-        with open(data_path, "w", encoding="utf-8") as f:
-            json.dump(raw_data, f, indent=2, ensure_ascii=False)
-
-        links = _load_data_links(document_dir)
-        links["active_data_id"] = data_id
-        page_data_ids = links.get("page_data_ids", {})
-        datasets = links.get("datasets", {})
-        page_data_ids[page_id] = data_id
-        datasets[data_id] = {
-            "filename": data_filename,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "seed_source": "raw",
-            "seed_page": page_id,
-        }
-        links["page_data_ids"] = page_data_ids
-        links["datasets"] = datasets
-        _save_data_links(document_dir, links)
-
-        return jsonify({
-            "message": "New data version created",
-            "data_id": data_id,
-            "page_id": page_id,
-            "filename": data_filename
-        }), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@data_bp.route("/get_active_data/<project_id>/<document_id>")
-def get_active_data(project_id, document_id):
-    try:
-        LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
-        document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
-        links = _load_data_links(document_dir)
-        return jsonify({
-            "active_data_id": links.get("active_data_id"),
-            "page_data_ids": links.get("page_data_ids", {})
-        }), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@data_bp.route("/link_active_data_to_page", methods=["POST"])
-def link_active_data_to_page():
-    try:
-        LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
-        payload = request.get_json(silent=True) or {}
-        project_id = payload.get("project_id")
-        document_id = payload.get("document_id")
-        page_id = payload.get("page_id")
-        if not project_id or not document_id or not page_id:
-            return jsonify({"error": "Missing project_id or document_id or page_id"}), 400
-
-        document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
-        links = _load_data_links(document_dir)
-        active_data_id = links.get("active_data_id")
-        if not active_data_id:
-            return jsonify({"error": "No active data id set"}), 400
-
-        datasets = links.get("datasets", {})
-        meta = datasets.get(active_data_id, {})
-        filename = meta.get("filename") if isinstance(meta, dict) else _dataset_filename(active_data_id)
-        if not filename:
-            filename = _dataset_filename(active_data_id)
-        data_path = os.path.join(document_dir, filename)
-        if not os.path.exists(data_path):
-            return jsonify({"error": f"Active data file not found: {filename}"}), 404
-
-        page_data_ids = links.get("page_data_ids", {})
-        page_data_ids[page_id] = active_data_id
-        links["page_data_ids"] = page_data_ids
-        _save_data_links(document_dir, links)
-
-        return jsonify({
-            "message": "Active data linked to page",
-            "data_id": active_data_id,
-            "page_id": page_id
-        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

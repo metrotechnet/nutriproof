@@ -227,7 +227,12 @@ body {
     max-height: 100%;
     overflow: hidden;
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+#table-header-slot {
+    border-bottom: 1px solid #ddd;
+    background: rgb(240, 240, 240);
 }
 
 #table-values-container {
@@ -253,6 +258,27 @@ body {
     min-width: 85px;
 }
 
+.table-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 8px;
+}
+
+.table-header-actions-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.range-index-display {
+    margin-left: auto;
+    font-size: 0.9rem;
+    color: #495057;
+    white-space: nowrap;
+}
+
 .param-table {
     width: 100%;
     border-collapse: collapse;
@@ -271,14 +297,15 @@ body {
 }
 
 .param-table td:first-child {
-    width: 60%;
+    width: 55%;
     font-weight: bold;
     background-color: #f2f2f2;
     cursor: not-allowed;
 }
 
-table td:nth-child(2),
-table th:nth-child(2) {
+.param-table td:nth-child(2),
+.param-table th:nth-child(2) {
+    width: 45%;
     text-align: center;
 }
 

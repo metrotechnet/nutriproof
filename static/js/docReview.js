@@ -1,6 +1,7 @@
 // === GLOBAL STATE ===
 let page_id = '';
 let extract_values = {};
+let raw_extract_values = {};
 let label_bbox = {};
 let value_bbox = {};
 let all_blocks = [];
@@ -12,8 +13,10 @@ let field_text = {};
 let field_type = {};
 let field_subsection = {};
 let subsections = [];
-let activeDataId = null;
-let pageDataId = null;
+let startPageIndex = 0; // start_page initialized to page 1 (index 0)
+let endPageIndex = null;
+let autoSaveInFlight = false;
+let autoSavePending = false;
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -88,7 +91,7 @@ function createFileList(project_id, document_id, fileArray) {
 
 
 // === MAIN LOADING FUNCTION ===
-async function loadPage(project_id, index, init_scroll=false, sourceMode="linked") {
+async function loadPage(project_id, index, init_scroll=false, sourceMode="auto") {
   if (currentFileList.length === 0 || index < 0 || index >= nbrPageMax) {
     console.error("No files available for loading.");
     return;
@@ -105,6 +108,7 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="linked
         fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
+        fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=raw`).then(res => res.json()).catch(() => ({})),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/checked_boxes_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({}))
@@ -116,16 +120,15 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="linked
     label_bbox = JSON.parse(responses[0].data_string || '{}');
     value_bbox = JSON.parse(responses[1].data_string || '{}');
     extract_values = JSON.parse(responses[2].data_string || '{}');
+    raw_extract_values = JSON.parse(responses[3]?.data_string || '{}');
     field_visibility = responses[2].field_visibility || {};
     field_text = responses[2].field_text || {};
     field_type = responses[2].field_type || {};
     field_subsection = responses[2].field_subsection || {};
     subsections = responses[2].subsections || [];
-    activeDataId = responses[2].active_data_id || null;
-    pageDataId = responses[2].page_data_id || null;
-    all_blocks = responses[3] || [];
-    checked_boxes = responses[4] || [];
-    const gridData = responses[5] || {};
+    all_blocks = responses[4] || [];
+    checked_boxes = responses[5] || [];
+    const gridData = responses[6] || {};
     grid_cells = gridData.cells || [];
     all_detected_grid_cells = gridData.all_detected_cells || [];
   // Exemple d'utilisation :
@@ -141,7 +144,7 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="linked
 }
 
 // === DISPLAY IMAGE & BBOXES ===
-function displayPage(project_id, document_id, index, init_scroll=false) {
+function displayPage(project_id, document_id, index, init_scroll=false, imageOnly=false) {
 
   // Cherche l'image
   const imageElement = document.getElementById("page-image");
@@ -209,13 +212,15 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     // Calcule le scale pour les bboxes
     const scaleX =  imgWidth / imageElement.naturalWidth;
     const scaleY =  imgHeight / imageElement.naturalHeight;
-    // Affichage des polygones avec couleurs par label
-    displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
-    // displayDetectedGridCandidates(svg, all_detected_grid_cells, 0, 0, scaleX, scaleY);
-    displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
-    // displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
-    displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
-    // displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
+    if (!imageOnly) {
+      // Affichage des polygones avec couleurs par label
+      displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
+      // displayDetectedGridCandidates(svg, all_detected_grid_cells, 0, 0, scaleX, scaleY);
+      displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
+      // displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
+      displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
+      // displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
+    }
 
      // Applique la transformation
     svg.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
@@ -244,68 +249,80 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     svg.style.display = "block";
     viewerImage.appendChild(svg);  
 
-    // Effacer le tableau/pagination sans retirer la structure des slots
-    const tableValuesContainer = document.getElementById("table-values-container");
-    const paginationSlot = document.getElementById("pagination-slot");
-    if (tableValuesContainer) tableValuesContainer.innerHTML = "";
-    if (paginationSlot) paginationSlot.innerHTML = "";
-    // Keep parameter table order aligned with JSON definition order.
-    // 1) keys order from label_bbox (built from config JSON order on backend)
-    // 2) append any remaining keys in their existing insertion order
-    const labelOrder = Object.keys(label_bbox || {});
-    const entries = Object.entries(extract_values || {});
+    if (!imageOnly) {
+      // Effacer le tableau/pagination sans retirer la structure des slots
+      const tableValuesContainer = document.getElementById("table-values-container");
+      const paginationSlot = document.getElementById("pagination-slot");
+      const tableHeaderSlot = document.getElementById("table-header-slot");
+      if (tableValuesContainer) tableValuesContainer.innerHTML = "";
+      if (paginationSlot) paginationSlot.innerHTML = "";
+      if (tableHeaderSlot) tableHeaderSlot.innerHTML = "";
+      // Keep parameter table order aligned with JSON definition order.
+      // 1) keys order from label_bbox (built from config JSON order on backend)
+      // 2) append any remaining keys in their existing insertion order
+      const labelOrder = Object.keys(label_bbox || {});
+      const entries = Object.entries(extract_values || {});
 
-    const normalizeKey = (s) =>
-      String(s || "")
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[-_/]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const normalizeKey = (s) =>
+        String(s || "")
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[-_/]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-    // Keep both exact and normalized views so keys like
-    // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
-    const byKey = new Map(entries);
-    const byNorm = new Map();
-    for (const [k, v] of entries) {
-      const nk = normalizeKey(k);
-      if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
-    }
-    const orderedEntries = [];
+      // Keep both exact and normalized views so keys like
+      // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
+      const byKey = new Map(entries);
+      const byNorm = new Map();
+      for (const [k, v] of entries) {
+        const nk = normalizeKey(k);
+        if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
+      }
+      const orderedEntries = [];
 
-    for (const key of labelOrder) {
-      if (byKey.has(key)) {
-        orderedEntries.push([key, byKey.get(key)]);
-        byKey.delete(key);
-        const nk = normalizeKey(key);
-        if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
-          byNorm.delete(nk);
-        }
-      } else {
-        const nk = normalizeKey(key);
-        if (byNorm.has(nk)) {
-          const [realKey, value] = byNorm.get(nk);
-          orderedEntries.push([realKey, value]);
-          byNorm.delete(nk);
-          byKey.delete(realKey);
+      for (const key of labelOrder) {
+        if (byKey.has(key)) {
+          orderedEntries.push([key, byKey.get(key)]);
+          byKey.delete(key);
+          const nk = normalizeKey(key);
+          if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
+            byNorm.delete(nk);
+          }
+        } else {
+          const nk = normalizeKey(key);
+          if (byNorm.has(nk)) {
+            const [realKey, value] = byNorm.get(nk);
+            orderedEntries.push([realKey, value]);
+            byNorm.delete(nk);
+            byKey.delete(realKey);
+          }
         }
       }
-    }
 
-    for (const [key, value] of entries) {
-      if (byKey.has(key)) {
-        orderedEntries.push([key, value]);
-        byKey.delete(key);
+      for (const [key, value] of entries) {
+        if (byKey.has(key)) {
+          orderedEntries.push([key, value]);
+          byKey.delete(key);
+        }
+      }
+
+      extract_values = Object.fromEntries(orderedEntries);
+
+      // Header actions (Nouveau / Load / Save)
+      createTopActionControls();
+
+      // Génération du tableau éditable
+      generateEditableTable(extract_values);
+      // Pagination après le tableau
+      createPaginationControls(currentPageIndex+1, nbrPageMax);
+    } else {
+      const pageInput = document.getElementById("page-index-input");
+      if (pageInput) {
+        pageInput.value = String(currentPageIndex + 1);
       }
     }
-
-    extract_values = Object.fromEntries(orderedEntries);
-
-    // Génération du tableau éditable
-    generateEditableTable(extract_values);
-    // Pagination après le tableau
-    createPaginationControls(currentPageIndex+1, nbrPageMax);
 
   };
   imageElement.onerror = () => {
@@ -348,6 +365,45 @@ function displayAllBlocks(svg, blocks, offsetX, offsetY, scaleX, scaleY) {
 
     svg.appendChild(rect);
   });
+}
+
+async function autoSaveInputAndBackfill(dataOverride = null) {
+  const data = dataOverride || collectTableDataForSave();
+  if (!data) return;
+
+  await sendTableToServer(data);
+
+  const previousPageIndex = currentPageIndex - 1;
+  endPageIndex = previousPageIndex;
+  updateRangeIndexDisplay();
+
+  if (startPageIndex === null || previousPageIndex < startPageIndex) return;
+  for (let i = startPageIndex; i <= previousPageIndex; i++) {
+  await saveTableDataToPageIndex(i, data);
+  }
+}
+
+function scheduleAutoSaveFromInput() {
+  autoSavePending = true;
+  if (autoSaveInFlight) return;
+
+  const run = async () => {
+  if (!autoSavePending) return;
+  autoSavePending = false;
+  autoSaveInFlight = true;
+  try {
+    await autoSaveInputAndBackfill();
+  } catch (err) {
+    console.error("Auto-save failed:", err);
+  } finally {
+    autoSaveInFlight = false;
+    if (autoSavePending) {
+      run();
+    }
+  }
+  };
+
+  run();
 }
 
 // === DISPLAY BOXES ON IMAGE ===
@@ -611,10 +667,49 @@ function displayCheckedBoxes(svg, checkedCells, offsetX, offsetY, scaleX, scaleY
 }
 
 // === PAGINATION ===
-function createPaginationControls(current, max) {
-  const controlsRow = document.createElement("div");
-  controlsRow.className = "pagination-controls-row";
+function createTopActionControls() {
+  const slot = document.getElementById("table-header-slot");
+  if (!slot) return;
 
+  const row = document.createElement("div");
+  row.className = "table-header-actions";
+  const buttons = document.createElement("div");
+  buttons.className = "table-header-actions-buttons";
+
+  const newBtn = document.createElement("button");
+  newBtn.id = "new-data-btn";
+  newBtn.type = "button";
+  newBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
+  newBtn.textContent = "Nouveau";
+  newBtn.onclick = startNewRangeFromRaw;
+
+  const prochaineBtn = document.createElement("button");
+  prochaineBtn.id = "next-workflow-btn";
+  prochaineBtn.type = "button";
+  prochaineBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
+  prochaineBtn.textContent = "Prochaine";
+  prochaineBtn.onclick = nextPageWithLoadAndPropagate;
+
+  buttons.append(newBtn, prochaineBtn);
+
+  const rangeInfo = document.createElement("div");
+  rangeInfo.id = "range-index-display";
+  rangeInfo.className = "range-index-display";
+
+  row.append(buttons, rangeInfo);
+  slot.appendChild(row);
+  updateRangeIndexDisplay();
+}
+
+function updateRangeIndexDisplay() {
+  const rangeInfo = document.getElementById("range-index-display");
+  if (!rangeInfo) return;
+  const startText = startPageIndex === null ? "-" : String(startPageIndex + 1);
+  const endText = endPageIndex === null ? "-" : String(endPageIndex + 1);
+  rangeInfo.textContent = `Début page: ${startText} | Fin Page: ${endText}`;
+}
+
+function createPaginationControls(current, max) {
   const container = document.createElement("div");
   container.className = "pagination-container";
 
@@ -673,96 +768,51 @@ function createPaginationControls(current, max) {
   nextBtn.onclick = nextPage;
 
   container.append(prevBtn, pageDiv, nextBtn);
-
-  const saveBtn = document.createElement("button");
-  saveBtn.id = "new-data-btn";
-  saveBtn.type = "button";
-  saveBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
-  saveBtn.textContent = "Nouveau";
-  saveBtn.onclick = saveAndReloadRawData;
-
-  controlsRow.appendChild(saveBtn);
-  controlsRow.appendChild(container);
   const slot = document.getElementById("pagination-slot") || document.getElementById("table-container");
-  slot.appendChild(controlsRow);
+  slot.appendChild(container);
 }
 
 function previousPage() {
   if (currentPageIndex <= 0) return;
-  loadPage(currentProjectID, --currentPageIndex, false, "linked");
+  navigateToPageWithMode(currentPageIndex - 1);
 }
 
 function nextPage() {
   if (currentPageIndex >= nbrPageMax-1) return;
-  const nextIndex = currentPageIndex + 1;
-  const nextPageId = `page_${nextIndex + 1}`;
-  getActiveDataFromServer().finally(() => {
-    linkActiveDataToPage(nextPageId).finally(() => {
-      loadPage(currentProjectID, nextIndex, false, "linked");
-    });
-  });
+  navigateToPageWithMode(currentPageIndex + 1);
 }
 
 function navigateToPageWithMode(index) {
-  if (index > currentPageIndex) {
-    const targetPageId = `page_${index + 1}`;
-    getActiveDataFromServer().finally(() => {
-      linkActiveDataToPage(targetPageId).finally(() => {
-        loadPage(currentProjectID, index, false, "linked");
-      });
+  loadPage(currentProjectID, index, false, "auto")
+    .catch((err) => {
+      console.error("Navigation load failed:", err);
     });
-    return;
-  }
-  loadPage(currentProjectID, index, false, "linked");
 }
 
-async function getActiveDataFromServer() {
-  if (!currentProjectID || !currentDocID) return null;
-  const response = await fetch(`/get_active_data/${currentProjectID}/${currentDocID}`);
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || "Unable to get active data");
-  }
-  activeDataId = payload.active_data_id || null;
-  return payload;
+function navigateImageOnly(index) {
+  if (currentFileList.length === 0 || index < 0 || index >= nbrPageMax) return;
+  currentPageIndex = index;
+  currentDocPage = currentFileList[index].page;
+  currentDocID = currentFileList[index].document_id;
+  currentCategory = project_data?.find(f => f.document_id === currentDocID)?.category ?? null;
+  page_id = `page_${index + 1}`;
+  displayPage(currentProjectID, currentDocID, index, false, true);
 }
 
-async function createNewDataVersionFromRaw() {
-  if (!currentProjectID || !currentDocID || !page_id) return null;
-  const response = await fetch("/new_data_version", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      project_id: currentProjectID,
-      document_id: currentDocID,
-      page_id: page_id
-    })
-  });
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || "Unable to create new data version");
+async function nextPageWithLoadAndPropagate() {
+  if (currentPageIndex >= nbrPageMax - 1) return;
+  try {
+    const loaded = await loadPage(currentProjectID, currentPageIndex + 1, false, "auto");
+    if (!loaded) return;
+    await loadAndFillCurrentPageEmpty();
+    await autoSaveInputAndBackfill();
+  } catch (err) {
+    console.error("Prochaine failed:", err);
   }
-  activeDataId = payload.data_id || null;
-  pageDataId = payload.data_id || null;
-  return payload;
 }
 
-async function linkActiveDataToPage(targetPageId) {
-  if (!activeDataId || !targetPageId || !currentProjectID || !currentDocID) return null;
-  const response = await fetch("/link_active_data_to_page", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      project_id: currentProjectID,
-      document_id: currentDocID,
-      page_id: targetPageId
-    })
-  });
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || "Unable to link active data to page");
-  }
-  return payload;
+function isEmptyValue(v) {
+  return v === null || v === undefined || (typeof v === "string" && v.trim() === "");
 }
 
 // === TABLE UI ===
@@ -775,7 +825,7 @@ function generateEditableTable(data, containerId = "table-values-container") {
 
   const thead = table.createTHead();
   const headerRow = thead.insertRow();
-  ["Paramètre", "Valeur"].forEach(text => {
+  ["Paramètre", "Valeurs éditées"].forEach(text => {
     const th = document.createElement("th");
     th.textContent = text;
     headerRow.appendChild(th);
@@ -821,12 +871,14 @@ function generateEditableTable(data, containerId = "table-values-container") {
       : defaultValueBgColor;
 
     const paramCell = document.createElement("td");
+    paramCell.className = "param-cell";
     paramCell.contentEditable = "false";
     paramCell.textContent = field_text[key] || key;
     paramCell.dataset.originalKey = key;
     paramCell.style.backgroundColor = labelBgColor;
 
     const valueCell = document.createElement("td");
+    valueCell.className = "value-cell";
     valueCell.contentEditable = "true";
     valueCell.textContent = value !== null ? value : "";
     valueCell.style.backgroundColor = valueBgColor;
@@ -839,7 +891,6 @@ function generateEditableTable(data, containerId = "table-values-container") {
         data[newKey] = data[oldKey];
         delete data[oldKey];
         paramCell.dataset.originalKey = newKey;
-        sendTableToServer();
       }
     });
 
@@ -847,7 +898,7 @@ function generateEditableTable(data, containerId = "table-values-container") {
       const currentKey = paramCell.dataset.originalKey;
       data[currentKey] = valueCell.textContent.trim();
       extract_values[currentKey] = valueCell.textContent.trim();
-      sendTableToServer();
+      scheduleAutoSaveFromInput();
     });
 
     row.append(paramCell, valueCell);
@@ -866,10 +917,11 @@ function collectTableDataForSave() {
   const data = { ...extract_values };
   table.querySelectorAll("tbody tr").forEach(row => {
     if (row.classList.contains("group-separator-row")) return;
-    const cells = row.querySelectorAll("td");
-    if (cells.length < 2) return;
-    const key = cells[0].dataset.originalKey || cells[0].textContent.trim();
-    const value = cells[1].textContent.trim();
+    const keyCell = row.querySelector("td.param-cell");
+    const valueCell = row.querySelector("td.value-cell");
+    if (!keyCell || !valueCell) return;
+    const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+    const value = valueCell.textContent.trim();
     if (key) {
       data[key] = value;
       extract_values[key] = value;
@@ -901,23 +953,103 @@ function sendTableToServer(dataOverride = null) {
     });
 }
 
-function saveAndReloadRawData() {
+async function saveTableDataToPageIndex(pageIndex, data) {
+  if (!data || !currentProjectID) return null;
+  const pageRef = currentFileList[pageIndex];
+  if (!pageRef) return null;
+
+  const formData = new FormData();
+  formData.append("project_id", currentProjectID);
+  formData.append("document_id", pageRef.document_id);
+  formData.append("filename", `table_page_${pageRef.page + 1}.json`);
+  formData.append("data", JSON.stringify(data));
+
+  const response = await fetch("/put_data", { method: "POST", body: formData });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || `Unable to save page index ${pageIndex}`);
+  }
+  return payload;
+}
+
+async function startNewRangeFromRaw() {
   const table = document.querySelector(".param-table");
   if (!table) return;
 
-  table.querySelectorAll("tbody tr").forEach(row => {
-    if (row.classList.contains("group-separator-row")) return;
-    const cells = row.querySelectorAll("td");
-    if (cells.length >= 2) {
-      cells[1].textContent = "";
-    }
-  });
+  try {
+    // 1) upload data to server
+    // await sendTableToServer();
 
-  createNewDataVersionFromRaw()
-    .then(() => loadPage(currentProjectID, currentPageIndex, false, "linked"))
-    .catch((err) => {
-      console.error("Nouveau failed:", err);
+    // 2) memorize end_page to previous page index
+    endPageIndex = currentPageIndex - 1;
+
+    // 3) assign uploaded data to start_page..end_page
+    // await assignActiveDataToPageRange();
+
+    // 4) clear table
+    table.querySelectorAll("tbody tr").forEach(row => {
+      if (row.classList.contains("group-separator-row")) return;
+      const keyCell = row.querySelector("td.param-cell");
+      const valueCell = row.querySelector("td.value-cell");
+      if (!keyCell || !valueCell) return;
+      valueCell.textContent = "";
+      const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+      if (key) {
+        extract_values[key] = "";
+      }
     });
+
+    // 5) load raw data from current page
+    await loadPage(currentProjectID, currentPageIndex, false, "raw");
+
+    // 6) memorize start_page as current page
+    startPageIndex = currentPageIndex;
+    endPageIndex = null;
+    updateRangeIndexDisplay();
+  } catch (err) {
+    console.error("Nouveau failed:", err);
+  }
+}
+
+async function loadAndFillCurrentPageEmpty() {
+  try {
+    const table = document.querySelector(".param-table");
+    if (!table) return;
+
+    table.querySelectorAll("tbody tr").forEach(row => {
+      if (row.classList.contains("group-separator-row")) return;
+      const keyCell = row.querySelector("td.param-cell");
+      const valueCell = row.querySelector("td.value-cell");
+      if (!keyCell || !valueCell) return;
+
+      const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+      if (!key) return;
+
+      const rawValue = raw_extract_values[key] !== null && raw_extract_values[key] !== undefined
+        ? String(raw_extract_values[key]).trim()
+        : "";
+      const currentCellValue = (valueCell.textContent || "").trim();
+
+      if (isEmptyValue(currentCellValue) && !isEmptyValue(rawValue)) {
+        valueCell.textContent = String(rawValue);
+        extract_values[key] = String(rawValue);
+      }
+    });
+  } catch (err) {
+    console.error("Load failed:", err);
+  }
+}
+
+async function assignActiveDataToPageRange() {
+  if (startPageIndex === null || endPageIndex === null) return;
+  if (endPageIndex < startPageIndex) return;
+  const from = Math.min(startPageIndex, endPageIndex);
+  const to = Math.max(startPageIndex, endPageIndex);
+  const currentData = collectTableDataForSave() || { ...extract_values };
+
+  for (let i = from; i <= to; i++) {
+    await saveTableDataToPageIndex(i, currentData);
+  }
 }
 
 
@@ -975,6 +1107,8 @@ window.addEventListener('DOMContentLoaded', async function () {
   project_data = await ProjectManager.getProject(projectId);
 
   if (project_data.length > 0) {
+    startPageIndex = 0; // start_page = 1 at view start
+    endPageIndex = null;
     createFileList(projectId, documentId, project_data);
 
     //Display First page

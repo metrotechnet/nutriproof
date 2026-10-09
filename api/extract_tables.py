@@ -828,12 +828,13 @@ class OCRDocument:
             with open(value_path, "w", encoding="utf-8") as f:
                 json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
 
-            # Table data
+            # Table data (editable table starts empty after OCR)
             extract_values_ordered = OrderedDict((label, extract_values.get(label, None)) for label in labels)
+            table_values_empty_ordered = OrderedDict((label, "") for label in labels)
             table_filename = f"table_{pageid}.json"
             table_path = os.path.join(project_path, table_filename)
             with open(table_path, "w", encoding="utf-8") as f:
-                json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+                json.dump(table_values_empty_ordered, f, indent=4, ensure_ascii=False)
 
             # All OCR blocks (for debug display)
             all_blocks = []
@@ -1108,6 +1109,7 @@ class OCRDocument:
             extract_values_ordered['Visite'] = None
             extract_values_ordered['Date'] = None
             extract_values_ordered["# Du Participant"] = None
+            extract_values_ordered["# du document"] = None
             
             # OCR manuscript digits in row 0
             # row0_digits = self.read_row0_digits(cells, gray_img=gray_img)
@@ -1118,8 +1120,10 @@ class OCRDocument:
                 json.dump(label_bbox_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"value_bbox_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
+            # Editable table starts empty after OCR; raw OCR values stay in table_ocr_*.
+            table_values_empty_ordered = {label: "" for label in extract_values_ordered.keys()}
             with open(os.path.join(project_path, f"table_{pageid}.json"), "w", encoding="utf-8") as f:
-                json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+                json.dump(table_values_empty_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"table_ocr_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"field_text_{pageid}.json"), "w", encoding="utf-8") as f:
