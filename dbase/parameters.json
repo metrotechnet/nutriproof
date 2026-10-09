@@ -346,9 +346,9 @@
         "type": "information"
       },
       {
-        "label": "Phase/Visite (ex: P1V2)",
+        "label": "Phase",
         "text": [
-          "Phase/Visite"
+          "Phase"
         ],
         "parse": "one of Phase 1, Phase 2, Phase 3",
         "key": "Visites",
@@ -356,20 +356,49 @@
         "type": "information"
       },
       {
-        "label": "Date de visite ( YYYY/MM/DD)",
+        "label": "Visite",
         "text": [
-          "Date de visite",
-          "Date de visite:"
+          "Visite"
         ],
-        "parse": "a date in format YYYY/MM/DD",
+        "parse": "one of Phase 1, Phase 2, Phase 3",
+        "key": "Visites",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Date d'observation (DD-MM-YY)",
+        "text": [
+          "Date de visite (DD-MM-YY)"
+        ],
+        "parse": "a date in format DD-MM-YY",
         "key": "date_visite",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "No du participant",
+        "text": [
+          "# du participant (4 chiffres)"
+        ],
+        "parse": "a 4 digit number",
+        "key": "no_participant",
+        "visible": true,
+        "type": "information"
+      },
+      {
+        "label": "Groupe de randomisation",
+        "text": [
+          "Groupe de randomisation (1,2,3)"
+        ],
+        "parse": "one of Groupe #1, Groupe #2, Groupe #3",
+        "key": "group_rando",
         "visible": true,
         "type": "information"
       },
       {
         "label": "Mode de rencontre (Présentiel=1, Distance=2)",
         "text": [
-          "Mode de rencontre"
+          "Mode de rencontre (Présentiel=1, Distance=2)"
         ],
         "parse": "one of Présence, Distance",
         "key": "mode_renc",
@@ -379,8 +408,7 @@
       {
         "label": "Poids (lb)",
         "text": [
-          "Poids (lbs ou kg)",
-          "Poids (lbs ou kg):"
+          "Poids (kg) (ex: 160,3)"
         ],
         "parse": "a number",
         "key": "weight_lbs",
@@ -390,8 +418,7 @@
       {
         "label": "Poids (kg) (ex: 1160,3)",
         "text": [
-          "Poids (lbs ou kg)",
-          "Poids (lbs ou kg):"
+          "Poids (kg) (ex: 116,3)"
         ],
         "parse": "a number",
         "key": "weight_kg",
@@ -401,8 +428,7 @@
       {
         "label": "Poids mesuré ou rapporté",
         "text": [
-          "Poids mesuré ou rapporté?",
-          "Poids mesuré ou rapporté"
+          "Poids mesuré ou rapporté (Mesuré=1, Rapporté=2)"
         ],
         "parse": "one of Mesuré, Rapporté",
         "key": "poids_m",
@@ -412,8 +438,7 @@
       {
         "label": "Tour de taille",
         "text": [
-          "Tour de taille (une mesure)",
-          "Tour de taille"
+          "Tour de taille (en cm)"
         ],
         "parse": "a number",
         "key": "waistc",
@@ -423,7 +448,7 @@
       {
         "label": "Journal de bord complétés et remis",
         "text": [
-          "Journal de bord complétés et remis"
+          "Journal de bord complétés et remis (oui=1 non=2)"
         ],
         "parse": "one of Oui, Non",
         "key": "jb_remis",
@@ -433,7 +458,7 @@
       {
         "label": "Fréquence de complétion",
         "text": [
-          "Fréquence de complétion"
+          "Fréquence de complétion (de 0 à 7 fois par semaine)"
         ],
         "parse": "a number per week",
         "key": "fq_comp",
@@ -443,21 +468,10 @@
       {
         "label": "Date du rappel",
         "text": [
-          "Date du rappel",
-          "Date du rappel:"
+          "Date du rappel (DD-MM-YY)"
         ],
-        "parse": "a date in format YYYY/MM/DD",
+        "parse": "a date in format DD-MM-YY",
         "key": "date_rappel",
-        "visible": true,
-        "type": "information"
-      },
-      {
-        "label": "Groupe de randomisation",
-        "text": [
-          ""
-        ],
-        "parse": "one of Groupe #1, Groupe #2, Groupe #3",
-        "key": "group_rando",
         "visible": true,
         "type": "information"
       },

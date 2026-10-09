@@ -12,6 +12,8 @@ let field_text = {};
 let field_type = {};
 let field_subsection = {};
 let subsections = [];
+let activeDataId = null;
+let pageDataId = null;
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -86,7 +88,7 @@ function createFileList(project_id, document_id, fileArray) {
 
 
 // === MAIN LOADING FUNCTION ===
-async function loadPage(project_id, index, init_scroll=false) {
+async function loadPage(project_id, index, init_scroll=false, sourceMode="linked") {
   if (currentFileList.length === 0 || index < 0 || index >= nbrPageMax) {
     console.error("No files available for loading.");
     return;
@@ -100,9 +102,9 @@ async function loadPage(project_id, index, init_scroll=false) {
     //start spinner cursor
     page_id = `page_${index+1}`;
     const responses = await Promise.all([
-        fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json`).then(res => res.json()),
-        fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json`).then(res => res.json()),
-        fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json`).then(res => res.json()),
+        fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
+        fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
+        fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/checked_boxes_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({}))
@@ -119,6 +121,8 @@ async function loadPage(project_id, index, init_scroll=false) {
     field_type = responses[2].field_type || {};
     field_subsection = responses[2].field_subsection || {};
     subsections = responses[2].subsections || [];
+    activeDataId = responses[2].active_data_id || null;
+    pageDataId = responses[2].page_data_id || null;
     all_blocks = responses[3] || [];
     checked_boxes = responses[4] || [];
     const gridData = responses[5] || {};
@@ -302,7 +306,6 @@ function displayPage(project_id, document_id, index, init_scroll=false) {
     generateEditableTable(extract_values);
     // Pagination après le tableau
     createPaginationControls(currentPageIndex+1, nbrPageMax);
-
 
   };
   imageElement.onerror = () => {
@@ -609,10 +612,14 @@ function displayCheckedBoxes(svg, checkedCells, offsetX, offsetY, scaleX, scaleY
 
 // === PAGINATION ===
 function createPaginationControls(current, max) {
+  const controlsRow = document.createElement("div");
+  controlsRow.className = "pagination-controls-row";
+
   const container = document.createElement("div");
   container.className = "pagination-container";
 
   const prevBtn = document.createElement("button");
+  prevBtn.id = "page-prev-btn";
   prevBtn.type = "button";
   prevBtn.className = "btn btn-outline-primary btn-sm mx-1";
   prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i> ';
@@ -625,6 +632,7 @@ function createPaginationControls(current, max) {
 
   // Ajout de l'input pour sélectionner la page
   const pageInput = document.createElement("input");
+  pageInput.id = "page-index-input";
   pageInput.type = "number";
   pageInput.min = 1;
   pageInput.max = max;
@@ -637,7 +645,7 @@ function createPaginationControls(current, max) {
       event.preventDefault();
       let val = parseInt(pageInput.value);
       if (!isNaN(val) && val >= 1 && val <= max) {
-        loadPage(currentProjectID, val - 1);
+        navigateToPageWithMode(val - 1);
       } else {
         pageInput.value = current;
       }
@@ -647,7 +655,7 @@ function createPaginationControls(current, max) {
   pageInput.addEventListener("change", () => {
     let val = parseInt(pageInput.value);
     if (!isNaN(val) && val >= 1 && val <= max) {
-      loadPage(currentProjectID, val - 1);
+      navigateToPageWithMode(val - 1);
     } else {
       pageInput.value = current;
     }
@@ -658,24 +666,103 @@ function createPaginationControls(current, max) {
   pageDiv.append(pageText, pageInput, pageMaxText);
   
   const nextBtn = document.createElement("button");
+  nextBtn.id = "page-next-btn";
   nextBtn.type = "button";
   nextBtn.className = "btn btn-outline-primary btn-sm mx-1";
   nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
   nextBtn.onclick = nextPage;
 
   container.append(prevBtn, pageDiv, nextBtn);
+
+  const saveBtn = document.createElement("button");
+  saveBtn.id = "new-data-btn";
+  saveBtn.type = "button";
+  saveBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
+  saveBtn.textContent = "Nouveau";
+  saveBtn.onclick = saveAndReloadRawData;
+
+  controlsRow.appendChild(saveBtn);
+  controlsRow.appendChild(container);
   const slot = document.getElementById("pagination-slot") || document.getElementById("table-container");
-  slot.appendChild(container);
+  slot.appendChild(controlsRow);
 }
 
 function previousPage() {
   if (currentPageIndex <= 0) return;
-  loadPage(currentProjectID, --currentPageIndex);
+  loadPage(currentProjectID, --currentPageIndex, false, "linked");
 }
 
 function nextPage() {
   if (currentPageIndex >= nbrPageMax-1) return;
-  loadPage(currentProjectID, ++currentPageIndex);
+  const nextIndex = currentPageIndex + 1;
+  const nextPageId = `page_${nextIndex + 1}`;
+  getActiveDataFromServer().finally(() => {
+    linkActiveDataToPage(nextPageId).finally(() => {
+      loadPage(currentProjectID, nextIndex, false, "linked");
+    });
+  });
+}
+
+function navigateToPageWithMode(index) {
+  if (index > currentPageIndex) {
+    const targetPageId = `page_${index + 1}`;
+    getActiveDataFromServer().finally(() => {
+      linkActiveDataToPage(targetPageId).finally(() => {
+        loadPage(currentProjectID, index, false, "linked");
+      });
+    });
+    return;
+  }
+  loadPage(currentProjectID, index, false, "linked");
+}
+
+async function getActiveDataFromServer() {
+  if (!currentProjectID || !currentDocID) return null;
+  const response = await fetch(`/get_active_data/${currentProjectID}/${currentDocID}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to get active data");
+  }
+  activeDataId = payload.active_data_id || null;
+  return payload;
+}
+
+async function createNewDataVersionFromRaw() {
+  if (!currentProjectID || !currentDocID || !page_id) return null;
+  const response = await fetch("/new_data_version", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project_id: currentProjectID,
+      document_id: currentDocID,
+      page_id: page_id
+    })
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to create new data version");
+  }
+  activeDataId = payload.data_id || null;
+  pageDataId = payload.data_id || null;
+  return payload;
+}
+
+async function linkActiveDataToPage(targetPageId) {
+  if (!activeDataId || !targetPageId || !currentProjectID || !currentDocID) return null;
+  const response = await fetch("/link_active_data_to_page", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      project_id: currentProjectID,
+      document_id: currentDocID,
+      page_id: targetPageId
+    })
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to link active data to page");
+  }
+  return payload;
 }
 
 // === TABLE UI ===
@@ -759,6 +846,7 @@ function generateEditableTable(data, containerId = "table-values-container") {
     valueCell.addEventListener("input", () => {
       const currentKey = paramCell.dataset.originalKey;
       data[currentKey] = valueCell.textContent.trim();
+      extract_values[currentKey] = valueCell.textContent.trim();
       sendTableToServer();
     });
 
@@ -771,9 +859,9 @@ function generateEditableTable(data, containerId = "table-values-container") {
 }
 
 // === SYNC TO SERVER ===
-function sendTableToServer() {
+function collectTableDataForSave() {
   const table = document.querySelector(".param-table");
-  if (!table) return;
+  if (!table) return null;
 
   const data = { ...extract_values };
   table.querySelectorAll("tbody tr").forEach(row => {
@@ -787,6 +875,12 @@ function sendTableToServer() {
       extract_values[key] = value;
     }
   });
+  return data;
+}
+
+function sendTableToServer(dataOverride = null) {
+  const data = dataOverride || collectTableDataForSave();
+  if (!data) return Promise.resolve(null);
 
   const formData = new FormData();
   formData.append("project_id", currentProjectID);
@@ -794,10 +888,36 @@ function sendTableToServer() {
   formData.append("filename", `table_page_${currentDocPage+1}.json`);
   formData.append("data", JSON.stringify(data));
 
-  fetch("/put_data", { method: "POST", body: formData })
+  return fetch("/put_data", { method: "POST", body: formData })
     .then(res => res.json())
-    .then(console.log)
-    .catch(err => console.error("Upload failed:", err));
+    .then(payload => {
+      extract_values = { ...data };
+      console.log(payload);
+      return payload;
+    })
+    .catch(err => {
+      console.error("Upload failed:", err);
+      throw err;
+    });
+}
+
+function saveAndReloadRawData() {
+  const table = document.querySelector(".param-table");
+  if (!table) return;
+
+  table.querySelectorAll("tbody tr").forEach(row => {
+    if (row.classList.contains("group-separator-row")) return;
+    const cells = row.querySelectorAll("td");
+    if (cells.length >= 2) {
+      cells[1].textContent = "";
+    }
+  });
+
+  createNewDataVersionFromRaw()
+    .then(() => loadPage(currentProjectID, currentPageIndex, false, "linked"))
+    .catch((err) => {
+      console.error("Nouveau failed:", err);
+    });
 }
 
 

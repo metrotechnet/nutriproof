@@ -241,6 +241,18 @@ body {
     background: rgb(240, 240, 240);
 }
 
+.pagination-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 8px;
+}
+
+.save-table-btn {
+    min-width: 85px;
+}
+
 .param-table {
     width: 100%;
     border-collapse: collapse;

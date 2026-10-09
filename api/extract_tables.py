@@ -1120,6 +1120,8 @@ class OCRDocument:
                 json.dump(value_bbox_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"table_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+            with open(os.path.join(project_path, f"table_ocr_{pageid}.json"), "w", encoding="utf-8") as f:
+                json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"field_text_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(matched_text_ordered, f, indent=4, ensure_ascii=False)
 
