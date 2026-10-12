@@ -2249,6 +2249,261 @@ class OCRDocument:
         output.seek(0)
         return output
     
+    def create_xls_with_data_formulaire_suivi(self, file_paths):
+        """
+        Crée un fichier Excel .xls pour le formulaire de suivi.
+        Ajoute les colonnes de contexte métier et les champs du formulaire configuré.
+        Retourne un buffer binaire prêt à être envoyé.
+        """
+
+        def _parse_iso_date(value):
+            if value is None or value == "":
+                return ""
+            text = str(value).strip()
+            if not text:
+                return ""
+            for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d-%m-%y", "%d/%m/%Y", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S", "%d-%m-%Y %H:%M:%S"):
+                try:
+                    return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    pass
+            return text
+
+        def _to_float(value):
+            if value is None or value == "":
+                return None
+            try:
+                return float(str(value).replace(",", "."))
+            except (TypeError, ValueError):
+                return None
+
+        def _weight_lbs_from_kg(value):
+            kg = _to_float(value)
+            if kg is None:
+                return ""
+            return round(kg * 2.20462, 1)
+
+        def _format_visites(value, phase_value=None, visit_value=None):
+            raw = value
+            if raw is None:
+                raw = ""
+            text = str(raw).strip()
+            if text:
+                if text.lower().startswith("p") and "v" in text.lower():
+                    return text
+                if re.fullmatch(r"\d+", text):
+                    return f"P{text}V{visit_value if visit_value else '1'}" if visit_value else f"P{text}"
+            phase = str(phase_value).strip() if phase_value is not None else ""
+            visit = str(visit_value).strip() if visit_value is not None else ""
+            if phase and visit:
+                return f"P{phase}V{visit}"
+            if phase and not visit:
+                return f"P{phase}"
+            if visit and not phase:
+                return f"V{visit}"
+            return text
+
+        def _load_form_config():
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dbase", "parameters.json")
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+            form_config = config.get("formulaire_suivi", {})
+            fields = form_config.get("fields", [])
+            label_aliases = {}
+            for item in fields:
+                key = item.get("key")
+                if not key:
+                    continue
+
+                output_key = str(key)
+                aliases = []
+                label = item.get("label")
+                if label:
+                    aliases.append(str(label))
+
+                raw_texts = item.get("text", [])
+                if isinstance(raw_texts, str):
+                    raw_texts = [raw_texts]
+                for text_value in raw_texts or []:
+                    if text_value not in (None, ""):
+                        aliases.append(str(text_value))
+
+                for alias in aliases:
+                    if alias not in label_aliases:
+                        label_aliases[alias] = []
+                    if output_key not in label_aliases[alias]:
+                        label_aliases[alias].append(output_key)
+
+            return label_aliases
+
+        def _lookup_value(json_data, key, label_aliases):
+            if not isinstance(json_data, dict):
+                return ""
+
+            if key in json_data and json_data.get(key) not in (None, "", "None", "null"):
+                return json_data.get(key)
+
+            target_keys = {str(key)}
+            for alias_key, mapped_keys in label_aliases.items():
+                if isinstance(mapped_keys, str):
+                    mapped_keys = [mapped_keys]
+                if str(key) in {str(mapped_key) for mapped_key in mapped_keys}:
+                    target_keys.add(str(alias_key))
+
+            matched_values = []
+            for json_key, json_value in json_data.items():
+                if json_value in (None, "", "None", "null"):
+                    continue
+
+                if str(json_key) == str(key):
+                    matched_values.append(json_value)
+                    continue
+
+                if str(json_key) not in target_keys:
+                    continue
+
+                mapped_keys = label_aliases.get(str(json_key), [])
+                if isinstance(mapped_keys, str):
+                    mapped_keys = [mapped_keys]
+                if str(key) in {str(mapped_key) for mapped_key in mapped_keys}:
+                    matched_values.append(json_value)
+
+            if matched_values:
+                return next((value for value in matched_values if value not in (None, "", "None", "null")), matched_values[0])
+
+            return ""
+
+        def _merge_page_payloads(file_paths):
+            page_groups = {}
+            raw_page_payloads = []
+            for path in file_paths:
+                if not os.path.exists(path):
+                    continue
+                with open(path, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+                if not isinstance(payload, dict):
+                    continue
+
+                raw_payload = {k: v for k, v in payload.items() if k not in {"start_index", "end_index", "doc_index"}}
+                if raw_payload:
+                    raw_page_payloads.append(raw_payload)
+
+                page_key = (
+                    payload.get("start_index"),
+                    payload.get("end_index"),
+                    payload.get("doc_index"),
+                )
+                group_key = page_key if any(v not in (None, "", "None", "null") for v in page_key) else ("__fallback__", len(page_groups))
+                group = page_groups.setdefault(group_key, {})
+                for key, value in raw_payload.items():
+                    if value is None or value == "" or str(value).lower() in {"none", "null"}:
+                        group.setdefault(key, "")
+                        continue
+                    current = group.get(key)
+                    if current is None or current == "" or str(current).lower() in {"none", "null"}:
+                        group[key] = value
+                    elif isinstance(value, str) and isinstance(current, str) and len(value) > len(current):
+                        group[key] = value
+                    elif isinstance(value, (int, float)) and isinstance(current, (int, float)) and abs(float(value) - float(current)) > 0:
+                        group[key] = value
+
+            merged_rows = [dict(page_data) for page_data in page_groups.values() if page_data]
+            if merged_rows:
+                return merged_rows
+            return raw_page_payloads
+
+        def _build_row_for_headers(headers, page_data, label_aliases):
+            row = []
+            for key in headers:
+                if key == "Projet":
+                    value = "SAT2"
+                elif key == "Section":
+                    value = "Projet"
+                elif key == "Centre":
+                    value = "INAF"
+                elif key == "seq":
+                    value = _lookup_value(page_data, "seq", label_aliases)
+                    if value in (None, "", "None", "null", "."):
+                        value = "."
+                elif key == "tx":
+                    value = _lookup_value(page_data, "tx", label_aliases)
+                    if value in (None, "", "None", "null"):
+                        value = "IN"
+                elif key == "Visites":
+                    value = _lookup_value(page_data, "Visites", label_aliases)
+                    if value in (None, "", "None", "null"):
+                        value = _format_visites(page_data.get("Visites"), page_data.get("Phase"), page_data.get("Visite"))
+                elif key == "date_visite":
+                    value = _lookup_value(page_data, "date_visite", label_aliases)
+                    value = _parse_iso_date(value)
+                elif key == "date_rappel":
+                    value = _lookup_value(page_data, "date_rappel", label_aliases)
+                    value = _parse_iso_date(value)
+                elif key == "weight_lbs":
+                    value = _lookup_value(page_data, "weight_lbs", label_aliases)
+                    if value in (None, "", "None", "null"):
+                        value = _lookup_value(page_data, "Poids (lb)", label_aliases) or _lookup_value(page_data, "Poids (lbs)", label_aliases)
+                    if value in (None, "", "None", "null"):
+                        value = page_data.get("weight_kg")
+                    value = _weight_lbs_from_kg(value)
+                else:
+                    value = _lookup_value(page_data, key, label_aliases)
+
+                if value is None or value == "" or str(value).lower() in {"none", "null"}:
+                    row.append("")
+                elif isinstance(value, (int, float)):
+                    row.append(value)
+                else:
+                    row.append(str(value))
+            return row
+
+        def _build_workbook(all_rows):
+            wb = xlwt.Workbook()
+            ws = wb.add_sheet('Feuille1')
+            title_style = xlwt.easyxf('font: bold on, height 220;')
+            date_style = xlwt.easyxf('font: bold on;')
+            header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour yellow;')
+            for row_idx, row in enumerate(all_rows):
+                for col_idx, value in enumerate(row):
+                    if row_idx == 0:
+                        ws.write(row_idx, col_idx, value, title_style)
+                    elif row_idx == 1:
+                        ws.write(row_idx, col_idx, value, date_style)
+                    elif row_idx == 2:
+                        ws.write(row_idx, col_idx, value)
+                    elif row_idx == 3:
+                        ws.write(row_idx, col_idx, value, header_style)
+                    else:
+                        ws.write(row_idx, col_idx, value)
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            return output
+
+        label_aliases = _load_form_config()
+        required_headers = [
+            "Projet", "Section", "Centre", "nomat", "seq", "tx", "Visites",
+            "date_visite", "mode_renc", "weight_lbs", "weight_kg", "poids_m",
+            "waistc", "jb_remis", "fq_comp", "date_rappel", "group_rando",
+            "prop_gac", "grains_entiers", "prot_veg", "priv_eau", "prot_r24",
+            "lip_r24", "gluc_r24", "act_phys", "sommeil", "prot_repas",
+            "fruit_leg", "gras_insat", "prod_lait", "faib_ig", "capsa", "alim_rassa",
+            "fibr_r24", "calci_r24", "port_fecul", "port_viand", "fruit_sucr",
+            "port_leg", "port_laits", "port_mg", "def_cal"
+        ]
+        today = datetime.today().strftime("%Y-%m-%d")
+        page_rows = _merge_page_payloads(file_paths)
+        all_rows = [
+            ["Rapport de données"],
+            ["Date d'extraction :", today],
+            [""],
+            required_headers,
+        ]
+        for page_data in page_rows:
+            all_rows.append(_build_row_for_headers(required_headers, page_data, label_aliases))
+        return _build_workbook(all_rows)
+
     def create_xls_with_data_by_time(self, file_paths):
         """
         Crée un fichier Excel .xls en mémoire à partir des fichiers JSON de résultats.

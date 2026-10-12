@@ -788,6 +788,11 @@ function createTopActionControls() {
   const slot = document.getElementById("table-header-slot");
   if (!slot) return;
 
+  const activeCategory = (typeof key_order !== "undefined" ? key_order : (typeof currentCategory !== "undefined" ? currentCategory : ""));
+  if (["bilan_lipidique_1", "bilan_lipidique_2"].includes(activeCategory)) {
+    return;
+  }
+
   const row = document.createElement("div");
   row.className = "table-header-actions";
   const instructions = document.createElement("div");

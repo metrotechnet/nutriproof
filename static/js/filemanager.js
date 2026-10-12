@@ -375,34 +375,46 @@ async function pollJob(jobId) {
 }
 
 // === DOWNLOAD FINAL xls ===
-function downloadXlsFile(projectId, documentId,nbrPages) {
+async function downloadXlsFile(projectId, documentId, nbrPages) {
     if (!documentId) {
         alert("No document loaded");
         return;
     }
-    startSpinner('Téléchargement en cours...');
-    const formData = new FormData();
-    formData.append("project_id", projectId);
-    formData.append("document_id", documentId);
-    formData.append("nbr_pages", nbrPages);
 
-    fetch('/download_xls', { method: 'POST', body: formData })
-        .then(response => {
+    try {
+        startSpinner('Téléchargement en cours...');
+
+        let category = null;
+        try {
+            const projectDetails = await ProjectManager.getProject(projectId);
+            if (Array.isArray(projectDetails)) {
+                const file = projectDetails.find(item => item.document_id === documentId);
+                category = file && file.category ? String(file.category) : null;
+            }
+        } catch (e) {
+            category = null;
+        }
+
+        const endpoint = category === 'formulaire_suivi' ? '/download_xls_formulaire_suivi' : '/download_xls';
+        const formData = new FormData();
+        formData.append("project_id", projectId);
+        formData.append("document_id", documentId);
+        formData.append("nbr_pages", nbrPages);
+
+        const response = await fetch(endpoint, { method: 'POST', body: formData });
         if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
-            return response.blob();
-        })
-        .then(blob => {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = documentId+".xls";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        })
-        .catch(err => {
-            console.error("CSV export failed:", err);
-            alert("Échec du téléchargement du fichier CSV.");
-        }).finally(() => {
-            stopSpinner();
-        });
+
+        const blob = await response.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = documentId + ".xls";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    } catch (err) {
+        console.error("CSV export failed:", err);
+        alert("Échec du téléchargement du fichier CSV.");
+    } finally {
+        stopSpinner();
+    }
 }

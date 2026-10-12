@@ -317,6 +317,64 @@ def put_data():
         return jsonify({"error": str(e)}), 500
 
 
+def _collect_document_file_paths(document_dir, nbr_pages):
+    file_paths = []
+    for i in range(1, int(nbr_pages) + 1):
+        page_id = f"page_{i}"
+        file_paths.append(_resolve_table_read_path(document_dir, page_id, source="edited"))
+    return file_paths
+
+
+def _load_sample_data(file_paths):
+    for path in file_paths:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    return {}
+
+
+FORMULAIRE_SUIVI_KEYS = {
+    "Projet", "Section", "Centre", "nomat", "seq", "tx", "Visites", "date_visite",
+    "mode_renc", "weight_lbs", "weight_kg", "poids_m", "waistc", "jb_remis",
+    "fq_comp", "date_rappel", "group_rando", "prop_gac", "grains_entiers",
+    "prot_veg", "priv_eau", "prot_r24", "lip_r24", "gluc_r24", "act_phys",
+    "sommeil", "prot_repas", "fruit_leg", "gras_insat", "prod_lait", "faib_ig",
+    "capsa", "alim_rassa", "fibr_r24", "calci_r24", "port_fecul", "port_viand",
+    "fruit_sucr", "port_leg", "port_laits", "port_mg", "def_cal"
+}
+
+
+def _normalize_key_name(key):
+    return re.sub(r"[^a-z0-9]+", "", str(key).lower())
+
+
+def _is_formulaire_suivi_data(sample_data):
+    if not sample_data:
+        return False
+
+    normalized_form_keys = {_normalize_key_name(key) for key in FORMULAIRE_SUIVI_KEYS}
+    sample_keys = {str(k).lower() for k in sample_data.keys()}
+    normalized_sample_keys = {_normalize_key_name(k) for k in sample_data.keys()}
+
+    return (
+        any(key in sample_data for key in FORMULAIRE_SUIVI_KEYS)
+        or any(str(k).lower() in {key.lower() for key in FORMULAIRE_SUIVI_KEYS} for k in sample_data.keys())
+        or bool(normalized_sample_keys & normalized_form_keys)
+    )
+
+
+def _build_xls_for_document(ocr_document, file_paths, sample_data=None, force_form=None):
+    if force_form == "formulaire_suivi":
+        return ocr_document.create_xls_with_data_formulaire_suivi(file_paths)
+
+    if sample_data is None:
+        sample_data = _load_sample_data(file_paths)
+
+    if _is_formulaire_suivi_data(sample_data):
+        return ocr_document.create_xls_with_data_formulaire_suivi(file_paths)
+    return ocr_document.create_xls_with_data_by_time(file_paths)
+
+
 # Download XLS file
 @data_bp.route("/download_xls", methods=["POST"])
 def download_xls():
@@ -332,13 +390,40 @@ def download_xls():
             return jsonify({"error": "Missing project_id, document_id or nbr_pages"}), 400
 
         document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
-        file_paths = []
-        for i in range(1, int(nbr_pages) + 1):
-            page_id = f"page_{i}"
-            file_paths.append(_resolve_table_read_path(document_dir, page_id, source="edited"))
-        
-        xls_file = ocr_document.create_xls_with_data_by_time(file_paths)
+        file_paths = _collect_document_file_paths(document_dir, nbr_pages)
+        sample_data = _load_sample_data(file_paths)
+        xls_file = _build_xls_for_document(ocr_document, file_paths, sample_data=sample_data)
+
         filename = document_id + ".xls"
+        return send_file(xls_file, as_attachment=True, download_name=filename)
+
+    except Exception as e:
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+
+@data_bp.route("/download_xls_formulaire_suivi", methods=["POST"])
+def download_xls_formulaire_suivi():
+    try:
+        LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+        ocr_document = current_app.config['OCR_DOCUMENT']
+
+        project_id = request.form.get("project_id")
+        document_id = request.form.get("document_id")
+        nbr_pages = request.form.get("nbr_pages")
+
+        if not project_id or not document_id or not nbr_pages:
+            return jsonify({"error": "Missing project_id, document_id or nbr_pages"}), 400
+
+        document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
+        file_paths = _collect_document_file_paths(document_dir, nbr_pages)
+        xls_file = _build_xls_for_document(
+            ocr_document,
+            file_paths,
+            sample_data=_load_sample_data(file_paths),
+            force_form="formulaire_suivi",
+        )
+
+        filename = document_id + "_formulaire_suivi.xls"
         return send_file(xls_file, as_attachment=True, download_name=filename)
 
     except Exception as e:

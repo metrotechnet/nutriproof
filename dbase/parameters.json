@@ -416,7 +416,7 @@
         "type": "information"
       },
       {
-        "label": "Poids (kg) (ex: 1160,3)",
+        "label": "Poids (kg)",
         "text": [
           "Poids (kg) (ex: 116,3)"
         ],
