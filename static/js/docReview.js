@@ -1424,9 +1424,11 @@ async function startNewRangeFromRaw() {
   try {
     const currentDocIndex = Number.isInteger(docIndex) ? docIndex : Number(extract_values?.doc_index);
     const isSamePageAsLastNew = lastNewIncrementPageIndex === currentPageIndex;
-    const nextDocIndex = Number.isInteger(currentDocIndex)
-      ? (isSamePageAsLastNew ? currentDocIndex : currentDocIndex + 1)
-      : 1;
+    const nextDocIndex = currentPageIndex === 1
+      ? 1
+      : Number.isInteger(currentDocIndex)
+        ? (isSamePageAsLastNew ? currentDocIndex : currentDocIndex + 1)
+        : 1;
 
     // Update the previous range metadata directly on the server by reloading each saved file.
     const previousStartIndex = startPageIndex;
@@ -1566,7 +1568,7 @@ window.addEventListener('DOMContentLoaded', async function () {
     createFileList(projectId, documentId, project_data);
 
     //Display First page
-    await loadPage(projectId, currentPageIndex,true);
+    await loadPage(projectId, currentPageIndex,true,'edited',true);
 
 
     //display project data in fileList
