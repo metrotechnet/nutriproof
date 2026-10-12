@@ -539,14 +539,16 @@ async function autoSaveInputAndBackfill(dataOverride = null) {
   const data = dataOverride || collectTableDataForSave();
   if (!data) return;
 
-  // if (!Number.isInteger(startPageIndex)) {
-  //   startPageIndex = currentPageIndex;
-  // }
-  endPageIndex = currentPageIndex;
-  updateRangeIndexDisplay();
-  // console.log("Auto-saving from page", startPageIndex, "to", endPageIndex);
-  for (let i = startPageIndex; i <= endPageIndex; i++) {
-    await saveTableDataToPageIndex(i, data);
+  const finalData = withStartEndMetadata(data);
+  const startIndex = parseNullableIndex(startPageIndex);
+  const endIndex = parseNullableIndex(endPageIndex);
+  if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex)) {
+    return;
+  }
+
+  console.log("Auto-saving from page", startIndex, "to", endIndex);
+  for (let i = startIndex; i <= endIndex; i++) {
+    await saveTableDataToPageIndex(i, finalData);
   }
 }
 
@@ -793,7 +795,7 @@ function createTopActionControls() {
   const instructionLine1 = document.createElement("div");
   instructionLine1.innerHTML = "<strong>Étape 1 :</strong> cliquez sur « Début » pour démarrer une nouvelle saisie d'un document.";
   const instructionLine2 = document.createElement("div");
-  instructionLine2.innerHTML = "<strong>Étape 2 :</strong> cliquez sur « Continuer » pour aller à la page suivante en gardant les valeurs déjà remplies.";
+  instructionLine2.innerHTML = "<strong>Étape 2 :</strong> cliquez sur « Copier » pour aller à la page suivante en gardant les valeurs déjà remplies.";
   const instructionLine3 = document.createElement("div");
   instructionLine3.innerHTML = "<strong>Note :</strong> les valeurs détectées par l'OCR seront également ajoutées automatiquement dans les champs vides.";
   instructions.append(instructionLine1, instructionLine2, instructionLine3);
@@ -811,7 +813,7 @@ function createTopActionControls() {
   prochaineBtn.id = "next-workflow-btn";
   prochaineBtn.type = "button";
   prochaineBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
-  prochaineBtn.textContent = "Continuer";
+  prochaineBtn.textContent = "Copier";
   prochaineBtn.onclick = nextPageWithLoadAndPropagate;
 
   buttons.append(newBtn, prochaineBtn);
@@ -978,6 +980,9 @@ async function nextPageWithLoadAndPropagate() {
     const preservedTableData = collectTableDataForSave();
     if (!preservedTableData) return;
 
+    endPageIndex = currentPageIndex + 1;
+    updateRangeIndexDisplay();
+
     // Auto-save the current page's input and backfill any derived fields
     await autoSaveInputAndBackfill(preservedTableData);
 
@@ -989,6 +994,8 @@ async function nextPageWithLoadAndPropagate() {
     extract_values = { ...preservedTableData };
     updateExistingTableValues(extract_values);
     await loadAndFillCurrentPageEmpty();
+
+    
     //Save if current page is the last page
     if (currentPageIndex === nbrPageMax) {
       await autoSaveInputAndBackfill(collectTableDataForSave());
@@ -1101,7 +1108,7 @@ function validateAndNormalizeByParse(rawValue, parseRule) {
 }
 
 /**
- * Validates all non-empty table values before the "Continuer" workflow.
+ * Validates all non-empty table values before the "Copier" workflow.
  * Invalid cells are highlighted and the workflow is blocked until corrected.
  * @returns {boolean}
  */
@@ -1172,17 +1179,27 @@ function parseNullableIndex(value) {
 }
 
 /**
+ * Attaches only start/end index metadata to a payload.
+ * @param {Object} data - Data payload to enrich.
+ * @returns {Object} Copy containing start/end index fields.
+ */
+function withStartEndMetadata(data) {
+  const nextData = { ...(data || {}) };
+  const startIndex = parseNullableIndex(startPageIndex);
+  const endIndex = parseNullableIndex(endPageIndex);
+  nextData.start_index = startIndex;
+  nextData.end_index = endIndex;
+  return nextData;
+}
+
+/**
  * Attaches index metadata to a payload before persistence.
  * @param {Object} data - Data payload to enrich.
  * @returns {Object} Copy containing start/end/doc index fields.
  */
 function withPageRangeMetadata(data) {
-  const nextData = { ...(data || {}) };
-  const startIndex = parseNullableIndex(startPageIndex);
-  const endIndex = parseNullableIndex(endPageIndex);
+  const nextData = withStartEndMetadata(data);
   const nextDocIndex = parseNullableIndex(docIndex);
-  nextData.start_index = startIndex;
-  nextData.end_index = endIndex;
   nextData.doc_index = nextDocIndex;
   return nextData;
 }
@@ -1340,7 +1357,7 @@ async function saveTableDataToPageIndex(pageIndex, data) {
   if (!pageRef) return null;
 
   const formData = new FormData();
-  const payload = withPageRangeMetadata(data);
+  const payload = withStartEndMetadata(data);
   formData.append("project_id", currentProjectID);
   formData.append("document_id", pageRef.document_id);
   formData.append("filename", `table_page_${pageRef.page}.json`);
@@ -1353,6 +1370,47 @@ async function saveTableDataToPageIndex(pageIndex, data) {
     throw new Error(responsePayload.error || `Unable to save page index ${pageIndex}`);
   }
   return responsePayload;
+}
+
+/**
+ * Loads the saved table JSON for each page in a range, updates only start/end indices,
+ * then writes the files back to the server without using local staging data.
+ * @param {number} startIndex - First page index in the range.
+ * @param {number} endIndex - Last page index in the range.
+ * @returns {Promise<void>}
+ */
+async function updateRangeIndexesOnServer(startIndex, endIndex) {
+  if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex) || endIndex < startIndex) {
+    return;
+  }
+
+  for (let i = startIndex; i <= endIndex; i++) {
+    const pageRef = currentFileList[i];
+    if (!pageRef) continue;
+
+    const response = await fetch(`/get_data/${currentProjectID}/${pageRef.document_id}/table_page_${pageRef.page}.json?source=edited`);
+    if (!response.ok) continue;
+    const payload = await response.json();
+    const rawData = payload && typeof payload.data_string === "string"
+      ? JSON.parse(payload.data_string)
+      : (payload || {});
+
+    const nextData = { ...rawData };
+    nextData.start_index = startIndex;
+    nextData.end_index = endIndex;
+
+    const formData = new FormData();
+    formData.append("project_id", currentProjectID);
+    formData.append("document_id", pageRef.document_id);
+    formData.append("filename", `table_page_${pageRef.page}.json`);
+    formData.append("data", JSON.stringify(nextData));
+
+    const saveResponse = await fetch("/put_data", { method: "POST", body: formData });
+    if (!saveResponse.ok) {
+      const errorPayload = await saveResponse.json().catch(() => ({ error: "Unable to save range metadata" }));
+      throw new Error(errorPayload.error || `Unable to save page index ${i}`);
+    }
+  }
 }
 
 /**
@@ -1370,6 +1428,13 @@ async function startNewRangeFromRaw() {
       ? (isSamePageAsLastNew ? currentDocIndex : currentDocIndex + 1)
       : 1;
 
+    // Update the previous range metadata directly on the server by reloading each saved file.
+    const previousStartIndex = startPageIndex;
+    const previousEndIndex = currentPageIndex - 1;
+    if (Number.isInteger(previousStartIndex) && Number.isInteger(previousEndIndex)) {
+      await updateRangeIndexesOnServer(previousStartIndex, previousEndIndex);
+    }
+
     // 4) clear table
     table.querySelectorAll("tbody tr").forEach(row => {
       if (row.classList.contains("group-separator-row")) return;
@@ -1382,6 +1447,7 @@ async function startNewRangeFromRaw() {
         extract_values[key] = "";
       }
     });
+
 
     // 5) load raw data from current page
     await loadPage(currentProjectID, currentPageIndex, false, "raw", false);
