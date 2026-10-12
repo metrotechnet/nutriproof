@@ -1110,6 +1110,9 @@ class OCRDocument:
             extract_values_ordered['Date'] = None
             extract_values_ordered["# Du Participant"] = None
             extract_values_ordered["# du document"] = None
+            extract_values_ordered["start_index"] = None
+            extract_values_ordered["end_index"] = None
+            extract_values_ordered["doc_index"] = None
             
             # OCR manuscript digits in row 0
             # row0_digits = self.read_row0_digits(cells, gray_img=gray_img)

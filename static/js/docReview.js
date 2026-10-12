@@ -5,23 +5,24 @@ let raw_extract_values = {};
 let label_bbox = {};
 let value_bbox = {};
 let all_blocks = [];
-let checked_boxes = [];
 let grid_cells = [];
-let all_detected_grid_cells = [];
 let field_visibility = {};
 let field_text = {};
 let field_type = {};
 let field_subsection = {};
 let subsections = [];
-let startPageIndex = 0; // start_page initialized to page 1 (index 0)
+let startPageIndex = null; // start_page initialized to page 1 (index 0)
 let endPageIndex = null;
+let docIndex = null;
+let lastNewIncrementPageIndex = null;
+let hasRenderedTableSection = false;
 let autoSaveInFlight = false;
 let autoSavePending = false;
 
 let currentDocPage = 0;
 let currentDocID = 0;
 let currentProjectID = "";
-let currentPageIndex = 0;
+let currentPageIndex = 1;
 let currentFileList = [];
 let currentCategory = null;
 
@@ -52,6 +53,11 @@ tooltip.className = "tooltip";
 document.body.appendChild(tooltip);
 
 // === DISPLAY INFO ===
+/**
+ * Updates the review header title area with contextual information.
+ * @param {string} info - Text to show in the header.
+ * @returns {void}
+ */
 function displayInfo(info) {
   //display info in ocr-demo-title
   const title = document.getElementById("ocr-demo-title");
@@ -59,6 +65,11 @@ function displayInfo(info) {
 
 }
 // Démarrer un spinner avec sweetalert
+/**
+ * Shows a blocking loading modal with a spinner.
+ * @param {string} message - Message displayed under the spinner.
+ * @returns {void}
+ */
 function startSpinner(message) {
     Swal.fire({
         html: `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
@@ -70,18 +81,30 @@ function startSpinner(message) {
         backdrop: true
     });
 }
+/**
+ * Closes the loading modal if one is currently open.
+ * @returns {void}
+ */
 function stopSpinner() {
     Swal.close();
 }
 
 // Fonction pour créer la liste des fichiers
+/**
+ * Builds the in-memory page index list for the selected document.
+ * @param {string} project_id - Active project identifier.
+ * @param {string} document_id - Active document identifier.
+ * @param {Array<object>} fileArray - Project document metadata array.
+ * @returns {void}
+ */
 function createFileList(project_id, document_id, fileArray) {
   //loop in fileArray and add each file with its page number
+  currentFileList.push({ document_id: 0, page: 0 });
   fileArray.forEach((file, index) => {
     // create a list on nbr_pages of document id in fileIndexList
     if (file.document_id==document_id) {
       for (let i = 0; i < file.nbr_pages; i++) {
-          currentFileList.push({ document_id: file.document_id, page: i });
+          currentFileList.push({ document_id: file.document_id, page: i + 1 });
         }
         nbrPageMax += file.nbr_pages;
     }
@@ -91,8 +114,19 @@ function createFileList(project_id, document_id, fileArray) {
 
 
 // === MAIN LOADING FUNCTION ===
-async function loadPage(project_id, index, init_scroll=false, sourceMode="auto") {
-  if (currentFileList.length === 0 || index < 0 || index >= nbrPageMax) {
+/**
+ * Loads all page assets (table data, OCR data, bboxes, debug overlays) then renders the page.
+ * @param {string} project_id - Active project identifier.
+ * @param {number} index - 1-based logical page index used by backend filenames.
+ * @param {boolean} [init_scroll=false] - Whether to reset image viewer scroll position.
+ * @param {"raw"|"edited"} [sourceMode="edited"] - Source mode for table payload.
+ * @param {boolean} [loadIndexes=true] - Whether to hydrate start/end/doc indices from loaded JSON data.
+ * @param {boolean} [renderTable=true] - Whether to rebuild/refresh the table section after image render.
+ * @returns {Promise<boolean|undefined>} True when page data is loaded; false/undefined otherwise.
+ */
+async function loadPage(project_id, index, init_scroll=false, sourceMode="edited", loadIndexes=true, renderTable=true) {
+  
+  if (currentFileList.length === 0 || index <= 0 || index > nbrPageMax) {
     console.error("No files available for loading.");
     return;
   }
@@ -103,14 +137,13 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="auto")
     currentDocID = currentFileList[index].document_id;
     currentCategory = project_data?.find(f => f.document_id === currentDocID)?.category ?? null;
     //start spinner cursor
-    page_id = `page_${index+1}`;
+    page_id = `page_${index}`;
     const responses = await Promise.all([
         fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=raw`).then(res => res.json()).catch(() => ({})),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
-        fetch(`/get_raw_data/${project_id}/${currentDocID}/checked_boxes_${page_id}.json`).then(res => res.json()).catch(() => []),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({}))
     ]);
     if (!responses[0].data_string || !responses[1].data_string || !responses[2].data_string) {
@@ -121,22 +154,24 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="auto")
     value_bbox = JSON.parse(responses[1].data_string || '{}');
     extract_values = JSON.parse(responses[2].data_string || '{}');
     raw_extract_values = JSON.parse(responses[3]?.data_string || '{}');
+    // console.log("Raw extract values:", raw_extract_values);
+    if (loadIndexes) {
+      startPageIndex = parseNullableIndex(extract_values.start_index);
+      endPageIndex = parseNullableIndex(extract_values.end_index);
+      docIndex = parseNullableIndex(extract_values.doc_index);
+    }
+
     field_visibility = responses[2].field_visibility || {};
     field_text = responses[2].field_text || {};
     field_type = responses[2].field_type || {};
     field_subsection = responses[2].field_subsection || {};
     subsections = responses[2].subsections || [];
     all_blocks = responses[4] || [];
-    checked_boxes = responses[5] || [];
-    const gridData = responses[6] || {};
+    const gridData = responses[5] || {};
     grid_cells = gridData.cells || [];
-    all_detected_grid_cells = gridData.all_detected_cells || [];
-  // Exemple d'utilisation :
-    // label_bbox = adjustBboxHeight(label_bbox, 40);
-    // value_bbox = adjustBboxHeight(value_bbox, 40);
+    updateRangeIndexDisplay();
 
-    displayPage(project_id, currentDocID, index, init_scroll);
-    return true;
+    return await displayPage(project_id, currentDocID, index, init_scroll, false, renderTable);
   } catch (error) {
     console.error("Erreur chargement des données OCR:", error);
     return false;
@@ -144,194 +179,266 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="auto")
 }
 
 // === DISPLAY IMAGE & BBOXES ===
-function displayPage(project_id, document_id, index, init_scroll=false, imageOnly=false) {
+/**
+ * Renders the page image, overlays and editable table for a given page index.
+ * @param {string} project_id - Active project identifier.
+ * @param {string} document_id - Active document identifier.
+ * @param {number} index - 1-based logical page index.
+ * @param {boolean} [init_scroll=false] - Whether to re-center scroll on first render.
+ * @param {boolean} [imageOnly=false] - If true, updates only image/overlays without rebuilding table UI.
+ * @param {boolean} [renderTable=true] - If false, keeps existing table content/controls unchanged.
+ * @returns {Promise<boolean>} True when rendering completed, false on load/render failure.
+ */
+async function displayPage(project_id, document_id, index, init_scroll=false, imageOnly=false, renderTable=true) {
 
-  // Cherche l'image
-  const imageElement = document.getElementById("page-image");
-  imageElement.style.display = "none";
-  if(svg!=null)
-    svg.style.display = "none"; // Masquer au départ
+  return await new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      resolve(ok);
+    };
 
-  page_id = `page_${index+1}`;
-
-  // Load image
-  fetch(`/get_image/${project_id}/${document_id}/${page_id}.png`)
-    .then(res => res.blob())
-    .then(blob => {
-      imageElement.src = URL.createObjectURL(blob);
-    })
-    .catch(err => {
-      console.error("Image load failed:", err);
-      imageElement.style.display = "none";
-    });
-
-  imageElement.onload = () => {
-    //remove polygons and svg
-    document.querySelectorAll('svg.bbox').forEach(el => el.remove());
-    document.querySelectorAll('svg').forEach(el => el.remove());
-
+    // Cherche l'image
     const imageElement = document.getElementById("page-image");
-    const viewerImage = document.getElementById("viewer-image");
-    imageElement.style.display = "block";
-
-  // Utilise la taille affichée de l'image
-    const imgWidth = imageElement.clientWidth;
-    const imgHeight = imageElement.naturalHeight * imageElement.clientWidth / imageElement.naturalWidth;
-
-    // Dimensions effectives après rotation
-    const isRotated = (currentRotation % 180 !== 0);
-    const effectiveWidth = isRotated ? imgHeight : imgWidth;
-    const effectiveHeight = isRotated ? imgWidth : imgHeight;
-    const viewerWidth = effectiveWidth * currentScale + padding * 2;
-    const viewerHeight = effectiveHeight * currentScale + padding * 2;
-
-    // Centre de rotation = centre de l'image
-    const cx = imgWidth / 2;
-    const cy = imgHeight / 2;
-    const transformOrigin = `${cx}px ${cy}px`;
-
-    // Position de l'image: le centre doit être au centre du viewer
-    const imgLeft = padding + (effectiveWidth * currentScale - imgWidth) / 2;
-    const imgTop = padding + (effectiveHeight * currentScale - imgHeight) / 2;
-
-    //display img size to console
-    // console.log(`Image size: ${imgWidth}px x ${imgHeight}px`);
-    // console.log(`Scale: ${currentScale}, Rotation: ${currentRotation}`);
-    // Ajoute un padding autour pour le scroll
-   // Le SVG aura la même taille que l'image + padding
-    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.style.left = `${imgLeft}px`;
-    svg.style.top = `${imgTop}px`;
-    svg.style.width = `${imgWidth}px`;
-    svg.style.height = `${imgHeight}px`;
-    // svg.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
-    svg.style.pointerEvents = "auto";
-    svg.style.position = "absolute";
-    svg.style.transformOrigin = transformOrigin;
-
-    // Calcule le scale pour les bboxes
-    const scaleX =  imgWidth / imageElement.naturalWidth;
-    const scaleY =  imgHeight / imageElement.naturalHeight;
-    if (!imageOnly) {
-      // Affichage des polygones avec couleurs par label
-      displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
-      // displayDetectedGridCandidates(svg, all_detected_grid_cells, 0, 0, scaleX, scaleY);
-      displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
-      // displayBbox(svg, extract_values, label_bbox, 0, 0, scaleX, scaleY, "label");
-      displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
-      // displayCheckedBoxes(svg, checked_boxes, 0, 0, scaleX, scaleY);
-    }
-
-     // Applique la transformation
-    svg.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
-
-    // Applique la transformation au conteneur de l'image
-    imageElement.style.width = `${imgWidth}px`;
-    imageElement.style.height = `${imgHeight}px`;
-    imageElement.style.position = "absolute";
-    imageElement.style.left = `${imgLeft}px`;
-    imageElement.style.top = `${imgTop}px`;
-    imageElement.style.transformOrigin = transformOrigin;
-    imageElement.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
-
-    // // viewerImage.style.backgroundColor = "rgba(0, 255, 0, 0.3)";
-    viewerImage.style.width = viewerWidth + "px";
-    viewerImage.style.height = viewerHeight + "px";
-
-    // Initialiser le défilement
-    if(init_scroll) {
-      const viewerImageFrame = document.getElementById("viewer-image-frame");
-      //Scroll viewerImage to center
-      viewerImageFrame.scrollLeft = padding;
-      viewerImageFrame.scrollTop = padding;
-    }
-    //Add SVG  elements
-    svg.style.display = "block";
-    viewerImage.appendChild(svg);  
-
-    if (!imageOnly) {
-      // Effacer le tableau/pagination sans retirer la structure des slots
-      const tableValuesContainer = document.getElementById("table-values-container");
-      const paginationSlot = document.getElementById("pagination-slot");
-      const tableHeaderSlot = document.getElementById("table-header-slot");
-      if (tableValuesContainer) tableValuesContainer.innerHTML = "";
-      if (paginationSlot) paginationSlot.innerHTML = "";
-      if (tableHeaderSlot) tableHeaderSlot.innerHTML = "";
-      // Keep parameter table order aligned with JSON definition order.
-      // 1) keys order from label_bbox (built from config JSON order on backend)
-      // 2) append any remaining keys in their existing insertion order
-      const labelOrder = Object.keys(label_bbox || {});
-      const entries = Object.entries(extract_values || {});
-
-      const normalizeKey = (s) =>
-        String(s || "")
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-          .replace(/[-_/]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-      // Keep both exact and normalized views so keys like
-      // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
-      const byKey = new Map(entries);
-      const byNorm = new Map();
-      for (const [k, v] of entries) {
-        const nk = normalizeKey(k);
-        if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
-      }
-      const orderedEntries = [];
-
-      for (const key of labelOrder) {
-        if (byKey.has(key)) {
-          orderedEntries.push([key, byKey.get(key)]);
-          byKey.delete(key);
-          const nk = normalizeKey(key);
-          if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
-            byNorm.delete(nk);
-          }
-        } else {
-          const nk = normalizeKey(key);
-          if (byNorm.has(nk)) {
-            const [realKey, value] = byNorm.get(nk);
-            orderedEntries.push([realKey, value]);
-            byNorm.delete(nk);
-            byKey.delete(realKey);
-          }
-        }
-      }
-
-      for (const [key, value] of entries) {
-        if (byKey.has(key)) {
-          orderedEntries.push([key, value]);
-          byKey.delete(key);
-        }
-      }
-
-      extract_values = Object.fromEntries(orderedEntries);
-
-      // Header actions (Nouveau / Load / Save)
-      createTopActionControls();
-
-      // Génération du tableau éditable
-      generateEditableTable(extract_values);
-      // Pagination après le tableau
-      createPaginationControls(currentPageIndex+1, nbrPageMax);
-    } else {
-      const pageInput = document.getElementById("page-index-input");
-      if (pageInput) {
-        pageInput.value = String(currentPageIndex + 1);
-      }
-    }
-
-  };
-  imageElement.onerror = () => {
     imageElement.style.display = "none";
-    // Optionnel: afficher un message d’erreur
-  };
+    if(svg!=null)
+      svg.style.display = "none"; // Masquer au départ
+
+    page_id = `page_${index}`;
+
+    imageElement.onload = () => {
+      //remove polygons and svg
+      document.querySelectorAll('svg.bbox').forEach(el => el.remove());
+      document.querySelectorAll('svg').forEach(el => el.remove());
+
+      const imageElement = document.getElementById("page-image");
+      const viewerImage = document.getElementById("viewer-image");
+      imageElement.style.display = "block";
+
+    // Utilise la taille affichée de l'image
+      const imgWidth = imageElement.clientWidth;
+      const imgHeight = imageElement.naturalHeight * imageElement.clientWidth / imageElement.naturalWidth;
+
+      // Dimensions effectives après rotation
+      const isRotated = (currentRotation % 180 !== 0);
+      const effectiveWidth = isRotated ? imgHeight : imgWidth;
+      const effectiveHeight = isRotated ? imgWidth : imgHeight;
+      const viewerWidth = effectiveWidth * currentScale + padding * 2;
+      const viewerHeight = effectiveHeight * currentScale + padding * 2;
+
+      // Centre de rotation = centre de l'image
+      const cx = imgWidth / 2;
+      const cy = imgHeight / 2;
+      const transformOrigin = `${cx}px ${cy}px`;
+
+      // Position de l'image: le centre doit être au centre du viewer
+      const imgLeft = padding + (effectiveWidth * currentScale - imgWidth) / 2;
+      const imgTop = padding + (effectiveHeight * currentScale - imgHeight) / 2;
+
+      //display img size to console
+      // console.log(`Image size: ${imgWidth}px x ${imgHeight}px`);
+      // console.log(`Scale: ${currentScale}, Rotation: ${currentRotation}`);
+      // Ajoute un padding autour pour le scroll
+    // Le SVG aura la même taille que l'image + padding
+      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.style.left = `${imgLeft}px`;
+      svg.style.top = `${imgTop}px`;
+      svg.style.width = `${imgWidth}px`;
+      svg.style.height = `${imgHeight}px`;
+      // svg.style.backgroundColor = "rgba(255, 0, 0, 0.3)";
+      svg.style.pointerEvents = "auto";
+      svg.style.position = "absolute";
+      svg.style.transformOrigin = transformOrigin;
+
+      // Calcule le scale pour les bboxes
+      const scaleX =  imgWidth / imageElement.naturalWidth;
+      const scaleY =  imgHeight / imageElement.naturalHeight;
+      if (!imageOnly) {
+        // Affichage des polygones avec couleurs par label
+        displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
+
+        displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
+
+        displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
+
+        updateRangeIndexDisplay();
+
+
+      }
+
+      // Applique la transformation
+      svg.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
+
+      // Applique la transformation au conteneur de l'image
+      imageElement.style.width = `${imgWidth}px`;
+      imageElement.style.height = `${imgHeight}px`;
+      imageElement.style.position = "absolute";
+      imageElement.style.left = `${imgLeft}px`;
+      imageElement.style.top = `${imgTop}px`;
+      imageElement.style.transformOrigin = transformOrigin;
+      imageElement.style.transform = `rotate(${currentRotation}deg) scale(${currentScale})`;
+
+      // // viewerImage.style.backgroundColor = "rgba(0, 255, 0, 0.3)";
+      viewerImage.style.width = viewerWidth + "px";
+      viewerImage.style.height = viewerHeight + "px";
+
+      // Initialiser le défilement
+      if(init_scroll) {
+        const viewerImageFrame = document.getElementById("viewer-image-frame");
+        //Scroll viewerImage to center
+        viewerImageFrame.scrollLeft = padding;
+        viewerImageFrame.scrollTop = padding;
+      }
+      //Add SVG  elements
+      svg.style.display = "block";
+      viewerImage.appendChild(svg);  
+
+      if (renderTable) {
+        renderTableSection(imageOnly);
+      } else {
+        updatePaginationControls(currentPageIndex, nbrPageMax);
+        updateRangeIndexDisplay();
+      }
+      finish(true);
+    };
+    imageElement.onerror = () => {
+      imageElement.style.display = "none";
+      // Optionnel: afficher un message d’erreur
+      finish(false);
+    };
+
+    // Load image
+    fetch(`/get_image/${project_id}/${document_id}/${page_id}.png`)
+      .then(res => res.blob())
+      .then(blob => {
+        imageElement.src = URL.createObjectURL(blob);
+      })
+      .catch(err => {
+        console.error("Image load failed:", err);
+        imageElement.style.display = "none";
+        finish(false);
+      });
+  });
+}
+
+/**
+ * Renders (or refreshes) the table, actions and pagination section separately from image drawing.
+ * @param {boolean} imageOnly - When true, only syncs pagination input without rebuilding the table.
+ * @returns {void}
+ */
+function renderTableSection(imageOnly) {
+  if (!imageOnly) {
+    // Effacer le tableau/pagination sans retirer la structure des slots
+    const tableValuesContainer = document.getElementById("table-values-container");
+    const paginationSlot = document.getElementById("pagination-slot");
+    const tableHeaderSlot = document.getElementById("table-header-slot");
+    if (tableValuesContainer) tableValuesContainer.innerHTML = "";
+    if (paginationSlot) paginationSlot.innerHTML = "";
+    if (tableHeaderSlot) tableHeaderSlot.innerHTML = "";
+    // Keep parameter table order aligned with JSON definition order.
+    // 1) keys order from label_bbox (built from config JSON order on backend)
+    // 2) append any remaining keys in their existing insertion order
+    const labelOrder = Object.keys(label_bbox || {});
+    const entries = Object.entries(extract_values || {});
+
+    const normalizeKey = (s) =>
+      String(s || "")
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[-_/]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Keep both exact and normalized views so keys like
+    // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
+    const byKey = new Map(entries);
+    const byNorm = new Map();
+    for (const [k, v] of entries) {
+      const nk = normalizeKey(k);
+      if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
+    }
+    const orderedEntries = [];
+
+    for (const key of labelOrder) {
+      if (byKey.has(key)) {
+        orderedEntries.push([key, byKey.get(key)]);
+        byKey.delete(key);
+        const nk = normalizeKey(key);
+        if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
+          byNorm.delete(nk);
+        }
+      } else {
+        const nk = normalizeKey(key);
+        if (byNorm.has(nk)) {
+          const [realKey, value] = byNorm.get(nk);
+          orderedEntries.push([realKey, value]);
+          byNorm.delete(nk);
+          byKey.delete(realKey);
+        }
+      }
+    }
+
+    for (const [key, value] of entries) {
+      if (byKey.has(key)) {
+        orderedEntries.push([key, value]);
+        byKey.delete(key);
+      }
+    }
+
+    extract_values = Object.fromEntries(orderedEntries);
+
+    // Header actions (Nouveau / Prochaine)
+    createTopActionControls();
+    updateRangeIndexDisplay();
+
+    // Génération du tableau éditable
+    generateEditableTable(extract_values);
+    // Pagination après le tableau
+    createPaginationControls(currentPageIndex, nbrPageMax);
+    return;
+  }
+
+  const pageInput = document.getElementById("page-index-input");
+  if (pageInput) {
+    pageInput.value = String(currentPageIndex);
+  }
+}
+
+/**
+ * Updates existing table rows with values from the loaded page without recreating controls.
+ * @param {Object} data - Current page value map.
+ * @returns {void}
+ */
+function updateExistingTableValues(data) {
+  const table = document.querySelector(".param-table");
+  if (!table) return;
+
+  table.querySelectorAll("tbody tr").forEach(row => {
+    if (row.classList.contains("group-separator-row")) return;
+    const keyCell = row.querySelector("td.param-cell");
+    const valueCell = row.querySelector("td.value-cell");
+    if (!keyCell || !valueCell) return;
+
+    const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+    if (!key || ["start_index", "end_index", "doc_index"].includes(key)) return;
+    const nextValue = data[key];
+    valueCell.textContent = nextValue !== null && nextValue !== undefined ? String(nextValue) : "";
+  });
 }
 
 // === DISPLAY ALL TESSERACT BLOCKS ===
+/**
+ * Draws OCR text block rectangles on the SVG overlay.
+ * @param {SVGElement} svg - Target SVG overlay.
+ * @param {Array<object>} blocks - OCR block list with bbox/text fields.
+ * @param {number} offsetX - Horizontal pixel offset.
+ * @param {number} offsetY - Vertical pixel offset.
+ * @param {number} scaleX - Horizontal scaling factor.
+ * @param {number} scaleY - Vertical scaling factor.
+ * @returns {void}
+ */
 function displayAllBlocks(svg, blocks, offsetX, offsetY, scaleX, scaleY) {
   if (!blocks || !blocks.length) return;
   blocks.forEach((block) => {
@@ -367,22 +474,30 @@ function displayAllBlocks(svg, blocks, offsetX, offsetY, scaleX, scaleY) {
   });
 }
 
+/**
+ * Persists current table data and propagates it to every page in the active range.
+ * @param {Object|null} [dataOverride=null] - Optional payload overriding table collection.
+ * @returns {Promise<void>}
+ */
 async function autoSaveInputAndBackfill(dataOverride = null) {
   const data = dataOverride || collectTableDataForSave();
   if (!data) return;
 
-  await sendTableToServer(data);
-
-  const previousPageIndex = currentPageIndex - 1;
-  endPageIndex = previousPageIndex;
+  // if (!Number.isInteger(startPageIndex)) {
+  //   startPageIndex = currentPageIndex;
+  // }
+  endPageIndex = currentPageIndex;
   updateRangeIndexDisplay();
-
-  if (startPageIndex === null || previousPageIndex < startPageIndex) return;
-  for (let i = startPageIndex; i <= previousPageIndex; i++) {
-  await saveTableDataToPageIndex(i, data);
+  // console.log("Auto-saving from page", startPageIndex, "to", endPageIndex);
+  for (let i = startPageIndex; i <= endPageIndex; i++) {
+    await saveTableDataToPageIndex(i, data);
   }
 }
 
+/**
+ * Debounces autosave requests so concurrent keystrokes are serialized safely.
+ * @returns {void}
+ */
 function scheduleAutoSaveFromInput() {
   autoSavePending = true;
   if (autoSaveInFlight) return;
@@ -407,6 +522,18 @@ function scheduleAutoSaveFromInput() {
 }
 
 // === DISPLAY BOXES ON IMAGE ===
+/**
+ * Draws label/value polygons on the SVG overlay and configures hover tooltips.
+ * @param {SVGElement} svg - Target SVG overlay.
+ * @param {Object} data - Current value map (used for tooltip values).
+ * @param {Object} boxes - Bounding box map keyed by label.
+ * @param {number} offsetX - Horizontal pixel offset.
+ * @param {number} offsetY - Vertical pixel offset.
+ * @param {number} scaleX - Horizontal scaling factor.
+ * @param {number} scaleY - Vertical scaling factor.
+ * @param {"label"|"value"} boxType - Overlay type to style.
+ * @returns {void}
+ */
 function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType) {
 
   Object.entries(boxes).forEach(([label, bbox]) => {
@@ -489,6 +616,16 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
 }
 
 // === DISPLAY ALL GRID CELLS ===
+/**
+ * Draws detected grid cell contours used for manual OCR debugging.
+ * @param {SVGElement} svg - Target SVG overlay.
+ * @param {Array<object>} gridCells - Grid cell list with row/col/bbox metadata.
+ * @param {number} offsetX - Horizontal pixel offset.
+ * @param {number} offsetY - Vertical pixel offset.
+ * @param {number} scaleX - Horizontal scaling factor.
+ * @param {number} scaleY - Vertical scaling factor.
+ * @returns {void}
+ */
 function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
   if (!gridCells || !gridCells.length) return;
 
@@ -584,89 +721,11 @@ function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
   });
 }
 
-function displayDetectedGridCandidates(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
-  if (!gridCells || !gridCells.length) return;
-
-  gridCells.forEach((cell) => {
-    const bbox = cell.bbox;
-    if (!bbox || bbox.length !== 4) return;
-
-    const x = bbox[0][0] * scaleX + offsetX;
-    const y = bbox[0][1] * scaleY + offsetY;
-    const w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
-    const h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
-
-    const contour = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    contour.setAttribute("x", x);
-    contour.setAttribute("y", y);
-    contour.setAttribute("width", w);
-    contour.setAttribute("height", h);
-    contour.setAttribute("fill", "rgba(255, 0, 0, 0.04)");
-    contour.setAttribute("stroke", "rgba(255, 0, 0, 0.7)");
-    contour.setAttribute("stroke-width", "1");
-    contour.setAttribute("stroke-dasharray", "4 2");
-    contour.style.pointerEvents = "auto";
-
-    contour.addEventListener("mouseenter", () => {
-      const rawW = Math.round((cell.bbox[1][0] - cell.bbox[0][0]) * scaleX);
-      const rawH = Math.round((cell.bbox[2][1] - cell.bbox[1][1]) * scaleY);
-      tooltip.textContent = `Contour brut (${rawW}x${rawH}px)`;
-      tooltip.style.opacity = 1;
-    });
-    contour.addEventListener("mousemove", (e) => {
-      tooltip.style.left = `${e.pageX + 10}px`;
-      tooltip.style.top = `${e.pageY + 10}px`;
-    });
-    contour.addEventListener("mouseleave", () => {
-      tooltip.style.opacity = 0;
-    });
-
-    svg.appendChild(contour);
-  });
-}
-
-// === DISPLAY CHECKED BOXES ===
-function displayCheckedBoxes(svg, checkedCells, offsetX, offsetY, scaleX, scaleY) {
-  if (!checkedCells || !checkedCells.length) return;
-
-  checkedCells.forEach((cell) => {
-    const bbox = cell.bbox;
-    if (!bbox || bbox.length !== 4) return;
-
-    let x = bbox[0][0] * scaleX + offsetX;
-    let y = bbox[0][1] * scaleY + offsetY;
-    let w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
-    let h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
-
-    let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    rect.setAttribute("x", x);
-    rect.setAttribute("y", y);
-    rect.setAttribute("width", w);
-    rect.setAttribute("height", h);
-    rect.setAttribute("fill", "none");
-    rect.setAttribute("stroke", "rgba(255, 152, 0, 0.95)");
-    rect.setAttribute("stroke-width", "1.5");
-
-    rect.addEventListener("mouseenter", (e) => {
-      const row = (cell.row ?? "?");
-      const col = (cell.col ?? "?");
-      const ratio = (typeof cell.fill_ratio === "number") ? cell.fill_ratio : "n/a";
-      tooltip.textContent = `Case cochée r${row} c${col} (ratio=${ratio})`;
-      tooltip.style.opacity = 1;
-    });
-    rect.addEventListener("mousemove", (e) => {
-      tooltip.style.left = `${e.pageX + 10}px`;
-      tooltip.style.top = `${e.pageY + 10}px`;
-    });
-    rect.addEventListener("mouseleave", () => {
-      tooltip.style.opacity = 0;
-    });
-
-    svg.appendChild(rect);
-  });
-}
-
 // === PAGINATION ===
+/**
+ * Builds top action controls (Nouveau/Prochaine) and index display container.
+ * @returns {void}
+ */
 function createTopActionControls() {
   const slot = document.getElementById("table-header-slot");
   if (!slot) return;
@@ -698,17 +757,38 @@ function createTopActionControls() {
 
   row.append(buttons, rangeInfo);
   slot.appendChild(row);
-  updateRangeIndexDisplay();
 }
 
+/**
+ * Refreshes header metadata display for document/range indices.
+ * @returns {void}
+ */
 function updateRangeIndexDisplay() {
   const rangeInfo = document.getElementById("range-index-display");
   if (!rangeInfo) return;
-  const startText = startPageIndex === null ? "-" : String(startPageIndex + 1);
-  const endText = endPageIndex === null ? "-" : String(endPageIndex + 1);
-  rangeInfo.textContent = `Début page: ${startText} | Fin Page: ${endText}`;
-}
 
+  const rawStart = Number.isInteger(startPageIndex)
+    ? startPageIndex
+    : parseNullableIndex(extract_values?.start_index);
+  const rawEnd = Number.isInteger(endPageIndex)
+    ? endPageIndex
+    : parseNullableIndex(extract_values?.end_index);
+  const rawDocIndex = Number.isInteger(docIndex)
+    ? docIndex
+    : parseNullableIndex(extract_values?.doc_index);
+
+  const startText = Number.isInteger(rawStart) ? String(rawStart) : "-";
+  const endText = Number.isInteger(rawEnd) ? String(rawEnd) : "-";
+  const docText = Number.isInteger(rawDocIndex) ? String(rawDocIndex) : "-";
+  rangeInfo.textContent = `Document: ${docText} | Début: ${startText} | Fin: ${endText}`;
+} 
+
+/**
+ * Creates footer pagination controls and page number input.
+ * @param {number} current - Current 1-based page shown in UI.
+ * @param {number} max - Maximum available page count.
+ * @returns {void}
+ */
 function createPaginationControls(current, max) {
   const container = document.createElement("div");
   container.className = "pagination-container";
@@ -757,6 +837,7 @@ function createPaginationControls(current, max) {
   });
 
   const pageMaxText = document.createElement("span");
+  pageMaxText.id = "page-max-display";
   pageMaxText.textContent = `/${max}`;
   pageDiv.append(pageText, pageInput, pageMaxText);
   
@@ -772,50 +853,140 @@ function createPaginationControls(current, max) {
   slot.appendChild(container);
 }
 
+/**
+ * Updates pagination input values without recreating controls.
+ * @param {number} current - Current page index shown in UI.
+ * @param {number} max - Maximum page count.
+ * @returns {void}
+ */
+function updatePaginationControls(current, max) {
+  const pageInput = document.getElementById("page-index-input");
+  if (pageInput) {
+    pageInput.max = String(max);
+    pageInput.value = String(current);
+  }
+  const pageMaxText = document.getElementById("page-max-display");
+  if (pageMaxText) {
+    pageMaxText.textContent = `/${max}`;
+  }
+}
+
+/**
+ * Navigates to previous page when available.
+ * @returns {void}
+ */
 function previousPage() {
   if (currentPageIndex <= 0) return;
-  navigateToPageWithMode(currentPageIndex - 1);
-}
-
-function nextPage() {
-  if (currentPageIndex >= nbrPageMax-1) return;
-  navigateToPageWithMode(currentPageIndex + 1);
-}
-
-function navigateToPageWithMode(index) {
-  loadPage(currentProjectID, index, false, "auto")
+  loadPage(currentProjectID, currentPageIndex - 1, false, "edited",true)
     .catch((err) => {
       console.error("Navigation load failed:", err);
     });
 }
 
-function navigateImageOnly(index) {
-  if (currentFileList.length === 0 || index < 0 || index >= nbrPageMax) return;
-  currentPageIndex = index;
-  currentDocPage = currentFileList[index].page;
-  currentDocID = currentFileList[index].document_id;
-  currentCategory = project_data?.find(f => f.document_id === currentDocID)?.category ?? null;
-  page_id = `page_${index + 1}`;
-  displayPage(currentProjectID, currentDocID, index, false, true);
+/**
+ * Navigates to next page when available.
+ * @returns {void}
+ */
+function nextPage() {
+  if (currentPageIndex >= nbrPageMax) return;
+  loadPage(currentProjectID, currentPageIndex + 1, false, "edited",true)
+    .catch((err) => {
+      console.error("Navigation load failed:", err);
+    });
 }
 
+
+/**
+ * Workflow callback for Prochaine: move next, load OCR fallback, then persist range data.
+ * @returns {Promise<void>}
+ */
 async function nextPageWithLoadAndPropagate() {
-  if (currentPageIndex >= nbrPageMax - 1) return;
+  if (currentPageIndex >= nbrPageMax) return;
   try {
-    const loaded = await loadPage(currentProjectID, currentPageIndex + 1, false, "auto");
+    const preservedTableData = collectTableDataForSave();
+    if (!preservedTableData) return;
+
+    // Auto-save the current page's input and backfill any derived fields
+    await autoSaveInputAndBackfill(preservedTableData);
+
+    // Load the next page before propagating changes
+    const loaded = await loadPage(currentProjectID, currentPageIndex + 1, false, "edited", false, false);
     if (!loaded) return;
+
+    // Keep the same table values, then enrich empties from next-page OCR.
+    extract_values = { ...preservedTableData };
+    updateExistingTableValues(extract_values);
     await loadAndFillCurrentPageEmpty();
-    await autoSaveInputAndBackfill();
+    //Save if current page is the last page
+    if (currentPageIndex === nbrPageMax) {
+      await autoSaveInputAndBackfill(collectTableDataForSave());
+    }
+
+
+
   } catch (err) {
     console.error("Prochaine failed:", err);
   }
 }
 
+/**
+ * Checks whether a value should be treated as empty in editable cells.
+ * @param {*} v - Candidate value.
+ * @returns {boolean}
+ */
 function isEmptyValue(v) {
   return v === null || v === undefined || (typeof v === "string" && v.trim() === "");
 }
 
+/**
+ * Parses nullable index fields coming from JSON payloads.
+ * @param {*} value - Raw index value from server or local state.
+ * @returns {number|null} Integer index or null when invalid/empty.
+ */
+function parseNullableIndex(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+/**
+ * Attaches index metadata to a payload before persistence.
+ * @param {Object} data - Data payload to enrich.
+ * @returns {Object} Copy containing start/end/doc index fields.
+ */
+function withPageRangeMetadata(data) {
+  const nextData = { ...(data || {}) };
+  const startIndex = parseNullableIndex(startPageIndex);
+  const endIndex = parseNullableIndex(endPageIndex);
+  const nextDocIndex = parseNullableIndex(docIndex);
+  nextData.start_index = startIndex;
+  nextData.end_index = endIndex;
+  nextData.doc_index = nextDocIndex;
+  return nextData;
+}
+
+/**
+ * Removes non-editable metadata keys from payloads used by the table renderer.
+ * @param {Object} data - Source payload.
+ * @returns {Object}
+ */
+function stripPageRangeMetadata(data) {
+  if (!data || typeof data !== "object") return data;
+  const nextData = { ...data };
+  delete nextData.start_index;
+  delete nextData.end_index;
+  delete nextData.doc_index;
+  return nextData;
+}
+
 // === TABLE UI ===
+/**
+ * Generates the editable parameter table from current page data.
+ * @param {Object} data - Key/value table data.
+ * @param {string} [containerId="table-values-container"] - Target container element ID.
+ * @returns {void}
+ */
 function generateEditableTable(data, containerId = "table-values-container") {
   const container = document.getElementById(containerId) || document.getElementById("table-container");
   if (!container) return;
@@ -843,6 +1014,7 @@ function generateEditableTable(data, containerId = "table-values-container") {
   let lastSubsectionId = null;
 
   for (const [key, value] of Object.entries(data)) {
+    if (["start_index", "end_index", "doc_index"].includes(key)) continue;
     if (field_visibility[key] === false) continue;
     const currentSubsectionId = field_subsection[key] || null;
     if (currentSubsectionId && currentSubsectionId !== lastSubsectionId) {
@@ -910,11 +1082,15 @@ function generateEditableTable(data, containerId = "table-values-container") {
 }
 
 // === SYNC TO SERVER ===
+/**
+ * Reads edited values from DOM and prepares a save-ready payload.
+ * @returns {Object|null} Payload including metadata, or null when table is absent.
+ */
 function collectTableDataForSave() {
   const table = document.querySelector(".param-table");
   if (!table) return null;
 
-  const data = { ...extract_values };
+  const data = stripPageRangeMetadata({ ...extract_values });
   table.querySelectorAll("tbody tr").forEach(row => {
     if (row.classList.contains("group-separator-row")) return;
     const keyCell = row.querySelector("td.param-cell");
@@ -927,64 +1103,51 @@ function collectTableDataForSave() {
       extract_values[key] = value;
     }
   });
-  return data;
+  return withPageRangeMetadata(data);
 }
 
-function sendTableToServer(dataOverride = null) {
-  const data = dataOverride || collectTableDataForSave();
-  if (!data) return Promise.resolve(null);
 
-  const formData = new FormData();
-  formData.append("project_id", currentProjectID);
-  formData.append("document_id", currentDocID);
-  formData.append("filename", `table_page_${currentDocPage+1}.json`);
-  formData.append("data", JSON.stringify(data));
-
-  return fetch("/put_data", { method: "POST", body: formData })
-    .then(res => res.json())
-    .then(payload => {
-      extract_values = { ...data };
-      console.log(payload);
-      return payload;
-    })
-    .catch(err => {
-      console.error("Upload failed:", err);
-      throw err;
-    });
-}
-
+/**
+ * Saves payload to a specific page JSON file through backend API.
+ * @param {number} pageIndex - 1-based logical page index.
+ * @param {Object} data - Payload to persist.
+ * @returns {Promise<Object|null>} Server response payload.
+ */
 async function saveTableDataToPageIndex(pageIndex, data) {
   if (!data || !currentProjectID) return null;
   const pageRef = currentFileList[pageIndex];
   if (!pageRef) return null;
 
   const formData = new FormData();
+  const payload = withPageRangeMetadata(data);
   formData.append("project_id", currentProjectID);
   formData.append("document_id", pageRef.document_id);
-  formData.append("filename", `table_page_${pageRef.page + 1}.json`);
-  formData.append("data", JSON.stringify(data));
-
+  formData.append("filename", `table_page_${pageRef.page}.json`);
+  formData.append("data", JSON.stringify(payload));
+  // console.log("Saving data for page index:", pageIndex, "with payload:", payload);
+  
   const response = await fetch("/put_data", { method: "POST", body: formData });
-  const payload = await response.json();
+  const responsePayload = await response.json();
   if (!response.ok) {
-    throw new Error(payload.error || `Unable to save page index ${pageIndex}`);
+    throw new Error(responsePayload.error || `Unable to save page index ${pageIndex}`);
   }
-  return payload;
+  return responsePayload;
 }
 
+/**
+ * Nouveau workflow: clears editable values, reloads OCR source, resets range and increments doc index.
+ * @returns {Promise<void>}
+ */
 async function startNewRangeFromRaw() {
   const table = document.querySelector(".param-table");
   if (!table) return;
 
   try {
-    // 1) upload data to server
-    // await sendTableToServer();
-
-    // 2) memorize end_page to previous page index
-    endPageIndex = currentPageIndex - 1;
-
-    // 3) assign uploaded data to start_page..end_page
-    // await assignActiveDataToPageRange();
+    const currentDocIndex = Number.isInteger(docIndex) ? docIndex : Number(extract_values?.doc_index);
+    const isSamePageAsLastNew = lastNewIncrementPageIndex === currentPageIndex;
+    const nextDocIndex = Number.isInteger(currentDocIndex)
+      ? (isSamePageAsLastNew ? currentDocIndex : currentDocIndex + 1)
+      : 1;
 
     // 4) clear table
     table.querySelectorAll("tbody tr").forEach(row => {
@@ -1000,17 +1163,27 @@ async function startNewRangeFromRaw() {
     });
 
     // 5) load raw data from current page
-    await loadPage(currentProjectID, currentPageIndex, false, "raw");
+    await loadPage(currentProjectID, currentPageIndex, false, "raw", false);
 
-    // 6) memorize start_page as current page
+    // 6) keep range/doc metadata for the new work segment
     startPageIndex = currentPageIndex;
-    endPageIndex = null;
+    endPageIndex = currentPageIndex;
+    docIndex = nextDocIndex;
+    lastNewIncrementPageIndex = currentPageIndex;
+    extract_values.start_index = startPageIndex;
+    extract_values.end_index = endPageIndex;
+    extract_values.doc_index = docIndex;
     updateRangeIndexDisplay();
+    
   } catch (err) {
     console.error("Nouveau failed:", err);
   }
 }
 
+/**
+ * Fills empty edited cells with OCR values from current page payload.
+ * @returns {Promise<void>}
+ */
 async function loadAndFillCurrentPageEmpty() {
   try {
     const table = document.querySelector(".param-table");
@@ -1040,18 +1213,6 @@ async function loadAndFillCurrentPageEmpty() {
   }
 }
 
-async function assignActiveDataToPageRange() {
-  if (startPageIndex === null || endPageIndex === null) return;
-  if (endPageIndex < startPageIndex) return;
-  const from = Math.min(startPageIndex, endPageIndex);
-  const to = Math.max(startPageIndex, endPageIndex);
-  const currentData = collectTableDataForSave() || { ...extract_values };
-
-  for (let i = from; i <= to; i++) {
-    await saveTableDataToPageIndex(i, currentData);
-  }
-}
-
 
 // === ROTATE & ZOOM CALLBACKS ===
 let currentRotation = 0;
@@ -1059,6 +1220,10 @@ let currentScale = 1;
 const minScale = 0.2;
 const maxScale = 3;
 
+/**
+ * Registers rotate/zoom/reset toolbar handlers for the page image viewer.
+ * @returns {void}
+ */
 function initButtonCallback(){
   const btnRotate = document.getElementById('btn-rotate');
   const btnZoomIn = document.getElementById('btn-zoom-in');
@@ -1068,26 +1233,26 @@ function initButtonCallback(){
   if (btnRotate) {
     btnRotate.addEventListener('click', () => {
       currentRotation = (currentRotation + 90) % 360;
-      displayPage(currentProjectID, currentDocID, currentDocPage);
+      displayPage(currentProjectID, currentDocID, currentDocPage,true,true);
     });
   }
   if (btnZoomIn) {
     btnZoomIn.addEventListener('click', () => {
       currentScale = Math.min(currentScale + 0.2, maxScale);
-      displayPage(currentProjectID, currentDocID, currentDocPage);
+      displayPage(currentProjectID, currentDocID, currentDocPage,true,true);
     });
   }
   if (btnZoomOut) {
     btnZoomOut.addEventListener('click', () => {
       currentScale = Math.max(currentScale - 0.2, minScale);
-      displayPage(currentProjectID, currentDocID, currentDocPage);
+      displayPage(currentProjectID, currentDocID, currentDocPage,true,true);
     });
   }
   if (btnReset) {
     btnReset.addEventListener('click', () => {
       currentRotation = 0;
       currentScale = 1;
-      displayPage(currentProjectID, currentDocID, currentDocPage,true);
+      displayPage(currentProjectID, currentDocID, currentDocPage,true,true);
     });
   }
 }
@@ -1107,12 +1272,14 @@ window.addEventListener('DOMContentLoaded', async function () {
   project_data = await ProjectManager.getProject(projectId);
 
   if (project_data.length > 0) {
-    startPageIndex = 0; // start_page = 1 at view start
+    startPageIndex = null;
     endPageIndex = null;
+    docIndex = null;
+    hasRenderedTableSection = false;
     createFileList(projectId, documentId, project_data);
 
     //Display First page
-    await loadPage(projectId, 0,true);
+    await loadPage(projectId, currentPageIndex,true);
 
 
     //display project data in fileList
@@ -1128,6 +1295,12 @@ window.addEventListener('DOMContentLoaded', async function () {
 });
 
 // Parcourt tous les bbox d'un objet (ex: label_bbox) et ajuste la hauteur si elle dépasse une valeur seuil
+/**
+ * Converts polygon corner coordinates into width/height-like values for debug usage.
+ * @param {Object} bboxObj - Bbox map keyed by label.
+ * @param {number} maxHeight - Kept for compatibility; currently unused.
+ * @returns {Object|undefined} Mutated bbox object, or undefined when input is absent.
+ */
 function adjustBboxHeight(bboxObj, maxHeight) {
     // bboxObj : { label1: [x, y, w, h], ... }
     // maxHeight : valeur maximale autorisée pour la hauteur (h)

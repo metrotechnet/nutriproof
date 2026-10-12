@@ -57,21 +57,16 @@ def _table_paths_for_page(document_dir, page_id):
     }
 
 
-def _resolve_table_read_path(document_dir, page_id, source="auto"):
+def _resolve_table_read_path(document_dir, page_id, source="edited"):
     paths = _table_paths_for_page(document_dir, page_id)
-    source_mode = str(source or "auto").strip().lower()
+    source_mode = str(source or "edited").strip().lower()
     if source_mode == "raw":
         if os.path.exists(paths["ocr"]):
             return paths["ocr"]
         if os.path.exists(paths["legacy"]):
             return paths["legacy"]
         return paths["ocr"]
-    if source_mode == "edited":
-        return paths["legacy"]
-    # auto
-    if os.path.exists(paths["legacy"]):
-        return paths["legacy"]
-    return paths["ocr"]
+    return paths["legacy"]
 
 
 def _resolve_table_write_path(document_dir, filename):
@@ -90,7 +85,7 @@ def _read_matched_group(LOCAL_FOLDER, project_id, document_id, filename):
         return None
 
     document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
-    table_path = _resolve_table_read_path(document_dir, page_id, source="auto")
+    table_path = _resolve_table_read_path(document_dir, page_id, source="edited")
     if not os.path.exists(table_path):
         return None
 
@@ -241,7 +236,7 @@ def get_data(project_id, document_id, filename):
     field_subsection = {label: category_subsection_by_label.get(label) for label in key_order}
 
     page_id = _page_id_from_data_filename(filename)
-    source = request.args.get("source", "auto")
+    source = request.args.get("source", "edited")
     if page_id and filename.startswith("table_"):
         file_path = _resolve_table_read_path(document_dir, page_id, source=source)
     else:
@@ -255,6 +250,8 @@ def get_data(project_id, document_id, filename):
         # then append any remaining configured keys.
         if isinstance(new_data, dict):
             allowed = set(key_order)
+            # Preserve persisted page-range metadata in API payloads.
+            allowed.update({"start_index", "end_index", "doc_index"})
             ordered_keys = []
             for k in new_data.keys():
                 if k in allowed:
@@ -334,7 +331,7 @@ def download_xls():
         file_paths = []
         for i in range(1, int(nbr_pages) + 1):
             page_id = f"page_{i}"
-            file_paths.append(_resolve_table_read_path(document_dir, page_id, source="auto"))
+            file_paths.append(_resolve_table_read_path(document_dir, page_id, source="edited"))
         
         xls_file = ocr_document.create_xls_with_data_by_time(file_paths)
         filename = document_id + ".xls"
