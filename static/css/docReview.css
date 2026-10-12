@@ -259,11 +259,29 @@ body {
 }
 
 .table-header-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 6px 8px;
+}
+
+.table-header-actions-instructions {
+    display: grid;
+    grid-template-columns: 1fr;
+    row-gap: 2px;
+    font-size: 0.92rem;
+    color: #2f3a44;
+    text-align: left;
+    background-color: #eef6ff;
+    border: 1px solid #cfe4ff;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+
+.table-header-controls-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 12px;
-    padding: 6px 8px;
 }
 
 .table-header-actions-buttons {

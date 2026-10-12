@@ -9,6 +9,7 @@ let grid_cells = [];
 let field_visibility = {};
 let field_text = {};
 let field_type = {};
+let field_parse = {};
 let field_subsection = {};
 let subsections = [];
 let startPageIndex = null; // start_page initialized to page 1 (index 0)
@@ -164,6 +165,7 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="edited
     field_visibility = responses[2].field_visibility || {};
     field_text = responses[2].field_text || {};
     field_type = responses[2].field_type || {};
+    field_parse = responses[2].field_parse || {};
     field_subsection = responses[2].field_subsection || {};
     subsections = responses[2].subsections || [];
     all_blocks = responses[4] || [];
@@ -386,8 +388,62 @@ function renderTableSection(imageOnly) {
         byKey.delete(key);
       }
     }
+    const metadataEntries = orderedEntries.filter(([key]) =>
+      ["start_index", "end_index", "doc_index"].includes(key)
+    );
+    const contentEntries = orderedEntries.filter(([key]) =>
+      !["start_index", "end_index", "doc_index"].includes(key)
+    );
 
-    extract_values = Object.fromEntries(orderedEntries);
+    const hiddenEntries = [];
+    const groupBuckets = new Map();
+    contentEntries.forEach(([key, value], indexInOrder) => {
+      if (field_visibility[key] === false) {
+        hiddenEntries.push([key, value]);
+        return;
+      }
+      const groupId = field_subsection[key] || "__ungrouped__";
+      if (!groupBuckets.has(groupId)) {
+        groupBuckets.set(groupId, {
+          groupId,
+          entries: [],
+          filledCount: 0,
+          firstIndex: indexInOrder
+        });
+      }
+      const bucket = groupBuckets.get(groupId);
+      bucket.entries.push([key, value]);
+      if (!isEmptyValue(value)) bucket.filledCount += 1;
+    });
+
+    const subsectionLabelById = {};
+    if (Array.isArray(subsections)) {
+      subsections.forEach(section => {
+        if (section && section.id) {
+          subsectionLabelById[section.id] = section.label || section.id;
+        }
+      });
+    }
+
+    const normalizedInfoTokens = ["info", "informations", "information"];
+    const isInfoGroup = (groupId) => {
+      const normalizedId = normalizeKey(groupId);
+      const normalizedLabel = normalizeKey(subsectionLabelById[groupId] || "");
+      return normalizedInfoTokens.some(token =>
+        normalizedId.includes(token) || normalizedLabel.includes(token)
+      );
+    };
+
+    const sortedGroups = Array.from(groupBuckets.values()).sort((a, b) => {
+      const aIsInfo = isInfoGroup(a.groupId);
+      const bIsInfo = isInfoGroup(b.groupId);
+      if (aIsInfo !== bIsInfo) return aIsInfo ? -1 : 1;
+      if (b.filledCount !== a.filledCount) return b.filledCount - a.filledCount;
+      return a.firstIndex - b.firstIndex;
+    });
+
+    const reorderedContentEntries = sortedGroups.flatMap(group => group.entries);
+    extract_values = Object.fromEntries([...reorderedContentEntries, ...hiddenEntries, ...metadataEntries]);
 
     // Header actions (Nouveau / Prochaine)
     createTopActionControls();
@@ -732,6 +788,15 @@ function createTopActionControls() {
 
   const row = document.createElement("div");
   row.className = "table-header-actions";
+  const instructions = document.createElement("div");
+  instructions.className = "table-header-actions-instructions";
+  const instructionLine1 = document.createElement("div");
+  instructionLine1.innerHTML = "<strong>Étape 1 :</strong> cliquez sur « Début » pour démarrer une nouvelle saisie d'un document.";
+  const instructionLine2 = document.createElement("div");
+  instructionLine2.innerHTML = "<strong>Étape 2 :</strong> cliquez sur « Continuer » pour aller à la page suivante en gardant les valeurs déjà remplies.";
+  const instructionLine3 = document.createElement("div");
+  instructionLine3.innerHTML = "<strong>Note :</strong> les valeurs détectées par l'OCR seront également ajoutées automatiquement dans les champs vides.";
+  instructions.append(instructionLine1, instructionLine2, instructionLine3);
   const buttons = document.createElement("div");
   buttons.className = "table-header-actions-buttons";
 
@@ -739,14 +804,14 @@ function createTopActionControls() {
   newBtn.id = "new-data-btn";
   newBtn.type = "button";
   newBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
-  newBtn.textContent = "Nouveau";
+  newBtn.textContent = "Début";
   newBtn.onclick = startNewRangeFromRaw;
 
   const prochaineBtn = document.createElement("button");
   prochaineBtn.id = "next-workflow-btn";
   prochaineBtn.type = "button";
   prochaineBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
-  prochaineBtn.textContent = "Prochaine";
+  prochaineBtn.textContent = "Continuer";
   prochaineBtn.onclick = nextPageWithLoadAndPropagate;
 
   buttons.append(newBtn, prochaineBtn);
@@ -755,7 +820,11 @@ function createTopActionControls() {
   rangeInfo.id = "range-index-display";
   rangeInfo.className = "range-index-display";
 
-  row.append(buttons, rangeInfo);
+  const controlsRow = document.createElement("div");
+  controlsRow.className = "table-header-controls-row";
+  controlsRow.append(buttons, rangeInfo);
+
+  row.append(instructions, controlsRow);
   slot.appendChild(row);
 }
 
@@ -903,6 +972,9 @@ function nextPage() {
 async function nextPageWithLoadAndPropagate() {
   if (currentPageIndex >= nbrPageMax) return;
   try {
+    const isTableValid = validateTableForContinue();
+    if (!isTableValid) return;
+
     const preservedTableData = collectTableDataForSave();
     if (!preservedTableData) return;
 
@@ -927,6 +999,155 @@ async function nextPageWithLoadAndPropagate() {
   } catch (err) {
     console.error("Prochaine failed:", err);
   }
+}
+
+/**
+ * Escapes HTML-sensitive characters for safe inline rendering in alerts.
+ * @param {string} value - Raw text to escape.
+ * @returns {string}
+ */
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Validates and normalizes a value according to parse rules.
+ * @param {string} rawValue - Raw edited cell value.
+ * @param {string|Array<string>|null|undefined} parseRule - Parse constraint from configuration.
+ * @returns {{valid: boolean, normalized: string}}
+ */
+function validateAndNormalizeByParse(rawValue, parseRule) {
+  const original = String(rawValue || "").trim();
+  if (isEmptyValue(original)) return { valid: true, normalized: "" };
+
+  const parseNumber = (value) => {
+    const normalized = String(value).replace(",", ".").trim();
+    if (!/^[-+]?\d+(\.\d+)?$/.test(normalized)) return null;
+    const asNumber = Number(normalized);
+    return Number.isFinite(asNumber) ? asNumber : null;
+  };
+
+  if (Array.isArray(parseRule)) {
+    const allowed = parseRule.map(v => String(v).trim()).filter(v => v !== "");
+    if (allowed.includes(original)) {
+      return { valid: true, normalized: original };
+    }
+    const inputNumber = parseNumber(original);
+    if (inputNumber !== null) {
+      for (const allowedValue of allowed) {
+        const allowedNumber = parseNumber(allowedValue);
+        if (allowedNumber !== null && allowedNumber === inputNumber) {
+          return { valid: true, normalized: allowedValue };
+        }
+      }
+    }
+    return { valid: false, normalized: original };
+  }
+
+  if (typeof parseRule !== "string") {
+    return { valid: true, normalized: original };
+  }
+
+  const normalizedRule = parseRule.trim().toLowerCase();
+  if (!normalizedRule) {
+    return { valid: true, normalized: original };
+  }
+
+  if (normalizedRule === "integer") {
+    return { valid: /^[-+]?\d+$/.test(original), normalized: original };
+  }
+
+  if (normalizedRule === "float") {
+    const floatNumber = parseNumber(original);
+    if (floatNumber === null) return { valid: false, normalized: original };
+    const normalizedFloat = floatNumber.toFixed(1).replace(".", ",");
+    return { valid: true, normalized: normalizedFloat };
+  }
+
+  if (normalizedRule === "date") {
+    const match = original.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+    if (!match) return { valid: false, normalized: original };
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    const fullYear = 2000 + year;
+    const dateObj = new Date(fullYear, month - 1, day);
+    const isValidDate = dateObj.getFullYear() === fullYear
+      && (dateObj.getMonth() + 1) === month
+      && dateObj.getDate() === day;
+    return { valid: isValidDate, normalized: original };
+  }
+
+  if (normalizedRule === "4 digit" || normalizedRule.includes("4 digit")) {
+    return { valid: /^\d{4}$/.test(original), normalized: original };
+  }
+
+  if (normalizedRule.startsWith("one of ")) {
+    const allowed = parseRule
+      .slice(7)
+      .split(",")
+      .map(v => v.trim())
+      .filter(v => v !== "");
+    const listValidation = validateAndNormalizeByParse(original, allowed);
+    return listValidation;
+  }
+
+  return { valid: true, normalized: original };
+}
+
+/**
+ * Validates all non-empty table values before the "Continuer" workflow.
+ * Invalid cells are highlighted and the workflow is blocked until corrected.
+ * @returns {boolean}
+ */
+function validateTableForContinue() {
+  const table = document.querySelector(".param-table");
+  if (!table) return true;
+
+  const errors = [];
+  table.querySelectorAll("tbody tr").forEach(row => {
+    if (row.classList.contains("group-separator-row")) return;
+
+    const keyCell = row.querySelector("td.param-cell");
+    const valueCell = row.querySelector("td.value-cell");
+    if (!keyCell || !valueCell) return;
+
+    valueCell.style.border = "";
+
+    const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+    if (!key) return;
+
+    const currentValue = (valueCell.textContent || "").trim();
+    if (isEmptyValue(currentValue)) return;
+
+    const parseRule = field_parse[key];
+    const validation = validateAndNormalizeByParse(currentValue, parseRule);
+    if (!validation.valid) {
+      valueCell.style.border = "2px solid #dc3545";
+      const visibleLabel = (field_text[key] || keyCell.textContent || key).trim();
+      const expected = Array.isArray(parseRule)
+        ? parseRule.join(", ")
+        : (parseRule || "format valide");
+      errors.push(`• ${escapeHtml(visibleLabel)} : attendu « ${escapeHtml(expected)} »`);
+      return;
+    }
+
+    if (validation.normalized !== currentValue) {
+      valueCell.textContent = validation.normalized;
+    }
+    extract_values[key] = validation.normalized;
+  });
+
+  if (errors.length > 0) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

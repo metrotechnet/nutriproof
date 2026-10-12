@@ -229,6 +229,9 @@ def get_data(project_id, document_id, filename):
     all_types = current_app.config.get('FIELD_TYPES', {})
     category_types = all_types.get(category, {})
     field_type = {label: str(category_types.get(label, "information")) for label in key_order}
+    all_parses = current_app.config.get('FIELD_PARSES', {})
+    category_parses = all_parses.get(category, {})
+    field_parse = {label: category_parses.get(label) for label in key_order}
     all_subsections = current_app.config.get('FIELD_SUBSECTIONS', {})
     category_subsections = all_subsections.get(category, [])
     all_subsection_by_label = current_app.config.get('FIELD_SUBSECTION_BY_LABEL', {})
@@ -271,6 +274,7 @@ def get_data(project_id, document_id, filename):
             "field_visibility": field_visibility,
             "field_text": field_text,
             "field_type": field_type,
+            "field_parse": field_parse,
             "field_subsection": field_subsection,
             "subsections": category_subsections
         })

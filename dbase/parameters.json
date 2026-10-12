@@ -350,7 +350,7 @@
         "text": [
           "Phase"
         ],
-        "parse": "one of Phase 1, Phase 2, Phase 3",
+        "parse": "integer",
         "key": "Visites",
         "visible": true,
         "type": "information"
@@ -360,7 +360,7 @@
         "text": [
           "Visite"
         ],
-        "parse": "one of Phase 1, Phase 2, Phase 3",
+        "parse": "integer",
         "key": "Visites",
         "visible": true,
         "type": "information"
@@ -370,7 +370,7 @@
         "text": [
           "Date de visite (DD-MM-YY)"
         ],
-        "parse": "a date in format DD-MM-YY",
+        "parse": "date",
         "key": "date_visite",
         "visible": true,
         "type": "information"
@@ -380,7 +380,7 @@
         "text": [
           "# du participant (4 chiffres)"
         ],
-        "parse": "a 4 digit number",
+        "parse": "4 digit",
         "key": "no_participant",
         "visible": true,
         "type": "information"
@@ -390,7 +390,7 @@
         "text": [
           "Groupe de randomisation (1,2,3)"
         ],
-        "parse": "one of Groupe #1, Groupe #2, Groupe #3",
+        "parse": ["1", "2", "3"],
         "key": "group_rando",
         "visible": true,
         "type": "information"
@@ -400,7 +400,7 @@
         "text": [
           "Mode de rencontre (Présentiel=1, Distance=2)"
         ],
-        "parse": "one of Présence, Distance",
+        "parse": ["1", "2"],
         "key": "mode_renc",
         "visible": true,
         "type": "information"
@@ -410,7 +410,7 @@
         "text": [
           "Poids (kg) (ex: 160,3)"
         ],
-        "parse": "a number",
+        "parse": "float",
         "key": "weight_lbs",
         "visible": false,
         "type": "information"
@@ -420,7 +420,7 @@
         "text": [
           "Poids (kg) (ex: 116,3)"
         ],
-        "parse": "a number",
+        "parse": "float",
         "key": "weight_kg",
         "visible": true,
         "type": "information"
@@ -430,7 +430,7 @@
         "text": [
           "Poids mesuré ou rapporté (Mesuré=1, Rapporté=2)"
         ],
-        "parse": "one of Mesuré, Rapporté",
+        "parse": ["1", "2"],
         "key": "poids_m",
         "visible": true,
         "type": "information"
@@ -440,7 +440,7 @@
         "text": [
           "Tour de taille (en cm)"
         ],
-        "parse": "a number",
+        "parse": "float",
         "key": "waistc",
         "visible": true,
         "type": "information"
@@ -450,7 +450,7 @@
         "text": [
           "Journal de bord complétés et remis (oui=1 non=2)"
         ],
-        "parse": "one of Oui, Non",
+        "parse": ["1", "2"],
         "key": "jb_remis",
         "visible": true,
         "type": "information"
@@ -460,7 +460,7 @@
         "text": [
           "Fréquence de complétion (de 0 à 7 fois par semaine)"
         ],
-        "parse": "a number per week",
+        "parse": ["1", "2", "3", "4", "5", "6", "7"],
         "key": "fq_comp",
         "visible": true,
         "type": "information"
@@ -470,7 +470,7 @@
         "text": [
           "Date du rappel (DD-MM-YY)"
         ],
-        "parse": "a date in format DD-MM-YY",
+        "parse": "date",
         "key": "date_rappel",
         "visible": true,
         "type": "information"
@@ -480,7 +480,7 @@
         "text": [
           "Avoir suivi les proportions de l'assiette du GAC¹."
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prop_gac",
         "visible": true,
         "type": "question"
@@ -490,7 +490,7 @@
         "text": [
           "Avoir privilégié les grains entiers par rapport aux grains raffinés (50% du temps et +)."
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "grains_entiers",
         "visible": true,
         "type": "question"
@@ -500,7 +500,7 @@
         "text": [
           "Avoir privilégié les protéines végétales par rapport aux protéines animales (5 repas et +/semaine)."
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prot_veg",
         "visible": true,
         "type": "question"
@@ -510,7 +510,7 @@
         "text": [
           "Avoir privilégié l'eau comme boisson (90% du temps et +)."
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "priv_eau",
         "visible": true,
         "type": "question"
@@ -520,7 +520,7 @@
         "text": [
           "10-15% en protéines"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prot_r24",
         "visible": true,
         "type": "question"
@@ -530,7 +530,7 @@
         "text": [
           "20-30% en lipides"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "lip_r24",
         "visible": true,
         "type": "question"
@@ -540,7 +540,7 @@
         "text": [
           "55-60% en glucides"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "gluc_r24",
         "visible": true,
         "type": "question"
@@ -550,7 +550,7 @@
         "text": [
           "La pratique d'activité physique était adéquate (150 minutes par semaine)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "act_phys",
         "visible": true,
         "type": "question"
@@ -560,7 +560,7 @@
         "text": [
           "Les habitudes de sommeil étaient adéquates (7-8 heures par jour)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "sommeil",
         "visible": true,
         "type": "question"
@@ -570,7 +570,7 @@
         "text": [
           "Avoir consommé environ 120g de viandes maigres (4 équivalents) par repas"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prot_repas",
         "visible": true,
         "type": "question"
@@ -580,7 +580,7 @@
         "text": [
           "Avoir privilégié les gras insaturés (poly/mono)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "gras_insat",
         "visible": true,
         "type": "question"
@@ -590,7 +590,7 @@
         "text": [
           "Avoir privilégié les grains entiers par rapport aux grains raffinés"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "grains_entiers",
         "visible": true,
         "type": "question"
@@ -600,7 +600,7 @@
         "text": [
           "Avoir consommé 4-6 portions par jour de fruits et légumes"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "fruit_leg",
         "visible": true,
         "type": "question"
@@ -610,7 +610,7 @@
         "text": [
           "Avoir consommé 4 portions de produits laitiers par jour"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prod_lait",
         "visible": true,
         "type": "question"
@@ -620,7 +620,7 @@
         "text": [
           "Avoir privilégié les aliments ayant un indice glycémique faible (<55)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "faib_ig",
         "visible": true,
         "type": "question"
@@ -630,7 +630,7 @@
         "text": [
           "Avoir consommé de la capsaïcine quotidiennement, avant un repas (1x par jour)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "capsa",
         "visible": true,
         "type": "question"
@@ -640,7 +640,7 @@
         "text": [
           "Avoir privilégié des aliments rassasiants dans la majorité des repas"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "alim_rassa",
         "visible": true,
         "type": "question"
@@ -650,7 +650,7 @@
         "text": [
           "Avoir privilégié de l'eau comme boisson"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "priv_eau",
         "visible": true,
         "type": "question"
@@ -660,7 +660,7 @@
         "text": [
           "≥ 25% en protéines"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prot_r24",
         "visible": true,
         "type": "question"
@@ -670,7 +670,7 @@
         "text": [
           "≤ 30% en lipides"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "lip_r24",
         "visible": true,
         "type": "question"
@@ -680,7 +680,7 @@
         "text": [
           "45% en glucides"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "gluc_r24",
         "visible": true,
         "type": "question"
@@ -690,7 +690,7 @@
         "text": [
           "25 g de fibres par jour"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "fibr_r24",
         "visible": true,
         "type": "question"
@@ -700,7 +700,7 @@
         "text": [
           "1200 mg de calcium"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "calci_r24",
         "visible": true,
         "type": "question"
@@ -710,7 +710,7 @@
         "text": [
           "La pratique d'activité physique était adéquate (150 minutes par semaine)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "act_phys",
         "visible": true,
         "type": "question"
@@ -720,7 +720,7 @@
         "text": [
           "Les habitudes de sommeil étaient adéquates (7-8 heures par jour) ?"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "sommeil",
         "visible": true,
         "type": "question"
@@ -730,7 +730,7 @@
         "text": [
           "Avoir respecté le nombre d'équivalents de féculents 10"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "port_fecul",
         "visible": true,
         "type": "question"
@@ -740,7 +740,7 @@
         "text": [
           "Avoir respecté le nombre d'équivalents de viandes et substituts 12"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "port_viand",
         "visible": true,
         "type": "question"
@@ -750,7 +750,7 @@
         "text": [
           "Avoir respecté le nombre d'équivalents de fruits et autres aliments 7"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "fruit_sucr",
         "visible": true,
         "type": "question"
@@ -760,7 +760,7 @@
         "text": [
           "Avoir respecté le nombre d'équivalents de légumes 9"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "port_leg",
         "visible": true,
         "type": "question"
@@ -770,7 +770,7 @@
         "text": [
           "Avoir respecté le nombre d'équivalent de lait et substituts 3"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "port_laits",
         "visible": true,
         "type": "question"
@@ -780,7 +780,7 @@
         "text": [
           "Avoir respecté le nombre d'équivalents de matières grasses 7"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "port_mg",
         "visible": true,
         "type": "question"
@@ -790,7 +790,7 @@
         "text": [
           "Avoir respecté le déficit calorique de 500kcal/ jour"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "def_cal",
         "visible": true,
         "type": "question"
@@ -800,7 +800,7 @@
         "text": [
           "20-25% en protéines"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "prot_r24",
         "visible": true,
         "type": "question"
@@ -810,7 +810,7 @@
         "text": [
           "25-30% en lipides"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "lip_r24",
         "visible": true,
         "type": "question"
@@ -820,7 +820,7 @@
         "text": [
           "45-50% en glucides"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "gluc_r24",
         "visible": true,
         "type": "question"
@@ -830,7 +830,7 @@
         "text": [
           "La pratique d'activité physique était adéquate (150 minutes par semaine)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "act_phys",
         "visible": true,
         "type": "question"
@@ -840,7 +840,7 @@
         "text": [
           "Les habitudes de sommeil étaient adéquates (7-8 heures par jour)"
         ],
-        "parse": "offset 1,2,3",
+        "parse": ["0", "0.5", "1"],
         "key": "sommeil",
         "visible": true,
         "type": "question"

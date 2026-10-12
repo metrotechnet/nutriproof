@@ -234,6 +234,7 @@ def create_app():
     field_visibility = {}
     field_texts = {}
     field_types = {}
+    field_parses = {}
     field_subsections = {}
     field_subsection_by_label = {}
 
@@ -283,6 +284,7 @@ def create_app():
         visibility_by_label = {}
         text_by_label = {}
         type_by_label = {}
+        parse_by_label = {}
         subsection_by_label = {}
         for item in items:
             if isinstance(item, dict) and "label" in item:
@@ -294,6 +296,7 @@ def create_app():
                     text_by_label[item["label"]] = str(item["label"])
                 raw_type = str(item.get("type", "information")).strip().lower()
                 type_by_label[item["label"]] = "question" if raw_type == "question" else "information"
+                parse_by_label[item["label"]] = item.get("parse")
                 for subsection in subsections:
                     if _matches_subsection(item, subsection):
                         subsection_by_label[item["label"]] = subsection["id"]
@@ -301,6 +304,7 @@ def create_app():
         field_visibility[category] = visibility_by_label
         field_texts[category] = text_by_label
         field_types[category] = type_by_label
+        field_parses[category] = parse_by_label
         field_subsections[category] = subsections
         field_subsection_by_label[category] = subsection_by_label
 
@@ -321,6 +325,7 @@ def create_app():
     app.config['FIELD_VISIBILITY'] = field_visibility
     app.config['FIELD_TEXTS'] = field_texts
     app.config['FIELD_TYPES'] = field_types
+    app.config['FIELD_PARSES'] = field_parses
     app.config['FIELD_SUBSECTIONS'] = field_subsections
     app.config['FIELD_SUBSECTION_BY_LABEL'] = field_subsection_by_label
 
