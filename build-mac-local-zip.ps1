@@ -56,14 +56,30 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "Python 3 is required. Install it first (python.org or Homebrew)."
-  exit 1
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "Python 3 is required and Homebrew is not installed."
+    echo "Install Homebrew first: https://brew.sh"
+    exit 1
+  fi
+  echo "Python 3 not found. Installing with Homebrew..."
+  brew install python
 fi
 
 if ! command -v tesseract >/dev/null 2>&1; then
-  echo "Tesseract is required for OCR."
-  echo "Install with: brew install tesseract tesseract-lang"
-  exit 1
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "Tesseract is required and Homebrew is not installed."
+    echo "Install Homebrew first: https://brew.sh"
+    exit 1
+  fi
+  echo "Tesseract not found. Installing with Homebrew..."
+  brew install tesseract tesseract-lang
+fi
+
+if command -v brew >/dev/null 2>&1; then
+  if ! brew list --formula tesseract-lang >/dev/null 2>&1; then
+    echo "Installing tesseract language data..."
+    brew install tesseract-lang
+  fi
 fi
 
 if [ ! -d ".venv" ]; then
@@ -101,9 +117,8 @@ NutriProof - Local web app package for macOS (unsigned)
 
 Requirements:
 - macOS
-- Python 3
-- Tesseract OCR with language data:
-  brew install tesseract tesseract-lang
+- Homebrew (for automatic installation of Python and OCR dependencies)
+- Internet access on first run (to install dependencies)
 
 How to run:
 1) Double-click "start.command"
