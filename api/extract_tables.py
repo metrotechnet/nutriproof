@@ -1126,9 +1126,9 @@ class OCRDocument:
             # Editable table starts empty after OCR; raw OCR values stay in table_ocr_*.
             table_values_empty_ordered = {label: "" for label in extract_values_ordered.keys()}
             with open(os.path.join(project_path, f"table_{pageid}.json"), "w", encoding="utf-8") as f:
-                json.dump(table_values_empty_ordered, f, indent=4, ensure_ascii=False)
-            with open(os.path.join(project_path, f"table_ocr_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
+            # with open(os.path.join(project_path, f"table_ocr_{pageid}.json"), "w", encoding="utf-8") as f:
+            #     json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
             with open(os.path.join(project_path, f"field_text_{pageid}.json"), "w", encoding="utf-8") as f:
                 json.dump(matched_text_ordered, f, indent=4, ensure_ascii=False)
 
@@ -1411,15 +1411,18 @@ class OCRDocument:
             cells_by_rc[(r, co)] = c
 
         def _parse_positions(raw_positions):
-            """Parse entries into integer column offsets (number of columns to
-            the right of the label cell). 0 means the label cell itself.
-            Accepts ints (0, 1, 2, ...) or numeric strings ("0", "1", ...).
-            Legacy 'r<n>' notation is still accepted. Invalid entries are
-            skipped."""
+            """Parse integer column offsets from an explicit "positions" field.
+
+            This is intentionally separate from the validation ``parse`` field:
+            ``parse`` holds permitted answer values (e.g. 0, 0.5, 1), while
+            ``positions``/hardcoded offsets define where the value cell sits in the
+            grid. The question cells are always read from the adjacent right-hand
+            cell in this workflow.
+            """
             offsets = []
             for p in raw_positions or []:
                 if isinstance(p, bool):
-                    continue  # avoid True/False being treated as 1/0
+                    continue
                 if isinstance(p, int):
                     if p >= 0:
                         offsets.append(p)
@@ -1433,6 +1436,22 @@ class OCRDocument:
                         offsets.append(int(m.group(1)))
             return offsets
 
+        def _resolve_value_offsets(param, label):
+            """Return the candidate answer-cell offsets for a config entry.
+
+            The follow-up form uses three possible answer columns to the right of
+            the label, whose values are 1, 0.5 and 0 depending on the selected
+            option. We therefore evaluate offsets 1, 2 and 3 instead of treating
+            ``parse`` as a coordinate offset.
+            """
+            explicit_positions = param.get("positions")
+            if explicit_positions is not None:
+                parsed = _parse_positions(explicit_positions)
+                if parsed:
+                    return parsed
+
+            return [1, 2, 3] if str(param.get("type", "")).lower() == "question" else [0]
+
         # Flatten config into (label, [snippets], [position offsets]) tuples.
         label_specs = []
         for param in config_data:
@@ -1440,7 +1459,7 @@ class OCRDocument:
             if not label:
                 continue
             snippets = [str(t).strip() for t in param.get("text", []) if t]
-            offsets = _parse_positions(param.get("parse"))
+            offsets = _resolve_value_offsets(param, label)
             if snippets:
                 label_specs.append((label, snippets, offsets))
 
@@ -1505,21 +1524,24 @@ class OCRDocument:
                 col = cell.get("col")
                 ## Determine the best offset for the value relative to the label cell.
                 if not offsets or offsets[0] != 0:
-                    # For each offset, get the number of dark pixels in the cell.
-                    # Find the offset with the maximum dark pixel count, and set total to offset_weight of that offset (if >0), else 0.
-                    offset_weight = {1: 1.0, 2: 0.5}
-                    max_dark = 0
-                    max_off = 0
+                    # The answer cells are ordered by offset: 1 => 1, 2 => 0.5,
+                    # 3 => 0. We do not choose the darkest cell globally because a
+                    # faint 0.5 mark can legitimately have fewer dark pixels than a
+                    # nearby 1/0 choice. Instead, select the first marked answer cell
+                    # in the configured answer order.
+                    offset_value = {1: 1.0, 2: 0.5, 3: 0.0}
+                    chosen_value = None
                     value_bboxes = []
                     for off in offsets:
                         target = cells_by_rc.get((row, col + off))
                         value_bboxes.append(target.get("bbox") if target else None)
-                        if target is not None :
-                            dark = self._cell_has_mark(target, gray_img)
-                            if isinstance(dark, (int, float)) and dark > max_dark:
-                                max_dark = dark
-                                max_off = off
-                    total = offset_weight.get(max_off, 0) if max_dark > 0 else 0
+                        if target is None:
+                            continue
+                        dark = self._cell_has_mark(target, gray_img)
+                        if isinstance(dark, (int, float)) and dark > 0:
+                            chosen_value = offset_value.get(off, 0.0)
+                            break
+                    total = chosen_value if chosen_value is not None else 0.0
                     extract_values_ordered[label] = f"{total:g}"
                     value_bbox_ordered[label] = value_bboxes
                 else:

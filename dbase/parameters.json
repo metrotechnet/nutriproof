@@ -286,66 +286,6 @@
     ],
     "fields": [
       {
-        "label": "Projet",
-        "text": [
-          "Projet"
-        ],
-        "parse": "SAT2",
-        "key": "Projet",
-        "visible": false,
-        "type": "information"
-      },
-      {
-        "label": "Section",
-        "text": [
-          "Section"
-        ],
-        "parse": "Projet",
-        "key": "Section",
-        "visible": false,
-        "type": "information"
-      },
-      {
-        "label": "Centre",
-        "text": [
-          "Centre"
-        ],
-        "parse": "INAF",
-        "key": "Centre",
-        "visible": false,
-        "type": "information"
-      },
-      {
-        "label": "nomat",
-        "text": [
-          "SAT2"
-        ],
-        "parse": "a 4 digit number",
-        "key": "nomat",
-        "visible": false,
-        "type": "information"
-      },
-      {
-        "label": "seq",
-        "text": [
-          "Date de visite"
-        ],
-        "parse": "",
-        "key": "seq",
-        "visible": false,
-        "type": "information"
-      },
-      {
-        "label": "tx",
-        "text": [
-          "tx"
-        ],
-        "parse": "IN",
-        "key": "tx",
-        "visible": false,
-        "type": "information"
-      },
-      {
         "label": "Phase",
         "text": [
           "Phase"
@@ -381,7 +321,7 @@
           "# du participant (4 chiffres)"
         ],
         "parse": "4 digit",
-        "key": "no_participant",
+        "key": "nomat",
         "visible": true,
         "type": "information"
       },

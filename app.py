@@ -235,6 +235,7 @@ def create_app():
     field_texts = {}
     field_types = {}
     field_parses = {}
+    field_keys = {}
     field_subsections = {}
     field_subsection_by_label = {}
 
@@ -280,6 +281,7 @@ def create_app():
         items = value.get("fields", []) if isinstance(value, dict) else value
         subsections = _normalize_subsections(value.get("subsections", [])) if isinstance(value, dict) else []
         key_order[category] = [item.get("label") for item in items if "label" in item]
+        field_keys[category] = [str(item.get("key")) for item in items if isinstance(item, dict) and item.get("key") is not None]
         form_labels[category] = value.get("label", category) if isinstance(value, dict) else category
         visibility_by_label = {}
         text_by_label = {}
@@ -326,6 +328,7 @@ def create_app():
     app.config['FIELD_TEXTS'] = field_texts
     app.config['FIELD_TYPES'] = field_types
     app.config['FIELD_PARSES'] = field_parses
+    app.config['FIELD_KEYS'] = field_keys
     app.config['FIELD_SUBSECTIONS'] = field_subsections
     app.config['FIELD_SUBSECTION_BY_LABEL'] = field_subsection_by_label
 

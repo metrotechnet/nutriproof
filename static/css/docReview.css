@@ -260,8 +260,9 @@ body {
 
 .table-header-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     gap: 8px;
+    align-items: center;
     padding: 6px 8px;
 }
 
@@ -281,20 +282,20 @@ body {
 .table-header-controls-row {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 12px;
+    width: auto;
 }
 
 .table-header-actions-buttons {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-left: 0;
 }
 
 .range-index-display {
-    margin-left: auto;
-    font-size: 0.9rem;
-    color: #495057;
-    white-space: nowrap;
+    display: none;
 }
 
 .param-table {
@@ -334,6 +335,23 @@ body {
 .param-table td[contenteditable="true"] {
     background-color: #fef9e7;
     outline: none;
+}
+
+.header-summary-table {
+    margin-bottom: 12px;
+}
+
+.header-summary-table th,
+.header-summary-table td {
+    text-align: left;
+}
+
+.header-summary-table td:nth-child(2),
+.header-summary-table th:nth-child(2),
+.header-summary-table td:nth-child(3),
+.header-summary-table th:nth-child(3) {
+    width: 22%;
+    text-align: center;
 }
 
 .param-table tr.group-separator-row td {

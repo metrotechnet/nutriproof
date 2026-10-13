@@ -250,9 +250,14 @@ def get_data(project_id, document_id, filename):
         with open(file_path, 'r', encoding='utf-8') as f:
             new_data = json.load(f)
         # Preserve file key order first (when JSON was preordered upstream),
-        # then append any remaining configured keys.
+        # then append any remaining configured keys. Keep both display labels and
+        # raw output keys (for example: "date_visite", "nomat") so previous-page
+        # rendering and autosave include their actual persisted values.
         if isinstance(new_data, dict):
+            raw_keys = current_app.config.get('FIELD_KEYS', {}).get(category, [])
             allowed = set(key_order)
+            allowed.update(raw_keys)
+            allowed.update({"No du participant", "Date d'observation (DD-MM-YY)", "nomat", "date_visite"})
             # Preserve persisted page-range metadata in API payloads.
             allowed.update({"start_index", "end_index", "doc_index"})
             ordered_keys = []
@@ -260,6 +265,9 @@ def get_data(project_id, document_id, filename):
                 if k in allowed:
                     ordered_keys.append(k)
             for k in key_order:
+                if k not in ordered_keys:
+                    ordered_keys.append(k)
+            for k in raw_keys:
                 if k not in ordered_keys:
                     ordered_keys.append(k)
             data = {k: new_data.get(k, "") for k in ordered_keys}

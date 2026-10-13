@@ -2,6 +2,8 @@
 let page_id = '';
 let extract_values = {};
 let raw_extract_values = {};
+let previousPageHeaderValues = {};
+let previousPageTableData = {};
 let label_bbox = {};
 let value_bbox = {};
 let all_blocks = [];
@@ -12,9 +14,6 @@ let field_type = {};
 let field_parse = {};
 let field_subsection = {};
 let subsections = [];
-let startPageIndex = null; // start_page initialized to page 1 (index 0)
-let endPageIndex = null;
-let docIndex = null;
 let lastNewIncrementPageIndex = null;
 let hasRenderedTableSection = false;
 let autoSaveInFlight = false;
@@ -121,11 +120,10 @@ function createFileList(project_id, document_id, fileArray) {
  * @param {number} index - 1-based logical page index used by backend filenames.
  * @param {boolean} [init_scroll=false] - Whether to reset image viewer scroll position.
  * @param {"raw"|"edited"} [sourceMode="edited"] - Source mode for table payload.
- * @param {boolean} [loadIndexes=true] - Whether to hydrate start/end/doc indices from loaded JSON data.
  * @param {boolean} [renderTable=true] - Whether to rebuild/refresh the table section after image render.
  * @returns {Promise<boolean|undefined>} True when page data is loaded; false/undefined otherwise.
  */
-async function loadPage(project_id, index, init_scroll=false, sourceMode="edited", loadIndexes=true, renderTable=true) {
+async function loadPage(project_id, index, init_scroll=false, sourceMode="edited", renderTable=true) {
   
   if (currentFileList.length === 0 || index <= 0 || index > nbrPageMax) {
     console.error("No files available for loading.");
@@ -139,13 +137,18 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="edited
     currentCategory = project_data?.find(f => f.document_id === currentDocID)?.category ?? null;
     //start spinner cursor
     page_id = `page_${index}`;
+    const previousPageIndex = index > 1 ? index - 1 : null;
+    const previousTableUrl = previousPageIndex
+      ? `/get_data/${project_id}/${currentDocID}/table_page_${previousPageIndex}.json?source=${encodeURIComponent(sourceMode)}`
+      : null;
     const responses = await Promise.all([
         fetch(`/get_data/${project_id}/${currentDocID}/label_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/value_bbox_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=${encodeURIComponent(sourceMode)}`).then(res => res.json()),
         fetch(`/get_data/${project_id}/${currentDocID}/table_${page_id}.json?source=raw`).then(res => res.json()).catch(() => ({})),
         fetch(`/get_raw_data/${project_id}/${currentDocID}/all_blocks_${page_id}.json`).then(res => res.json()).catch(() => []),
-        fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({}))
+        fetch(`/get_raw_data/${project_id}/${currentDocID}/grid_${page_id}.json`).then(res => res.json()).catch(() => ({})),
+        previousTableUrl ? fetch(previousTableUrl).then(res => res.json()).catch(() => ({})) : Promise.resolve({})
     ]);
     if (!responses[0].data_string || !responses[1].data_string || !responses[2].data_string) {
         // Handle empty responses
@@ -155,13 +158,16 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="edited
     value_bbox = JSON.parse(responses[1].data_string || '{}');
     extract_values = JSON.parse(responses[2].data_string || '{}');
     raw_extract_values = JSON.parse(responses[3]?.data_string || '{}');
-    // console.log("Raw extract values:", raw_extract_values);
-    if (loadIndexes) {
-      startPageIndex = parseNullableIndex(extract_values.start_index);
-      endPageIndex = parseNullableIndex(extract_values.end_index);
-      docIndex = parseNullableIndex(extract_values.doc_index);
+    previousPageHeaderValues = {};
+    previousPageTableData = {};
+    if (responses[6]?.data_string) {
+      const previousData = JSON.parse(responses[6].data_string || '{}');
+      if (previousData && typeof previousData === "object") {
+        previousPageHeaderValues = previousData;
+        previousPageTableData = previousData;
+      }
     }
-
+    // console.log("Raw extract values:", raw_extract_values);
     field_visibility = responses[2].field_visibility || {};
     field_text = responses[2].field_text || {};
     field_type = responses[2].field_type || {};
@@ -171,7 +177,6 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="edited
     all_blocks = responses[4] || [];
     const gridData = responses[5] || {};
     grid_cells = gridData.cells || [];
-    updateRangeIndexDisplay();
 
     return await displayPage(project_id, currentDocID, index, init_scroll, false, renderTable);
   } catch (error) {
@@ -264,8 +269,6 @@ async function displayPage(project_id, document_id, index, init_scroll=false, im
 
         displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
 
-        updateRangeIndexDisplay();
-
 
       }
 
@@ -300,7 +303,6 @@ async function displayPage(project_id, document_id, index, init_scroll=false, im
         renderTableSection(imageOnly);
       } else {
         updatePaginationControls(currentPageIndex, nbrPageMax);
-        updateRangeIndexDisplay();
       }
       finish(true);
     };
@@ -388,17 +390,12 @@ function renderTableSection(imageOnly) {
         byKey.delete(key);
       }
     }
-    const metadataEntries = orderedEntries.filter(([key]) =>
-      ["start_index", "end_index", "doc_index"].includes(key)
-    );
-    const contentEntries = orderedEntries.filter(([key]) =>
-      !["start_index", "end_index", "doc_index"].includes(key)
-    );
+    const contentEntries = orderedEntries;
 
     const hiddenEntries = [];
     const groupBuckets = new Map();
     contentEntries.forEach(([key, value], indexInOrder) => {
-      if (field_visibility[key] === false) {
+      if (field_visibility[key] === false || shouldHideFormulaireSuiviHeaderRow(key)) {
         hiddenEntries.push([key, value]);
         return;
       }
@@ -443,13 +440,14 @@ function renderTableSection(imageOnly) {
     });
 
     const reorderedContentEntries = sortedGroups.flatMap(group => group.entries);
-    extract_values = Object.fromEntries([...reorderedContentEntries, ...hiddenEntries, ...metadataEntries]);
+    extract_values = Object.fromEntries([...reorderedContentEntries, ...hiddenEntries]);
 
     // Header actions (Nouveau / Prochaine)
     createTopActionControls();
-    updateRangeIndexDisplay();
 
-    // Génération du tableau éditable
+    // Génération du tableau d'en-tête puis du tableau éditable général
+    generateHeaderTable(extract_values);
+    // Génération du tableau éditable général
     generateEditableTable(extract_values);
     // Pagination après le tableau
     createPaginationControls(currentPageIndex, nbrPageMax);
@@ -478,8 +476,8 @@ function updateExistingTableValues(data) {
     if (!keyCell || !valueCell) return;
 
     const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
-    if (!key || ["start_index", "end_index", "doc_index"].includes(key)) return;
-    const nextValue = data[key];
+    if (!key) return;
+    const nextValue = data[key] !== undefined && data[key] !== null ? data[key] : raw_extract_values?.[key];
     valueCell.textContent = nextValue !== null && nextValue !== undefined ? String(nextValue) : "";
   });
 }
@@ -531,7 +529,7 @@ function displayAllBlocks(svg, blocks, offsetX, offsetY, scaleX, scaleY) {
 }
 
 /**
- * Persists current table data and propagates it to every page in the active range.
+ * Persists the current page's edited values individually.
  * @param {Object|null} [dataOverride=null] - Optional payload overriding table collection.
  * @returns {Promise<void>}
  */
@@ -539,17 +537,11 @@ async function autoSaveInputAndBackfill(dataOverride = null) {
   const data = dataOverride || collectTableDataForSave();
   if (!data) return;
 
-  const finalData = withStartEndMetadata(data);
-  const startIndex = parseNullableIndex(startPageIndex);
-  const endIndex = parseNullableIndex(endPageIndex);
-  if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex)) {
+  if (!Number.isInteger(currentPageIndex)) {
     return;
   }
 
-  console.log("Auto-saving from page", startIndex, "to", endIndex);
-  for (let i = startIndex; i <= endIndex; i++) {
-    await saveTableDataToPageIndex(i, finalData);
-  }
+  await saveTableDataToPageIndex(currentPageIndex, data);
 }
 
 /**
@@ -561,19 +553,22 @@ function scheduleAutoSaveFromInput() {
   if (autoSaveInFlight) return;
 
   const run = async () => {
-  if (!autoSavePending) return;
-  autoSavePending = false;
-  autoSaveInFlight = true;
-  try {
-    await autoSaveInputAndBackfill();
-  } catch (err) {
-    console.error("Auto-save failed:", err);
-  } finally {
-    autoSaveInFlight = false;
-    if (autoSavePending) {
-      run();
+    if (!autoSavePending) return;
+    autoSavePending = false;
+    autoSaveInFlight = true;
+    try {
+      const data = collectTableDataForSave();
+      if (data) {
+        await saveTableDataToPageIndex(currentPageIndex, data);
+      }
+    } catch (err) {
+      console.error("Auto-save failed:", err);
+    } finally {
+      autoSaveInFlight = false;
+      if (autoSavePending) {
+        run();
+      }
     }
-  }
   };
 
   run();
@@ -797,67 +792,29 @@ function createTopActionControls() {
   row.className = "table-header-actions";
   const instructions = document.createElement("div");
   instructions.className = "table-header-actions-instructions";
-  const instructionLine1 = document.createElement("div");
-  instructionLine1.innerHTML = "<strong>Étape 1 :</strong> cliquez sur « Début » pour démarrer une nouvelle saisie d'un document.";
-  const instructionLine2 = document.createElement("div");
-  instructionLine2.innerHTML = "<strong>Étape 2 :</strong> cliquez sur « Copier » pour aller à la page suivante en gardant les valeurs déjà remplies.";
-  const instructionLine3 = document.createElement("div");
-  instructionLine3.innerHTML = "<strong>Note :</strong> les valeurs détectées par l'OCR seront également ajoutées automatiquement dans les champs vides.";
-  instructions.append(instructionLine1, instructionLine2, instructionLine3);
+   const instructionLine2 = document.createElement("div");
+  instructionLine2.innerHTML = "<strong>Note :</strong> cliquez sur « Copier » pour copier les valeurs de l'entête de la page précédente.";
+  instructions.append(instructionLine2);
   const buttons = document.createElement("div");
   buttons.className = "table-header-actions-buttons";
-
-  const newBtn = document.createElement("button");
-  newBtn.id = "new-data-btn";
-  newBtn.type = "button";
-  newBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
-  newBtn.textContent = "Début";
-  newBtn.onclick = startNewRangeFromRaw;
 
   const prochaineBtn = document.createElement("button");
   prochaineBtn.id = "next-workflow-btn";
   prochaineBtn.type = "button";
   prochaineBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
   prochaineBtn.textContent = "Copier";
-  prochaineBtn.onclick = nextPageWithLoadAndPropagate;
+  prochaineBtn.onclick = copyPreviousPageValuesToEditedAndSave;
 
-  buttons.append(newBtn, prochaineBtn);
-
-  const rangeInfo = document.createElement("div");
-  rangeInfo.id = "range-index-display";
-  rangeInfo.className = "range-index-display";
+  buttons.append(prochaineBtn);
 
   const controlsRow = document.createElement("div");
   controlsRow.className = "table-header-controls-row";
-  controlsRow.append(buttons, rangeInfo);
+  controlsRow.append(buttons);
 
   row.append(instructions, controlsRow);
   slot.appendChild(row);
 }
 
-/**
- * Refreshes header metadata display for document/range indices.
- * @returns {void}
- */
-function updateRangeIndexDisplay() {
-  const rangeInfo = document.getElementById("range-index-display");
-  if (!rangeInfo) return;
-
-  const rawStart = Number.isInteger(startPageIndex)
-    ? startPageIndex
-    : parseNullableIndex(extract_values?.start_index);
-  const rawEnd = Number.isInteger(endPageIndex)
-    ? endPageIndex
-    : parseNullableIndex(extract_values?.end_index);
-  const rawDocIndex = Number.isInteger(docIndex)
-    ? docIndex
-    : parseNullableIndex(extract_values?.doc_index);
-
-  const startText = Number.isInteger(rawStart) ? String(rawStart) : "-";
-  const endText = Number.isInteger(rawEnd) ? String(rawEnd) : "-";
-  const docText = Number.isInteger(rawDocIndex) ? String(rawDocIndex) : "-";
-  rangeInfo.textContent = `Document: ${docText} | Début: ${startText} | Fin: ${endText}`;
-} 
 
 /**
  * Creates footer pagination controls and page number input.
@@ -973,44 +930,68 @@ function nextPage() {
 
 
 /**
- * Workflow callback for Prochaine: move next, load OCR fallback, then persist range data.
+ * Copies values shown in the "Page précédente" column into the editable value cells,
+ * then persists the current page to the server.
  * @returns {Promise<void>}
  */
-async function nextPageWithLoadAndPropagate() {
-  if (currentPageIndex >= nbrPageMax) return;
-  try {
-    const isTableValid = validateTableForContinue();
-    if (!isTableValid) return;
+async function copyPreviousPageValuesToEditedAndSave() {
+  if (!previousPageTableData || typeof previousPageTableData !== "object") return;
 
-    const preservedTableData = collectTableDataForSave();
-    if (!preservedTableData) return;
+  const headerRows = document.querySelectorAll(".header-summary-table tbody tr");
+  headerRows.forEach(row => {
+    const keyCell = row.querySelector("td.param-cell");
+    const editCell = row.querySelector("td.editable-header-cell");
+    if (!keyCell || !editCell) return;
 
-    endPageIndex = currentPageIndex + 1;
-    updateRangeIndexDisplay();
+    const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+    if (!key) return;
 
-    // Auto-save the current page's input and backfill any derived fields
-    await autoSaveInputAndBackfill(preservedTableData);
+    const value = previousPageTableData[key] ?? previousPageHeaderValues[key] ?? "";
+    const stringValue = value === null || value === undefined ? "" : String(value);
+    editCell.textContent = stringValue;
 
-    // Load the next page before propagating changes
-    const loaded = await loadPage(currentProjectID, currentPageIndex + 1, false, "edited", false, false);
-    if (!loaded) return;
-
-    // Keep the same table values, then enrich empties from next-page OCR.
-    extract_values = { ...preservedTableData };
-    updateExistingTableValues(extract_values);
-    await loadAndFillCurrentPageEmpty();
-
-    
-    //Save if current page is the last page
-    if (currentPageIndex === nbrPageMax) {
-      await autoSaveInputAndBackfill(collectTableDataForSave());
+    if (key === "Phase") {
+      const cleanedPhase = String(stringValue).replace(/^P/i, "").trim();
+      extract_values.Phase = cleanedPhase;
+      const currentVisit = parsePhaseAndVisit(extract_values.Visites || "").visit;
+      const combined = `${cleanedPhase ? `P${cleanedPhase}` : ""}${currentVisit ? `V${currentVisit}` : ""}`.trim();
+      extract_values.Visites = combined;
+      return;
     }
 
+    if (key === "Visite") {
+      const cleanedVisit = String(stringValue).replace(/^V/i, "").trim();
+      extract_values.Visite = cleanedVisit;
+      const currentPhase = parsePhaseAndVisit(extract_values.Visites || "").phase;
+      const combined = `${currentPhase ? `P${currentPhase}` : ""}${cleanedVisit ? `V${cleanedVisit}` : ""}`.trim();
+      extract_values.Visites = combined;
+      return;
+    }
 
+    extract_values[key] = stringValue;
+  });
 
-  } catch (err) {
-    console.error("Prochaine failed:", err);
+  const table = document.querySelector(".param-table");
+  if (table) {
+    table.querySelectorAll("tbody tr").forEach(row => {
+      if (row.classList.contains("group-separator-row")) return;
+      const keyCell = row.querySelector("td.param-cell");
+      const valueCell = row.querySelector("td.value-cell");
+      if (!keyCell || !valueCell) return;
+
+      const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
+      if (!key) return;
+
+      const value = previousPageTableData[key] ?? "";
+      const stringValue = value === null || value === undefined ? "" : String(value);
+      valueCell.textContent = stringValue;
+      extract_values[key] = stringValue;
+    });
   }
+
+  const payload = collectTableDataForSave();
+  if (!payload) return;
+  await saveTableDataToPageIndex(currentPageIndex, payload);
 }
 
 /**
@@ -1171,59 +1152,161 @@ function isEmptyValue(v) {
   return v === null || v === undefined || (typeof v === "string" && v.trim() === "");
 }
 
-/**
- * Parses nullable index fields coming from JSON payloads.
- * @param {*} value - Raw index value from server or local state.
- * @returns {number|null} Integer index or null when invalid/empty.
- */
-function parseNullableIndex(value) {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
-}
-
-/**
- * Attaches only start/end index metadata to a payload.
- * @param {Object} data - Data payload to enrich.
- * @returns {Object} Copy containing start/end index fields.
- */
-function withStartEndMetadata(data) {
-  const nextData = { ...(data || {}) };
-  const startIndex = parseNullableIndex(startPageIndex);
-  const endIndex = parseNullableIndex(endPageIndex);
-  nextData.start_index = startIndex;
-  nextData.end_index = endIndex;
-  return nextData;
-}
-
-/**
- * Attaches index metadata to a payload before persistence.
- * @param {Object} data - Data payload to enrich.
- * @returns {Object} Copy containing start/end/doc index fields.
- */
-function withPageRangeMetadata(data) {
-  const nextData = withStartEndMetadata(data);
-  const nextDocIndex = parseNullableIndex(docIndex);
-  nextData.doc_index = nextDocIndex;
-  return nextData;
-}
-
-/**
- * Removes non-editable metadata keys from payloads used by the table renderer.
- * @param {Object} data - Source payload.
- * @returns {Object}
- */
-function stripPageRangeMetadata(data) {
-  if (!data || typeof data !== "object") return data;
-  const nextData = { ...data };
-  delete nextData.start_index;
-  delete nextData.end_index;
-  delete nextData.doc_index;
-  return nextData;
-}
-
 // === TABLE UI ===
+/**
+ * Extracts a phase/visit pair from a combined "Visites" value such as P1V2 or P1.
+ * @param {string|number|null|undefined} value - Source value.
+ * @returns {{phase:string, visit:string}}
+ */
+function parsePhaseAndVisit(value) {
+  const raw = value === null || value === undefined ? "" : String(value).trim();
+  if (!raw) return { phase: "", visit: "" };
+  const normalized = raw.toUpperCase();
+  const phaseMatch = normalized.match(/P?(\d+)/);
+  const visitMatch = normalized.match(/V(\d+)/);
+  return {
+    phase: phaseMatch ? phaseMatch[1] : "",
+    visit: visitMatch ? visitMatch[1] : "",
+  };
+}
+
+/**
+ * Renders the dedicated header summary table for Formulaire de suivi.
+ * @param {Object} data - Current page value map.
+ * @returns {void}
+ */
+function shouldHideFormulaireSuiviHeaderRow(key) {
+  if (currentCategory !== "formulaire_suivi") return false;
+  const normalizedKey = String(key || "").trim();
+  const normalizedLabel = String(field_text[key] || "").trim();
+  const hiddenKeys = new Set(["Visites", "date_visite", "Date d'observation (DD-MM-YY)", "nomat", "No du participant", "no_participant", "Phase", "Visite"]);
+  const hiddenLabels = new Set([
+    "Phase",
+    "Visite",
+    "Date de visite (DD-MM-YY)",
+    "Date d'observation (DD-MM-YY)",
+    "# du participant (4 chiffres)",
+    "No du participant"
+  ]);
+  return hiddenKeys.has(normalizedKey) || hiddenLabels.has(normalizedKey) || hiddenLabels.has(normalizedLabel);
+}
+
+function resolveParticipantHeaderValue(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  return payload["No du participant"] ?? payload.nomat ?? payload["# du participant (4 chiffres)"] ?? payload["No du participant (4 chiffres)"] ?? "";
+}
+
+function resolveObservationDateHeaderValue(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  return payload["Date d'observation (DD-MM-YY)"] ?? payload.date_visite ?? payload["Date de visite (DD-MM-YY)"] ?? "";
+}
+
+function generateHeaderTable(data) {
+  const tableValuesContainer = document.getElementById("table-values-container");
+  if (!tableValuesContainer || currentCategory !== "formulaire_suivi") return;
+
+  const table = document.createElement("table");
+  table.className = "param-table header-summary-table";
+
+  const headerTitleRow = document.createElement("tr");
+  const headerTitleCell = document.createElement("td");
+  headerTitleCell.colSpan = 3;
+  headerTitleCell.textContent = "Entête";
+  headerTitleCell.style.textAlign = "left";
+  headerTitleCell.style.fontWeight = "700";
+  headerTitleCell.style.backgroundColor = "#e8f7e8";
+  headerTitleCell.style.color = "#1f6b2f";
+  headerTitleCell.style.textTransform = "uppercase";
+  headerTitleCell.style.letterSpacing = "0.03em";
+  headerTitleCell.style.borderTop = "2px solid #9dd49d";
+  headerTitleRow.appendChild(headerTitleCell);
+  table.appendChild(headerTitleRow);
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  ["Paramètre", "Page précédente", "Valeurs éditées"].forEach(text => {
+    const th = document.createElement("th");
+    th.textContent = text;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  const rows = [
+    { label: "Phase", getter: () => data?.Phase ?? parsePhaseAndVisit(data?.Visites || "").phase, previousGetter: () => previousPageHeaderValues?.Phase ?? parsePhaseAndVisit(previousPageHeaderValues?.Visites || "").phase, key: "Phase" },
+    { label: "Visite", getter: () => data?.Visite ?? parsePhaseAndVisit(data?.Visites || "").visit, previousGetter: () => previousPageHeaderValues?.Visite ?? parsePhaseAndVisit(previousPageHeaderValues?.Visites || "").visit, key: "Visite" },
+    { label: "Date d'observation (DD-MM-YY)", getter: () => resolveObservationDateHeaderValue(data), previousGetter: () => resolveObservationDateHeaderValue(previousPageHeaderValues), key: "Date d'observation (DD-MM-YY)" },
+    { label: "No du participant", getter: () => resolveParticipantHeaderValue(data), previousGetter: () => resolveParticipantHeaderValue(previousPageHeaderValues), key: "No du participant" },
+  ];
+
+  rows.forEach(rowDef => {
+    const row = document.createElement("tr");
+    const labelCell = document.createElement("td");
+    labelCell.textContent = rowDef.label;
+    labelCell.className = "param-cell";
+    labelCell.dataset.originalKey = rowDef.key;
+
+    const prevCell = document.createElement("td");
+    const previousValue = rowDef.previousGetter ? rowDef.previousGetter() : "";
+    prevCell.textContent = previousValue !== undefined && previousValue !== null ? String(previousValue) : "";
+    prevCell.className = "value-cell previous-value-cell";
+    prevCell.dataset.role = "previous";
+
+    const editCell = document.createElement("td");
+    const editValue = rowDef.getter();
+    editCell.textContent = editValue !== undefined && editValue !== null ? String(editValue) : "";
+    editCell.className = "value-cell editable-header-cell";
+    editCell.contentEditable = "true";
+    editCell.dataset.originalKey = rowDef.key;
+    editCell.dataset.role = "edited";
+
+    editCell.addEventListener("input", () => {
+      const nextValue = editCell.textContent.trim();
+
+      if (rowDef.key === "Phase") {
+        const cleanedPhase = String(nextValue).replace(/^P/i, "").trim();
+        data.Phase = cleanedPhase;
+        extract_values.Phase = cleanedPhase;
+
+        const currentVisit = parsePhaseAndVisit(data.Visites || "").visit;
+        const combined = `${cleanedPhase ? `P${cleanedPhase}` : ""}${currentVisit ? `V${currentVisit}` : ""}`.trim();
+        data.Visites = combined;
+        extract_values.Visites = combined;
+      } else if (rowDef.key === "Visite") {
+        const cleanedVisit = String(nextValue).replace(/^V/i, "").trim();
+        data.Visite = cleanedVisit;
+        extract_values.Visite = cleanedVisit;
+
+        const currentPhase = parsePhaseAndVisit(data.Visites || "").phase;
+        const combined = `${currentPhase ? `P${currentPhase}` : ""}${cleanedVisit ? `V${cleanedVisit}` : ""}`.trim();
+        data.Visites = combined;
+        extract_values.Visites = combined;
+      } else if (rowDef.key === "No du participant") {
+        data["No du participant"] = nextValue;
+        data.nomat = nextValue;
+        extract_values["No du participant"] = nextValue;
+        extract_values.nomat = nextValue;
+      } else if (rowDef.key === "Date d'observation (DD-MM-YY)") {
+        data["Date d'observation (DD-MM-YY)"] = nextValue;
+        data.date_visite = nextValue;
+        extract_values["Date d'observation (DD-MM-YY)"] = nextValue;
+        extract_values.date_visite = nextValue;
+      } else {
+        data[rowDef.key] = nextValue;
+        extract_values[rowDef.key] = nextValue;
+      }
+      scheduleAutoSaveFromInput();
+    });
+
+    row.append(labelCell, prevCell, editCell);
+    tbody.appendChild(row);
+  });
+
+  table.appendChild(tbody);
+  tableValuesContainer.appendChild(table);
+}
+
 /**
  * Generates the editable parameter table from current page data.
  * @param {Object} data - Key/value table data.
@@ -1256,9 +1339,47 @@ function generateEditableTable(data, containerId = "table-values-container") {
   }
   let lastSubsectionId = null;
 
+  const hiddenSecondaryKeys = new Set([
+    "group_rando",
+    "mode_renc",
+    "weight_lbs",
+    "weight_kg",
+    "poids_m",
+    "waistc",
+    "jb_remis",
+    "fq_comp",
+    "date_rappel",
+    "prop_gac",
+    "grains_entiers",
+    "prot_veg",
+    "priv_eau",
+    "prot_r24",
+    "lip_r24",
+    "gluc_r24",
+    "act_phys",
+    "sommeil",
+    "prot_repas",
+    "gras_insat",
+    "fruit_leg",
+    "prod_lait",
+    "faib_ig",
+    "capsa",
+    "alim_rassa",
+    "fibr_r24",
+    "calci_r24",
+    "port_fecul",
+    "port_viand",
+    "fruit_sucr",
+    "port_leg",
+    "port_laits",
+    "port_mg",
+    "def_cal"
+  ]);
+
   for (const [key, value] of Object.entries(data)) {
-    if (["start_index", "end_index", "doc_index"].includes(key)) continue;
     if (field_visibility[key] === false) continue;
+    if (shouldHideFormulaireSuiviHeaderRow(key)) continue;
+    if (hiddenSecondaryKeys.has(key)) continue;
     const currentSubsectionId = field_subsection[key] || null;
     if (currentSubsectionId && currentSubsectionId !== lastSubsectionId) {
       const separatorRow = document.createElement("tr");
@@ -1295,7 +1416,8 @@ function generateEditableTable(data, containerId = "table-values-container") {
     const valueCell = document.createElement("td");
     valueCell.className = "value-cell";
     valueCell.contentEditable = "true";
-    valueCell.textContent = value !== null ? value : "";
+    const displayValue = value !== undefined && value !== null ? value : (raw_extract_values?.[key] ?? "");
+    valueCell.textContent = displayValue !== null && displayValue !== undefined ? String(displayValue) : "";
     valueCell.style.backgroundColor = valueBgColor;
 
     paramCell.addEventListener("input", () => {
@@ -1329,24 +1451,90 @@ function generateEditableTable(data, containerId = "table-values-container") {
  * Reads edited values from DOM and prepares a save-ready payload.
  * @returns {Object|null} Payload including metadata, or null when table is absent.
  */
-function collectTableDataForSave() {
-  const table = document.querySelector(".param-table");
-  if (!table) return null;
+function sanitizePayloadForSave(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  const forbiddenKeys = new Set([
+    "Visites",
+    "nomat",
+    "date_visite",
+    "group_rando",
+    "mode_renc",
+    "weight_lbs",
+    "weight_kg",
+    "poids_m",
+    "waistc",
+    "jb_remis",
+    "fq_comp",
+    "date_rappel",
+    "prop_gac",
+    "grains_entiers",
+    "prot_veg",
+    "priv_eau",
+    "prot_r24",
+    "lip_r24",
+    "gluc_r24",
+    "act_phys",
+    "sommeil",
+    "prot_repas",
+    "gras_insat",
+    "fruit_leg",
+    "prod_lait",
+    "faib_ig",
+    "capsa",
+    "alim_rassa",
+    "fibr_r24",
+    "calci_r24",
+    "port_fecul",
+    "port_viand",
+    "fruit_sucr",
+    "port_leg",
+    "port_laits",
+    "port_mg",
+    "def_cal"
+  ]);
 
-  const data = stripPageRangeMetadata({ ...extract_values });
-  table.querySelectorAll("tbody tr").forEach(row => {
+  const sanitized = {};
+  Object.entries(payload).forEach(([key, value]) => {
+    if (forbiddenKeys.has(key)) return;
+    sanitized[key] = value;
+  });
+  return sanitized;
+}
+
+function collectTableDataForSave() {
+  const rows = document.querySelectorAll(".header-summary-table tbody tr, .param-table tbody tr");
+  if (!rows.length) return null;
+
+  const data = { ...extract_values };
+  rows.forEach(row => {
     if (row.classList.contains("group-separator-row")) return;
+
     const keyCell = row.querySelector("td.param-cell");
-    const valueCell = row.querySelector("td.value-cell");
-    if (!keyCell || !valueCell) return;
+    if (!keyCell) return;
+
     const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
-    const value = valueCell.textContent.trim();
-    if (key) {
+    if (!key) return;
+
+    const editedCell = row.querySelector("td.editable-header-cell")
+      || row.querySelector("td.value-cell:not(.previous-value-cell)")
+      || row.querySelector("td.value-cell")
+      || (row.cells && row.cells.length >= 3 ? row.cells[2] : null);
+    if (!editedCell) return;
+
+    const value = (editedCell.textContent || "").trim();
+    if (key === "Nom du participant" || key === "No du participant") {
+      data["No du participant"] = value;
+      extract_values["No du participant"] = value;
+    } else if (key === "Date d'observation (DD-MM-YY)" || key === "date_visite") {
+      data["Date d'observation (DD-MM-YY)"] = value;
+      extract_values["Date d'observation (DD-MM-YY)"] = value;
+    } else {
       data[key] = value;
       extract_values[key] = value;
     }
   });
-  return withPageRangeMetadata(data);
+
+  return data;
 }
 
 
@@ -1362,12 +1550,12 @@ async function saveTableDataToPageIndex(pageIndex, data) {
   if (!pageRef) return null;
 
   const formData = new FormData();
-  const payload = withStartEndMetadata(data);
+  const payload = sanitizePayloadForSave(data);
   formData.append("project_id", currentProjectID);
   formData.append("document_id", pageRef.document_id);
   formData.append("filename", `table_page_${pageRef.page}.json`);
   formData.append("data", JSON.stringify(payload));
-  // console.log("Saving data for page index:", pageIndex, "with payload:", payload);
+  console.log("Saving data for page index:", pageIndex, "with payload:", payload);
   
   const response = await fetch("/put_data", { method: "POST", body: formData });
   const responsePayload = await response.json();
@@ -1375,103 +1563,6 @@ async function saveTableDataToPageIndex(pageIndex, data) {
     throw new Error(responsePayload.error || `Unable to save page index ${pageIndex}`);
   }
   return responsePayload;
-}
-
-/**
- * Loads the saved table JSON for each page in a range, updates only start/end indices,
- * then writes the files back to the server without using local staging data.
- * @param {number} startIndex - First page index in the range.
- * @param {number} endIndex - Last page index in the range.
- * @returns {Promise<void>}
- */
-async function updateRangeIndexesOnServer(startIndex, endIndex) {
-  if (!Number.isInteger(startIndex) || !Number.isInteger(endIndex) || endIndex < startIndex) {
-    return;
-  }
-
-  for (let i = startIndex; i <= endIndex; i++) {
-    const pageRef = currentFileList[i];
-    if (!pageRef) continue;
-
-    const response = await fetch(`/get_data/${currentProjectID}/${pageRef.document_id}/table_page_${pageRef.page}.json?source=edited`);
-    if (!response.ok) continue;
-    const payload = await response.json();
-    const rawData = payload && typeof payload.data_string === "string"
-      ? JSON.parse(payload.data_string)
-      : (payload || {});
-
-    const nextData = { ...rawData };
-    nextData.start_index = startIndex;
-    nextData.end_index = endIndex;
-
-    const formData = new FormData();
-    formData.append("project_id", currentProjectID);
-    formData.append("document_id", pageRef.document_id);
-    formData.append("filename", `table_page_${pageRef.page}.json`);
-    formData.append("data", JSON.stringify(nextData));
-
-    const saveResponse = await fetch("/put_data", { method: "POST", body: formData });
-    if (!saveResponse.ok) {
-      const errorPayload = await saveResponse.json().catch(() => ({ error: "Unable to save range metadata" }));
-      throw new Error(errorPayload.error || `Unable to save page index ${i}`);
-    }
-  }
-}
-
-/**
- * Nouveau workflow: clears editable values, reloads OCR source, resets range and increments doc index.
- * @returns {Promise<void>}
- */
-async function startNewRangeFromRaw() {
-  const table = document.querySelector(".param-table");
-  if (!table) return;
-
-  try {
-    const currentDocIndex = Number.isInteger(docIndex) ? docIndex : Number(extract_values?.doc_index);
-    const isSamePageAsLastNew = lastNewIncrementPageIndex === currentPageIndex;
-    const nextDocIndex = currentPageIndex === 1
-      ? 1
-      : Number.isInteger(currentDocIndex)
-        ? (isSamePageAsLastNew ? currentDocIndex : currentDocIndex + 1)
-        : 1;
-
-    // Update the previous range metadata directly on the server by reloading each saved file.
-    const previousStartIndex = startPageIndex;
-    const previousEndIndex = currentPageIndex - 1;
-    if (Number.isInteger(previousStartIndex) && Number.isInteger(previousEndIndex)) {
-      await updateRangeIndexesOnServer(previousStartIndex, previousEndIndex);
-    }
-
-    // 4) clear table
-    table.querySelectorAll("tbody tr").forEach(row => {
-      if (row.classList.contains("group-separator-row")) return;
-      const keyCell = row.querySelector("td.param-cell");
-      const valueCell = row.querySelector("td.value-cell");
-      if (!keyCell || !valueCell) return;
-      valueCell.textContent = "";
-      const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
-      if (key) {
-        extract_values[key] = "";
-      }
-    });
-
-
-    // 5) load raw data from current page
-    await loadPage(currentProjectID, currentPageIndex, false, "raw", false);
-
-    // 6) keep range/doc metadata for the new work segment
-    startPageIndex = currentPageIndex;
-    endPageIndex = currentPageIndex;
-    docIndex = nextDocIndex;
-    lastNewIncrementPageIndex = currentPageIndex;
-    extract_values.start_index = startPageIndex;
-    extract_values.end_index = endPageIndex;
-    extract_values.doc_index = docIndex;
-    updateRangeIndexDisplay();
-    
-  } catch (err) {
-    console.error("Nouveau failed:", err);
-  }
 }
 
 /**
@@ -1566,14 +1657,11 @@ window.addEventListener('DOMContentLoaded', async function () {
   project_data = await ProjectManager.getProject(projectId);
 
   if (project_data.length > 0) {
-    startPageIndex = null;
-    endPageIndex = null;
-    docIndex = null;
-    hasRenderedTableSection = false;
+  hasRenderedTableSection = false;
     createFileList(projectId, documentId, project_data);
 
     //Display First page
-    await loadPage(projectId, currentPageIndex,true,'edited',true);
+    await loadPage(projectId, currentPageIndex,true,'edited');
 
 
     //display project data in fileList
