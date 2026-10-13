@@ -1,15 +1,12 @@
-# Signing checklist (production) + unsigned fallback
+# Unsigned build configuration (GitHub Actions)
 
-Le pipeline dans [build.yml](C:/dev/NUTRISS-OCR/.github/workflows/build.yml) supporte les deux modes:
+Le workflow [build.yml](C:/dev/NUTRISS-OCR/.github/workflows/build.yml) est actuellement configuré pour produire des builds **non signés**:
 
-- **Mode production signé** (recommandé pour diffusion utilisateurs)
-- **Mode fallback unsigned** (si secrets/certificats absents)
+- Windows: build de l'installeur sans étape de signature
+- macOS: build DMG avec `--config.mac.identity=null`
+- notarization macOS: étape commentée (désactivée)
 
-Cette checklist corrige et centralise les secrets GitHub nécessaires pour que la signature fonctionne en production.
-
-## 1) Secrets GitHub requis (production)
-
-Configure ces secrets dans **GitHub > Settings > Secrets and variables > Actions > Repository secrets**.
+## 1) Secrets GitHub requis actuellement
 
 ### Windows (Azure Trusted Signing)
 
@@ -25,7 +22,7 @@ Si vous réactivez la signature Windows, ces secrets deviennent requis:
 
 ### macOS signing (Developer ID Application)
 
-Utilisés par `electron-builder`:
+Actuellement non utilisés car le build force le mode unsigned:
 
 - `MAC_CSC_LINK` (certificat encodé/base64 ou lien vers le certificat)
 - `MAC_CSC_KEY_PASSWORD` (mot de passe du certificat)
@@ -33,7 +30,7 @@ Utilisés par `electron-builder`:
 
 ### macOS notarization (Apple)
 
-Obligatoires pour l’étape `Notarize macOS app (Gatekeeper)` :
+Actuellement non utilisés car l’étape de notarization est commentée:
 
 - `APPLE_ID`
 - `APPLE_APP_SPECIFIC_PASSWORD`
@@ -42,19 +39,19 @@ Obligatoires pour l’étape `Notarize macOS app (Gatekeeper)` :
 ## 2) Comportement du pipeline si secrets manquants
 
 - **Windows**: aucune signature n’est effectuée tant que les étapes restent commentées.
-- **macOS build**: si les variables `MAC_CSC_*` sont absentes, le workflow construit un DMG **non signé** (`--config.mac.identity=null`).
-- **macOS notarization**: si `APPLE_*` est absent, la notarization est ignorée.
+- **macOS build**: le workflow construit toujours un DMG **non signé** (`--config.mac.identity=null`).
+- **macOS notarization**: aucune notarization n’est tentée tant que l’étape reste commentée.
 
 ## 3) Checklist de validation rapide
 
-1. Vérifier que tous les secrets ci-dessus sont présents et sans espaces parasites.
+1. Vérifier qu’aucune étape de signature/notarization n’a été réactivée par erreur.
 2. Lancer un workflow sur un tag `v*`.
 3. Contrôler les logs:
-   - Windows: build `.exe` généré (non signé tant que les étapes de signature restent commentées).
-   - macOS: build sans fallback unsigned, puis **Notarize macOS app** avec statut `Accepted`.
+   - Windows: build `.exe` généré.
+   - macOS: build DMG avec `--config.mac.identity=null`.
 4. Vérifier les artefacts publiés:
-   - `NutriProof-Setup.exe` (non signé si signature Windows désactivée)
-   - `*.dmg` (notarisé + stapled)
+   - `NutriProof-Setup.exe` (non signé)
+   - `*.dmg` (non signé / non notarisé)
 
 ## 4) Erreur fréquente
 
@@ -64,7 +61,7 @@ Erreur typique:
 SecKeychainUnlock: The user name or passphrase you entered is not correct.
 ```
 
-Ce n’est pas un bug applicatif. C’est un problème de certificat/identité/keychain macOS côté CI ou de secret `MAC_CSC_*` incorrect.
+Ce n’est pas un bug applicatif. C’est un problème de certificat/identité/keychain macOS côté CI.
 
 ## 5) Mode unsigned (usage interne uniquement)
 
