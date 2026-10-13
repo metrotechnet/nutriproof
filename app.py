@@ -207,7 +207,7 @@ else:
 print(LOCAL_FOLDER)
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.54'
+APP_VERSION = '1.1.55'
 
 def create_app():
 
