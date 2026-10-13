@@ -13,7 +13,9 @@ Configure ces secrets dans **GitHub > Settings > Secrets and variables > Actions
 
 ### Windows (Azure Trusted Signing)
 
-Obligatoires pour l’étape `Sign Windows installer (Azure Artifact Signing)` :
+Actuellement, la signature Windows est désactivée dans [build.yml](C:/dev/NUTRISS-OCR/.github/workflows/build.yml) (étapes commentées).
+
+Si vous réactivez la signature Windows, ces secrets deviennent requis:
 
 - `ARTIFACT_SIGNING_ACCOUNT`
 - `ARTIFACT_SIGNING_PROFILE`
@@ -39,7 +41,7 @@ Obligatoires pour l’étape `Notarize macOS app (Gatekeeper)` :
 
 ## 2) Comportement du pipeline si secrets manquants
 
-- **Windows**: la signature échoue si les secrets Azure ci-dessus sont absents/invalides.
+- **Windows**: aucune signature n’est effectuée tant que les étapes restent commentées.
 - **macOS build**: si les variables `MAC_CSC_*` sont absentes, le workflow construit un DMG **non signé** (`--config.mac.identity=null`).
 - **macOS notarization**: si `APPLE_*` est absent, la notarization est ignorée.
 
@@ -48,10 +50,10 @@ Obligatoires pour l’étape `Notarize macOS app (Gatekeeper)` :
 1. Vérifier que tous les secrets ci-dessus sont présents et sans espaces parasites.
 2. Lancer un workflow sur un tag `v*`.
 3. Contrôler les logs:
-   - Windows: étape **Sign Windows installer** puis **Verify signature** en succès.
+   - Windows: build `.exe` généré (non signé tant que les étapes de signature restent commentées).
    - macOS: build sans fallback unsigned, puis **Notarize macOS app** avec statut `Accepted`.
 4. Vérifier les artefacts publiés:
-   - `NutriProof-Setup.exe` (signé)
+   - `NutriProof-Setup.exe` (non signé si signature Windows désactivée)
    - `*.dmg` (notarisé + stapled)
 
 ## 4) Erreur fréquente

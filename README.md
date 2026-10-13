@@ -96,6 +96,25 @@ chmod +x build-desktop-mac.sh
 ```
 Options : `--skip-backend`, `--skip-electron`, `--arch arm64|x64`
 
+### Créer un ZIP macOS (run local, sans signature)
+
+Pour distribuer une version web locale (Python + navigateur) avec un lanceur `start.command`:
+
+```bash
+chmod +x build-mac-local-zip.sh
+./build-mac-local-zip.sh
+```
+
+Depuis Windows (PowerShell natif) :
+
+```powershell
+.\build-mac-local-zip.ps1
+```
+
+Sortie:
+- `dist/NutriProof-mac-local.zip`
+- Contient `start.command` que l'utilisateur macOS peut double-cliquer pour démarrer le serveur.
+
 ---
 
 ## Déployer le site web

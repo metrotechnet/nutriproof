@@ -68,38 +68,38 @@ jobs:
             Where-Object { $_.Name -ne "NutriProof-Setup.exe" } |
             Remove-Item -Force -ErrorAction SilentlyContinue
 
-      - name: Sign Windows installer (Azure Artifact Signing)
-        uses: azure/artifact-signing-action@v1
-        with:
-          endpoint: https://eus.codesigning.azure.net/
-          signing-account-name: ${{ secrets.ARTIFACT_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ secrets.ARTIFACT_SIGNING_PROFILE }}
-          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          exclude-workload-identity-credential: true
-          exclude-managed-identity-credential: true
-          exclude-shared-token-cache-credential: true
-          exclude-visual-studio-credential: true
-          exclude-visual-studio-code-credential: true
-          exclude-azure-cli-credential: true
-          exclude-azure-powershell-credential: true
-          exclude-azure-developer-cli-credential: true
-          exclude-interactive-browser-credential: true
-          files-folder: dist/electron
-          files-folder-filter: exe
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com/
-          timestamp-digest: SHA256
+      # - name: Sign Windows installer (Azure Artifact Signing)
+      #   uses: azure/artifact-signing-action@v1
+      #   with:
+      #     endpoint: https://eus.codesigning.azure.net/
+      #     signing-account-name: ${{ secrets.ARTIFACT_SIGNING_ACCOUNT }}
+      #     certificate-profile-name: ${{ secrets.ARTIFACT_SIGNING_PROFILE }}
+      #     azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      #     azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      #     azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      #     exclude-workload-identity-credential: true
+      #     exclude-managed-identity-credential: true
+      #     exclude-shared-token-cache-credential: true
+      #     exclude-visual-studio-credential: true
+      #     exclude-visual-studio-code-credential: true
+      #     exclude-azure-cli-credential: true
+      #     exclude-azure-powershell-credential: true
+      #     exclude-azure-developer-cli-credential: true
+      #     exclude-interactive-browser-credential: true
+      #     files-folder: dist/electron
+      #     files-folder-filter: exe
+      #     file-digest: SHA256
+      #     timestamp-rfc3161: http://timestamp.acs.microsoft.com/
+      #     timestamp-digest: SHA256
 
-      - name: Verify signature
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $signtool) { throw "signtool.exe not found" }
-          & $signtool.FullName verify /pa /v "dist\electron\NutriProof-Setup.exe"
-          if ($LASTEXITCODE -ne 0) { throw "Signature verification failed" }
+      # - name: Verify signature
+      #   shell: pwsh
+      #   run: |
+      #     $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+      #       Sort-Object FullName -Descending | Select-Object -First 1
+      #     if (-not $signtool) { throw "signtool.exe not found" }
+      #     & $signtool.FullName verify /pa /v "dist\electron\NutriProof-Setup.exe"
+      #     if ($LASTEXITCODE -ne 0) { throw "Signature verification failed" }
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v5
