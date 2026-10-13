@@ -52,6 +52,55 @@ const tooltip = document.createElement("div");
 tooltip.className = "tooltip";
 document.body.appendChild(tooltip);
 
+function normalizeDisplayKey(value) {
+  return String(value || "")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[-_/]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeKey(value) {
+  return String(value || "")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[-_/]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function shouldHideLegacyLipidAliasKey(key, category = currentCategory) {
+  if (!["bilan_lipidique_1", "bilan_lipidique_2"].includes(category)) {
+    return false;
+  }
+
+  const legacyAliases = new Set([
+    "Cholestérol-total",
+    "Cholestérol-chdl",
+    "Cholestérol-ldl"
+  ]);
+
+  return legacyAliases.has(key);
+}
+
+function resolveFieldDisplayLabel(key) {
+  if (!key) return key;
+  if (field_text && Object.prototype.hasOwnProperty.call(field_text, key)) {
+    return field_text[key] || key;
+  }
+  const normalizedKey = normalizeDisplayKey(key);
+  for (const [configKey, displayText] of Object.entries(field_text || {})) {
+    const candidateText = displayText || configKey;
+    if (normalizeDisplayKey(configKey) === normalizedKey || normalizeDisplayKey(candidateText) === normalizedKey) {
+      return candidateText;
+    }
+  }
+  return key;
+}
+
 // === DISPLAY INFO ===
 /**
  * Updates the review header title area with contextual information.
@@ -333,64 +382,74 @@ async function displayPage(project_id, document_id, index, init_scroll=false, im
  */
 function renderTableSection(imageOnly) {
   if (!imageOnly) {
-    // Effacer le tableau/pagination sans retirer la structure des slots
     const tableValuesContainer = document.getElementById("table-values-container");
     const paginationSlot = document.getElementById("pagination-slot");
-    const tableHeaderSlot = document.getElementById("table-header-slot");
     if (tableValuesContainer) tableValuesContainer.innerHTML = "";
     if (paginationSlot) paginationSlot.innerHTML = "";
-    if (tableHeaderSlot) tableHeaderSlot.innerHTML = "";
-    // Keep parameter table order aligned with JSON definition order.
-    // 1) keys order from label_bbox (built from config JSON order on backend)
-    // 2) append any remaining keys in their existing insertion order
-    const labelOrder = Object.keys(label_bbox || {});
-    const entries = Object.entries(extract_values || {});
+    const isBilanLipidiqueCategory = ["bilan_lipidique_1", "bilan_lipidique_2"].includes(currentCategory);
+    let orderedEntries = Object.entries(extract_values || {});
 
-    const normalizeKey = (s) =>
-      String(s || "")
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[-_/]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    if (isBilanLipidiqueCategory) {
+      const seen = new Set();
+      orderedEntries = orderedEntries.filter(([key]) => {
+        const normalized = normalizeDisplayKey(key);
+        if (!normalized || seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      });
+    } else {
+      // Keep parameter table order aligned with JSON definition order.
+      // 1) keys order from label_bbox (built from config JSON order on backend)
+      // 2) append any remaining keys in their existing insertion order
+      const labelOrder = Object.keys(label_bbox || {});
+      const entries = Object.entries(extract_values || {});
 
-    // Keep both exact and normalized views so keys like
-    // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
-    const byKey = new Map(entries);
-    const byNorm = new Map();
-    for (const [k, v] of entries) {
-      const nk = normalizeKey(k);
-      if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
-    }
-    const orderedEntries = [];
+      const normalizeKey = (s) =>
+        String(s || "")
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/[-_/]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-    for (const key of labelOrder) {
-      if (byKey.has(key)) {
-        orderedEntries.push([key, byKey.get(key)]);
-        byKey.delete(key);
-        const nk = normalizeKey(key);
-        if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
-          byNorm.delete(nk);
+      // Keep both exact and normalized views so keys like
+      // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
+      const byKey = new Map(entries);
+      const byNorm = new Map();
+      for (const [k, v] of entries) {
+        const nk = normalizeKey(k);
+        if (!byNorm.has(nk)) byNorm.set(nk, [k, v]);
+      }
+      orderedEntries = [];
+
+      for (const key of labelOrder) {
+        if (byKey.has(key)) {
+          orderedEntries.push([key, byKey.get(key)]);
+          byKey.delete(key);
+          const nk = normalizeKey(key);
+          if (byNorm.has(nk) && byNorm.get(nk)[0] === key) {
+            byNorm.delete(nk);
+          }
+        } else {
+          const nk = normalizeKey(key);
+          if (byNorm.has(nk)) {
+            const [realKey, value] = byNorm.get(nk);
+            orderedEntries.push([realKey, value]);
+            byNorm.delete(nk);
+            byKey.delete(realKey);
+          }
         }
-      } else {
-        const nk = normalizeKey(key);
-        if (byNorm.has(nk)) {
-          const [realKey, value] = byNorm.get(nk);
-          orderedEntries.push([realKey, value]);
-          byNorm.delete(nk);
-          byKey.delete(realKey);
+      }
+
+      for (const [key, value] of entries) {
+        if (byKey.has(key)) {
+          orderedEntries.push([key, value]);
+          byKey.delete(key);
         }
       }
     }
-
-    for (const [key, value] of entries) {
-      if (byKey.has(key)) {
-        orderedEntries.push([key, value]);
-        byKey.delete(key);
-      }
-    }
-    const contentEntries = orderedEntries;
+    const contentEntries = orderedEntries.filter(([key]) => !shouldHideLegacyLipidAliasKey(key, currentCategory));
 
     const hiddenEntries = [];
     const groupBuckets = new Map();
@@ -780,7 +839,7 @@ function displayAllGridCells(svg, gridCells, offsetX, offsetY, scaleX, scaleY) {
  * @returns {void}
  */
 function createTopActionControls() {
-  const slot = document.getElementById("table-header-slot");
+  const slot = document.getElementById("table-values-container");
   if (!slot) return;
 
   const activeCategory = (typeof key_order !== "undefined" ? key_order : (typeof currentCategory !== "undefined" ? currentCategory : ""));
@@ -792,7 +851,7 @@ function createTopActionControls() {
   row.className = "table-header-actions";
   const instructions = document.createElement("div");
   instructions.className = "table-header-actions-instructions";
-   const instructionLine2 = document.createElement("div");
+  const instructionLine2 = document.createElement("div");
   instructionLine2.innerHTML = "<strong>Note :</strong> cliquez sur « Copier » pour copier les valeurs de l'entête de la page précédente.";
   instructions.append(instructionLine2);
   const buttons = document.createElement("div");
@@ -812,7 +871,7 @@ function createTopActionControls() {
   controlsRow.append(buttons);
 
   row.append(instructions, controlsRow);
-  slot.appendChild(row);
+  slot.prepend(row);
 }
 
 
@@ -829,11 +888,15 @@ function createPaginationControls(current, max) {
   const prevBtn = document.createElement("button");
   prevBtn.id = "page-prev-btn";
   prevBtn.type = "button";
-  prevBtn.className = "btn btn-outline-primary btn-sm mx-1";
+  prevBtn.className = "btn btn-outline-primary btn-sm";
   prevBtn.innerHTML = '<i class="bi bi-chevron-left"></i> ';
   prevBtn.onclick = previousPage;
 
   const pageDiv = document.createElement("div");
+  pageDiv.style.display = "flex";
+  pageDiv.style.alignItems = "center";
+  pageDiv.style.justifyContent = "center";
+  pageDiv.style.gap = "6px";
   const pageText = document.createElement("span");
   pageText.textContent = `Page:`;
   pageText.id = "page-display";
@@ -846,7 +909,7 @@ function createPaginationControls(current, max) {
   pageInput.max = max;
   pageInput.value = current;
   pageInput.style.width = "60px";
-  pageInput.style.margin = "0 4px";
+  pageInput.style.margin = "0";
   //add event when user pres enter
   pageInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -877,7 +940,7 @@ function createPaginationControls(current, max) {
   const nextBtn = document.createElement("button");
   nextBtn.id = "page-next-btn";
   nextBtn.type = "button";
-  nextBtn.className = "btn btn-outline-primary btn-sm mx-1";
+  nextBtn.className = "btn btn-outline-primary btn-sm";
   nextBtn.innerHTML = '<i class="bi bi-chevron-right"></i>';
   nextBtn.onclick = nextPage;
 
@@ -1122,7 +1185,7 @@ function validateTableForContinue() {
     const validation = validateAndNormalizeByParse(currentValue, parseRule);
     if (!validation.valid) {
       valueCell.style.border = "2px solid #dc3545";
-      const visibleLabel = (field_text[key] || keyCell.textContent || key).trim();
+      const visibleLabel = (resolveFieldDisplayLabel(key) || keyCell.textContent || key).trim();
       const expected = Array.isArray(parseRule)
         ? parseRule.join(", ")
         : (parseRule || "format valide");
@@ -1339,47 +1402,48 @@ function generateEditableTable(data, containerId = "table-values-container") {
   }
   let lastSubsectionId = null;
 
-  const hiddenSecondaryKeys = new Set([
-    "group_rando",
-    "mode_renc",
-    "weight_lbs",
-    "weight_kg",
-    "poids_m",
-    "waistc",
-    "jb_remis",
-    "fq_comp",
-    "date_rappel",
-    "prop_gac",
-    "grains_entiers",
-    "prot_veg",
-    "priv_eau",
-    "prot_r24",
-    "lip_r24",
-    "gluc_r24",
-    "act_phys",
-    "sommeil",
-    "prot_repas",
-    "gras_insat",
-    "fruit_leg",
-    "prod_lait",
-    "faib_ig",
-    "capsa",
-    "alim_rassa",
-    "fibr_r24",
-    "calci_r24",
-    "port_fecul",
-    "port_viand",
-    "fruit_sucr",
-    "port_leg",
-    "port_laits",
-    "port_mg",
-    "def_cal"
-  ]);
 
-  for (const [key, value] of Object.entries(data)) {
+  const isBilanLipidiqueCategory = ["bilan_lipidique_1", "bilan_lipidique_2"].includes(currentCategory);
+  const orderedKeys = isBilanLipidiqueCategory
+    ? (() => {
+        const ordered = [];
+        const seen = new Set();
+        Object.keys(data || {}).forEach(key => {
+          const normalized = normalizeDisplayKey(key);
+          if (!normalized || seen.has(normalized)) return;
+          seen.add(normalized);
+          ordered.push(key);
+        });
+        return ordered;
+      })()
+    : (() => {
+        const preferredKeys = Object.keys(field_text || {});
+        const dataKeys = Object.keys(data || {});
+        const ordered = [];
+        const seen = new Set();
+
+        preferredKeys.forEach(key => {
+          if (dataKeys.includes(key) && !seen.has(key)) {
+            ordered.push(key);
+            seen.add(key);
+          }
+        });
+
+        dataKeys.forEach(key => {
+          if (!seen.has(key)) {
+            ordered.push(key);
+            seen.add(key);
+          }
+        });
+
+        return ordered;
+      })();
+
+  for (const key of orderedKeys) {
+    const value = data[key];
+    if (shouldHideLegacyLipidAliasKey(key, currentCategory)) continue;
     if (field_visibility[key] === false) continue;
     if (shouldHideFormulaireSuiviHeaderRow(key)) continue;
-    if (hiddenSecondaryKeys.has(key)) continue;
     const currentSubsectionId = field_subsection[key] || null;
     if (currentSubsectionId && currentSubsectionId !== lastSubsectionId) {
       const separatorRow = document.createElement("tr");
@@ -1409,7 +1473,7 @@ function generateEditableTable(data, containerId = "table-values-container") {
     const paramCell = document.createElement("td");
     paramCell.className = "param-cell";
     paramCell.contentEditable = "false";
-    paramCell.textContent = field_text[key] || key;
+    paramCell.textContent = resolveFieldDisplayLabel(key);
     paramCell.dataset.originalKey = key;
     paramCell.style.backgroundColor = labelBgColor;
 

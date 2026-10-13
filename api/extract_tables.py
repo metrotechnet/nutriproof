@@ -830,11 +830,10 @@ class OCRDocument:
 
             # Table data (editable table starts empty after OCR)
             extract_values_ordered = OrderedDict((label, extract_values.get(label, None)) for label in labels)
-            table_values_empty_ordered = OrderedDict((label, "") for label in labels)
             table_filename = f"table_{pageid}.json"
             table_path = os.path.join(project_path, table_filename)
             with open(table_path, "w", encoding="utf-8") as f:
-                json.dump(table_values_empty_ordered, f, indent=4, ensure_ascii=False)
+                json.dump(extract_values_ordered, f, indent=4, ensure_ascii=False)
 
             # All OCR blocks (for debug display)
             all_blocks = []
