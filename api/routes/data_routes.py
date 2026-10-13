@@ -244,38 +244,21 @@ def get_data(project_id, document_id, filename):
         file_path = _resolve_table_read_path(document_dir, page_id, source=source)
     else:
         file_path = os.path.join(document_dir, filename)
-    #Create default data dict from key_order labels
-    data = {k: "" for k in key_order}
+    data = {}
     if os.path.exists(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             new_data = json.load(f)
-        # Preserve file key order first (when JSON was preordered upstream),
-        # then append any remaining configured keys. Keep both display labels and
-        # raw output keys (for example: "date_visite", "nomat") so previous-page
-        # rendering and autosave include their actual persisted values.
         if isinstance(new_data, dict):
-            raw_keys = current_app.config.get('FIELD_KEYS', {}).get(category, [])
+            # Keep only keys that are actually present in the saved page payload.
+            # Do not synthesize or append configured keys that are absent from the
+            # file itself, otherwise the review UI receives extra empty values.
             allowed = set(key_order)
-            allowed.update(raw_keys)
+            allowed.update(current_app.config.get('FIELD_KEYS', {}).get(category, []))
             allowed.update({"No du participant", "Date d'observation (DD-MM-YY)", "nomat", "date_visite"})
-            # Preserve persisted page-range metadata in API payloads.
-            # allowed.update({"start_index", "end_index", "doc_index"})
-            ordered_keys = []
-            for k in new_data.keys():
-                if k in allowed:
-                    ordered_keys.append(k)
-            for k in key_order:
-                if k not in ordered_keys:
-                    ordered_keys.append(k)
-            for k in raw_keys:
-                if k not in ordered_keys:
-                    ordered_keys.append(k)
-            data = {k: new_data.get(k, "") for k in ordered_keys}
+            data = {k: new_data[k] for k in new_data.keys() if k in allowed}
         else:
             # Fallback for unexpected non-dict payloads.
-            for k in key_order:
-                if k in new_data:
-                    data[k] = new_data[k]
+            data = {}
         return jsonify({
             "data_string": json.dumps(data),
             "category": category,

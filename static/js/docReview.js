@@ -1238,6 +1238,8 @@ function parsePhaseAndVisit(value) {
  * @param {Object} data - Current page value map.
  * @returns {void}
  */
+
+
 function shouldHideFormulaireSuiviHeaderRow(key) {
   if (currentCategory !== "formulaire_suivi") return false;
   const normalizedKey = String(key || "").trim();
@@ -1252,6 +1254,21 @@ function shouldHideFormulaireSuiviHeaderRow(key) {
     "No du participant"
   ]);
   return hiddenKeys.has(normalizedKey) || hiddenLabels.has(normalizedKey) || hiddenLabels.has(normalizedLabel);
+}
+
+function isAllowedEditableTableKey(key) {
+  if (!key || key === "") return false;
+  if (currentCategory !== "formulaire_suivi") return true;
+
+  if (shouldHideFormulaireSuiviHeaderRow(key)) return false;
+
+  const fieldKeys = new Set([
+    ...Object.keys(field_visibility || {}),
+    ...Object.keys(field_text || {}),
+    ...Object.keys(field_type || {})
+  ]);
+
+  return fieldKeys.has(key);
 }
 
 function resolveParticipantHeaderValue(payload) {
@@ -1417,24 +1434,31 @@ function generateEditableTable(data, containerId = "table-values-container") {
         return ordered;
       })()
     : (() => {
-        const preferredKeys = Object.keys(field_text || {});
-        const dataKeys = Object.keys(data || {});
+        const sectionOrder = Array.isArray(subsections)
+          ? subsections.map(section => section && section.id ? String(section.id) : null).filter(Boolean)
+          : [];
+        const allDataKeys = Object.keys(data || {});
         const ordered = [];
         const seen = new Set();
 
-        preferredKeys.forEach(key => {
-          if (dataKeys.includes(key) && !seen.has(key)) {
-            ordered.push(key);
-            seen.add(key);
-          }
+        const appendOrderedKeys = (keys) => {
+          keys.forEach(key => {
+            if (!seen.has(key)) {
+              ordered.push(key);
+              seen.add(key);
+            }
+          });
+        };
+
+        sectionOrder.forEach(sectionId => {
+          const sectionKeys = allDataKeys.filter(key => String(field_subsection[key] || "") === sectionId);
+          appendOrderedKeys(Object.keys(field_text || {}).filter(key => sectionKeys.includes(key)));
+          appendOrderedKeys(sectionKeys.filter(key => !Object.keys(field_text || {}).includes(key)));
         });
 
-        dataKeys.forEach(key => {
-          if (!seen.has(key)) {
-            ordered.push(key);
-            seen.add(key);
-          }
-        });
+        const remainingKeys = allDataKeys.filter(key => !seen.has(key));
+        appendOrderedKeys(Object.keys(field_text || {}).filter(key => remainingKeys.includes(key)));
+        appendOrderedKeys(remainingKeys.filter(key => !Object.keys(field_text || {}).includes(key)));
 
         return ordered;
       })();
@@ -1442,8 +1466,8 @@ function generateEditableTable(data, containerId = "table-values-container") {
   for (const key of orderedKeys) {
     const value = data[key];
     if (shouldHideLegacyLipidAliasKey(key, currentCategory)) continue;
+    if (!isAllowedEditableTableKey(key)) continue;
     if (field_visibility[key] === false) continue;
-    if (shouldHideFormulaireSuiviHeaderRow(key)) continue;
     const currentSubsectionId = field_subsection[key] || null;
     if (currentSubsectionId && currentSubsectionId !== lastSubsectionId) {
       const separatorRow = document.createElement("tr");
@@ -1577,7 +1601,7 @@ function collectTableDataForSave() {
     if (!keyCell) return;
 
     const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
-    if (!key) return;
+    if (!key || !isAllowedEditableTableKey(key)) return;
 
     const editedCell = row.querySelector("td.editable-header-cell")
       || row.querySelector("td.value-cell:not(.previous-value-cell)")
@@ -1597,6 +1621,12 @@ function collectTableDataForSave() {
       extract_values[key] = value;
     }
   });
+
+  if (currentCategory === "formulaire_suivi") {
+    Object.keys(data).forEach(key => {
+      if (!isAllowedEditableTableKey(key)) delete data[key];
+    });
+  }
 
   return data;
 }
