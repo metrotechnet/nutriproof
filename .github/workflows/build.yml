@@ -287,14 +287,26 @@ jobs:
         run: |
           cd electron
           npm install
-          # Unset empty signing vars to prevent electron-builder from treating them as file paths
-          [ -z "$CSC_LINK" ] && unset CSC_LINK
-          [ -z "$APPLE_ID" ] && unset APPLE_ID
-          npx electron-builder --mac --publish never
+          # If no Apple signing credentials are configured, build an unsigned app.
+          # This avoids keychain unlock failures on CI runners that do not have a 
+          # valid macOS signing identity installed.
+          [ -n "$CSC_LINK" ] || unset CSC_LINK
+          [ -n "$CSC_KEY_PASSWORD" ] || unset CSC_KEY_PASSWORD
+          [ -n "$CSC_NAME" ] || unset CSC_NAME
+          [ -n "$APPLE_ID" ] || unset APPLE_ID
+
+          if [ -n "$CSC_LINK" ] || [ -n "$CSC_KEY_PASSWORD" ] || [ -n "$CSC_NAME" ]; then
+            npx electron-builder --mac --publish never
+          else
+            echo "No macOS signing certificate configured; building unsigned DMG."
+            npx electron-builder --mac --publish never --config.mac.identity=null
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          CSC_NAME: ${{ secrets.MAC_CSC_NAME }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}

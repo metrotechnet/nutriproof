@@ -56,6 +56,12 @@ exports.default = async function afterSign(context) {
     const { electronPlatformName, appOutDir, packager } = context;
     if (electronPlatformName !== 'darwin') return;
 
+    const signingDisabled = process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'false' || process.env.CSC_IDENTITY_AUTO_DISCOVERY === '0';
+    if (signingDisabled) {
+        console.warn('[afterSign] macOS signing is disabled via CSC_IDENTITY_AUTO_DISCOVERY=false; skipping embedded binary signing.');
+        return;
+    }
+
     const identity = process.env.CSC_NAME || process.env.MAC_SIGN_IDENTITY;
     // electron-builder uses the cert from CSC_LINK; we resolve the identity from `security find-identity`
     let signIdentity = identity;

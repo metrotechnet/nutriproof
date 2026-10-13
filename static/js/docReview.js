@@ -404,15 +404,6 @@ function renderTableSection(imageOnly) {
       const labelOrder = Object.keys(label_bbox || {});
       const entries = Object.entries(extract_values || {});
 
-      const normalizeKey = (s) =>
-        String(s || "")
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase()
-          .replace(/[-_/]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
       // Keep both exact and normalized views so keys like
       // "Cholestérol-LDL" and "Cholestérol LDL" map to same slot.
       const byKey = new Map(entries);
