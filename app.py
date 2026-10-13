@@ -187,7 +187,10 @@ from api.routes.data_routes import data_bp
 
 CONFIG_PATH = os.path.join(_bundle_dir, "dbase", "parameters.json")
 PROJECT_ID = "main"
-if getattr(sys, 'frozen', False):
+_upload_root_override = os.environ.get('UPLOAD_ROOT')
+if _upload_root_override:
+    LOCAL_FOLDER = os.path.abspath(_upload_root_override)
+elif getattr(sys, 'frozen', False):
     # Packaged: use platform-appropriate writable user data folder.
     if sys.platform == 'win32':
         # Windows: %LOCALAPPDATA%\NutriProof\uploads
@@ -207,7 +210,7 @@ else:
 print(LOCAL_FOLDER)
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.55'
+APP_VERSION = '1.1.56'
 
 def create_app():
 

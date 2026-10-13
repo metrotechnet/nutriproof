@@ -1,0 +1,15 @@
+services:
+  nutriproof:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nutriproof
+    environment:
+      PORT: 8080
+      UPLOAD_ROOT: /app/uploads
+      TESSDATA_PREFIX: /usr/share/tesseract-ocr/5/tessdata
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${UPLOAD_ROOT:-./uploads}:/app/uploads
+    restart: unless-stopped
