@@ -259,7 +259,7 @@ def get_data(project_id, document_id, filename):
             allowed.update(raw_keys)
             allowed.update({"No du participant", "Date d'observation (DD-MM-YY)", "nomat", "date_visite"})
             # Preserve persisted page-range metadata in API payloads.
-            allowed.update({"start_index", "end_index", "doc_index"})
+            # allowed.update({"start_index", "end_index", "doc_index"})
             ordered_keys = []
             for k in new_data.keys():
                 if k in allowed:

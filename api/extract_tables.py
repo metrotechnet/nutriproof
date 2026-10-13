@@ -1109,10 +1109,7 @@ class OCRDocument:
             extract_values_ordered['Visite'] = None
             extract_values_ordered['Date'] = None
             extract_values_ordered["# Du Participant"] = None
-            extract_values_ordered["# du document"] = None
-            extract_values_ordered["start_index"] = None
-            extract_values_ordered["end_index"] = None
-            extract_values_ordered["doc_index"] = None
+
             
             # OCR manuscript digits in row 0
             # row0_digits = self.read_row0_digits(cells, gray_img=gray_img)
@@ -2257,7 +2254,7 @@ class OCRDocument:
         wb = xlwt.Workbook()
         ws = wb.add_sheet('Feuille1')
         # Définir un style de police pour l'en-tête (gras, taille 12)
-        header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour yellow;')
+        header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour light_green;')
         for row_idx, row in enumerate(all_rows):
             for col_idx, value in enumerate(row):
                 if row_idx == 5:
@@ -2363,6 +2360,15 @@ class OCRDocument:
             if not isinstance(json_data, dict):
                 return ""
 
+            if str(key) == "Visites":
+                combined_value = _format_visites(
+                    json_data.get("Visites"),
+                    json_data.get("Phase"),
+                    json_data.get("Visite"),
+                )
+                if combined_value not in (None, "", "None", "null"):
+                    return combined_value
+
             if key in json_data and json_data.get(key) not in (None, "", "None", "null"):
                 return json_data.get(key)
 
@@ -2411,12 +2417,29 @@ class OCRDocument:
                 if raw_payload:
                     raw_page_payloads.append(raw_payload)
 
-                page_key = (
-                    payload.get("start_index"),
-                    payload.get("end_index"),
-                    payload.get("doc_index"),
-                )
-                group_key = page_key if any(v not in (None, "", "None", "null") for v in page_key) else ("__fallback__", len(page_groups))
+                def _clean_value(value):
+                    if value is None:
+                        return ""
+                    if isinstance(value, str):
+                        value = value.strip()
+                        return value if value not in ("", "None", "null") else ""
+                    return str(value)
+
+                visite_key_value = raw_payload.get("Visites") or raw_payload.get("visites")
+                if visite_key_value in (None, "", "None", "null"):
+                    visite_key_value = _format_visites(
+                        raw_payload.get("Visites") or raw_payload.get("visites"),
+                        raw_payload.get("Phase") or raw_payload.get("phase"),
+                        raw_payload.get("Visite") or raw_payload.get("visite"),
+                    )
+                composite_key_values = [
+                    _clean_value(visite_key_value),
+                    _clean_value(raw_payload.get("Date d'observation (DD-MM-YY)") or raw_payload.get("date_visite") or raw_payload.get("Date de visite (DD-MM-YY)")),
+                    _clean_value(raw_payload.get("No du participant") or raw_payload.get("nomat") or raw_payload.get("No participant")),
+                ]
+                composite_key = "|".join(composite_key_values)
+
+                group_key = ("__composite__", composite_key) if composite_key else ("__fallback__", len(page_groups))
                 group = page_groups.setdefault(group_key, {})
                 for key, value in raw_payload.items():
                     if value is None or value == "" or str(value).lower() in {"none", "null"}:
@@ -2485,7 +2508,7 @@ class OCRDocument:
             ws = wb.add_sheet('Feuille1')
             title_style = xlwt.easyxf('font: bold on, height 220;')
             date_style = xlwt.easyxf('font: bold on;')
-            header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour yellow;')
+            header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour light_green;')
             for row_idx, row in enumerate(all_rows):
                 for col_idx, value in enumerate(row):
                     if row_idx == 0:
@@ -2518,7 +2541,7 @@ class OCRDocument:
         page_rows = _merge_page_payloads(file_paths)
         all_rows = [
             ["Rapport de données"],
-            ["Date d'extraction :", today],
+            ["Date d'extraction :" + today],
             [""],
             required_headers,
         ]
@@ -2614,7 +2637,7 @@ class OCRDocument:
         # Création du classeur Excel
         wb = xlwt.Workbook()
         ws = wb.add_sheet('Feuille1')
-        header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour yellow;')
+        header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour light_green;')
         for row_idx, row in enumerate(all_rows):
             for col_idx, value in enumerate(row):
                 if row_idx == 5:
