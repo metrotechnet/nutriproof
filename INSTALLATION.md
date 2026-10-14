@@ -3,14 +3,14 @@
 ## Téléchargement
 
 Rendez-vous sur **https://imx-nutriproof.web.app** ou téléchargez directement :
-- **Windows** : [NutriProof-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe)
-- **macOS** : [NutriProof.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg)
+- **Windows** : [NutriProof-Beta-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Beta-Setup.exe)
+- **macOS** : [NutriProof-Beta.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Beta.dmg)
 
 ## Windows
 
 ### Installation
 
-1. Téléchargez **NutriProof-Setup.exe** depuis le lien ci-dessus.
+1. Téléchargez **NutriProof-Beta-Setup.exe** depuis le lien ci-dessus.
 
 2. **Lancez l'installeur** en double-cliquant dessus.
 
@@ -32,7 +32,7 @@ Rendez-vous sur **https://imx-nutriproof.web.app** ou téléchargez directement 
 
 ### Installation
 
-1. Téléchargez **NutriProof.dmg** depuis le lien ci-dessus.
+1. Téléchargez **NutriProof-Beta.dmg** depuis le lien ci-dessus.
 
 2. **Ouvrez** le fichier `.dmg` et **glissez** `NutriProof.app` dans le dossier **Applications**.
 

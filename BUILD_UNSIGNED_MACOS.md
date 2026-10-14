@@ -50,7 +50,7 @@ Actuellement non utilisés car l’étape de notarization est commentée:
    - Windows: build `.exe` généré.
    - macOS: build DMG avec `--config.mac.identity=null`.
 4. Vérifier les artefacts publiés:
-   - `NutriProof-Setup.exe` (non signé)
+   - `NutriProof-Beta-Setup.exe` (non signé)
    - `*.dmg` (non signé / non notarisé)
 
 ## 4) Erreur fréquente

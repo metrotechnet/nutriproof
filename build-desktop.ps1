@@ -177,7 +177,7 @@ if (-not $SkipElectron) {
 # -------------------------------------------------------------------
 if ($Installer) {
     $outputDir = Join-Path $ProjectRoot "dist\electron"
-    $canonicalInstallerName = "NutriProof-Setup.exe"
+    $canonicalInstallerName = "NutriProof-Beta-Setup.exe"
     $canonicalInstallerPath = Join-Path $outputDir $canonicalInstallerName
 
     $setupInstallers = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending

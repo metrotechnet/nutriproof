@@ -52,8 +52,8 @@ Ceci lance le backend Flask (port 8080) + la fenêtre Electron.
 Les installeurs sont disponibles sur le site web : **https://imx-nutriproof.web.app**
 
 Ou directement :
-- **Windows** : [NutriProof-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe)
-- **macOS** : [NutriProof.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg)
+- **Windows** : [NutriProof-Beta-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Beta-Setup.exe)
+- **macOS** : [NutriProof-Beta.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Beta.dmg)
 
 L'application inclut les mises à jour automatiques via electron-updater.
 
@@ -72,8 +72,8 @@ git push origin v1.0.1
 ```
 
 Cela déclenche :
-1. Build Windows (`NutriProof-Setup.exe`)
-2. Build macOS (`NutriProof.dmg`)
+1. Build Windows (`NutriProof-Beta-Setup.exe`)
+2. Build macOS (`NutriProof-Beta.dmg`)
 3. Création d'une GitHub Release avec les deux installeurs
 
 Pour lancer un build sans release :

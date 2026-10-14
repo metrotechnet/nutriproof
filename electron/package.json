@@ -1,14 +1,14 @@
 {
     "name":  "nutriproof",
-    "version":  "1.1.63",
+    "version":  "1.1.62",
     "main":  "main.js",
     "author":  "NutriProof",
     "description":  "NutriProof Desktop Application",
     "scripts":  {
                     "start":  "electron .",
-                    "pack":  "npx @electron/packager . NutriProof --platform=win32 --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.ico",
-                    "pack-mac":  "npx @electron/packager . NutriProof --platform=darwin --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
-                    "pack-mac-arm64":  "npx @electron/packager . NutriProof --platform=darwin --arch=arm64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
+                    "pack":  "npx @electron/packager . NutriProof-Beta --platform=win32 --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.ico",
+                    "pack-mac":  "npx @electron/packager . NutriProof-Beta --platform=darwin --arch=x64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
+                    "pack-mac-arm64":  "npx @electron/packager . NutriProof-Beta --platform=darwin --arch=arm64 --out=../dist/electron --overwrite --extra-resource=../dist/backend --extra-resource=../tesseract-bundle --asar --icon=icon.png",
                     "dist":  "electron-builder --win",
                     "dist-mac":  "electron-builder --mac",
                     "dist-publish":  "electron-builder --win --publish always",
@@ -16,7 +16,7 @@
                 },
     "build":  {
                   "appId":  "com.nutriproof.app",
-                  "productName":  "NutriProof",
+                  "productName":  "NutriProof-Beta",
                   "directories":  {
                                       "output":  "../dist/electron"
                                   },
@@ -85,10 +85,10 @@
                                "allowToChangeInstallationDirectory":  true,
                                "createDesktopShortcut":  true,
                                "createStartMenuShortcut":  true,
-                               "artifactName":  "NutriProof-Setup.${ext}"
+                               "artifactName":  "NutriProof-Beta-Setup.${ext}"
                            },
                   "dmg":  {
-                              "artifactName":  "NutriProof.${ext}",
+                              "artifactName":  "NutriProof-Beta.${ext}",
                               "format":  "ULFO"
                           }
               },

@@ -58,14 +58,14 @@ jobs:
         shell: pwsh
         run: |
           $outputDir = "dist\electron"
-          $canonical = Join-Path $outputDir "NutriProof-Setup.exe"
+          $canonical = Join-Path $outputDir "NutriProof-Beta-Setup.exe"
           $found = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $found) { throw "No Setup installer found in $outputDir" }
-          if ($found.Name -ne "NutriProof-Setup.exe") {
+          if ($found.Name -ne "NutriProof-Beta-Setup.exe") {
             Move-Item $found.FullName $canonical -Force
           }
           Get-ChildItem $outputDir -Filter "*Setup*.exe" -File |
-            Where-Object { $_.Name -ne "NutriProof-Setup.exe" } |
+            Where-Object { $_.Name -ne "NutriProof-Beta-Setup.exe" } |
             Remove-Item -Force -ErrorAction SilentlyContinue
 
       # - name: Sign Windows installer (Azure Artifact Signing)
@@ -98,7 +98,7 @@ jobs:
       #     $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
       #       Sort-Object FullName -Descending | Select-Object -First 1
       #     if (-not $signtool) { throw "signtool.exe not found" }
-      #     & $signtool.FullName verify /pa /v "dist\electron\NutriProof-Setup.exe"
+      #     & $signtool.FullName verify /pa /v "dist\electron\NutriProof-Beta-Setup.exe"
       #     if ($LASTEXITCODE -ne 0) { throw "Signature verification failed" }
 
       - name: Upload Windows artifacts
@@ -106,7 +106,7 @@ jobs:
         with:
           name: NutriProof-Windows
           path: |
-            dist/electron/NutriProof-Setup.exe
+            dist/electron/NutriProof-Beta-Setup.exe
             dist/electron/latest.yml
 
   # ── macOS build ────────────────────────────────────────────────────
@@ -287,11 +287,16 @@ jobs:
         run: |
           cd electron
           npm install
+          # Ensure no signing credentials leak from repo/environment secrets.
+          unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
           # Build unsigned DMG (no Apple signing).
           npx electron-builder --mac --publish never --config.mac.identity=null
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ''
+          CSC_KEY_PASSWORD: ''
+          CSC_NAME: ''
           # Signing credentials intentionally not used for unsigned builds.
 
       # - name: Notarize macOS app (Gatekeeper)
