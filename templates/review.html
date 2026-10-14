@@ -33,6 +33,10 @@
                 <div id="viewer-container" class="col-6 d-flex flex-column" style="position:relative;">
                     <!-- Section viewer-controls -->
                     <div id="viewer-controls" style="width:100%;z-index:2;display:flex;justify-content:flex-end;align-items:flex-start;gap:10px;background:rgba(255,255,255,0.2);border-radius:8px;padding:8px 16px 8px 8px;">
+                        <div class="form-check form-switch" style="margin:0;margin-right:auto;padding-left:0;display:flex;align-items:center;gap:6px;">
+                            <input class="form-check-input" type="checkbox" role="switch" id="toggle-bbox" checked style="margin-left:0;margin-top:0;">
+                            <label class="form-check-label" for="toggle-bbox" style="font-size:0.85rem;line-height:1;white-space:nowrap;display:flex;align-items:center;margin:0;">OCR</label>
+                        </div>
                         <button id="btn-reset" class="btn btn-sm btn-outline-secondary btn-square" title="Réinitialiser"><i class="bi bi-bootstrap-reboot"></i></button>
                         <button id="btn-rotate" class="btn btn-sm btn-outline-primary btn-square" title="Rotation 90°" ><i class="bi bi-arrow-clockwise"></i></button>
                         <button id="btn-zoom-in" class="btn btn-sm btn-outline-primary btn-square" title="Zoom +" ><i class="bi bi-zoom-in"></i></button>

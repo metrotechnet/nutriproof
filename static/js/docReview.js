@@ -33,6 +33,7 @@ let project_data = null;
 let padding = 200; // ou la valeur désirée
 let svg = null
 let bboxOpacity = 0.2;
+let showBboxOverlay = true;
 
 // Create different colors for each label with high contrast
 const labelColors = {
@@ -368,7 +369,7 @@ async function displayPage(project_id, document_id, index, init_scroll=false, im
       // Calcule le scale pour les bboxes
       const scaleX =  imgWidth / imageElement.naturalWidth;
       const scaleY =  imgHeight / imageElement.naturalHeight;
-      if (!imageOnly) {
+      if (showBboxOverlay) {
         // Affichage des polygones avec couleurs par label
         displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
 
@@ -1738,6 +1739,7 @@ function initButtonCallback(){
   const btnZoomIn = document.getElementById('btn-zoom-in');
   const btnZoomOut = document.getElementById('btn-zoom-out');
   const btnReset = document.getElementById('btn-reset');
+  const toggleBbox = document.getElementById('toggle-bbox');
 
   if (btnRotate) {
     btnRotate.addEventListener('click', () => {
@@ -1762,6 +1764,13 @@ function initButtonCallback(){
       currentRotation = 0;
       currentScale = 1;
       displayPage(currentProjectID, currentDocID, currentDocPage,true,true);
+    });
+  }
+  if (toggleBbox) {
+    toggleBbox.checked = showBboxOverlay;
+    toggleBbox.addEventListener('change', () => {
+      showBboxOverlay = Boolean(toggleBbox.checked);
+      displayPage(currentProjectID, currentDocID, currentPageIndex, false, true, false);
     });
   }
 }
