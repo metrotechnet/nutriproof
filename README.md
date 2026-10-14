@@ -129,6 +129,54 @@ Site : https://imx-nutriproof.web.app
 
 ---
 
+## Déployer sur GCP (projet `nutriproof-imx`)
+
+Important :
+- Le frontend **de l'application** est servi par Flask depuis [templates/](./templates) et [static/](./static).
+- Donc ce frontend est inclus automatiquement dans l'image API et déployé via Cloud Run.
+- Le dossier [website/public](./website/public) correspond au site statique (landing/téléchargement), déployé via Firebase Hosting.
+
+Scripts PowerShell fournis :
+
+- Build image API : [scripts/build-gcp-api.ps1](./scripts/build-gcp-api.ps1)
+- Deploy API (Cloud Run) : [scripts/deploy-gcp-api.ps1](./scripts/deploy-gcp-api.ps1)
+- Site statique website/public (Firebase Hosting) : [scripts/deploy-website-static.ps1](./scripts/deploy-website-static.ps1)
+
+### 1) Builder/pusher l'image API
+
+```powershell
+.\scripts\build-gcp-api.ps1 -ProjectId nutriproof-imx -ImageTag latest
+```
+
+Options utiles :
+- `-Region` (défaut : `northamerica-northeast1`)
+- `-ServiceName` (défaut : `nutriproof-api`)
+- `-ImageTag` (défaut : `latest`)
+
+### 2) Déployer l'API sur Cloud Run
+
+```powershell
+.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageTag latest -AllowUnauthenticated
+```
+
+Option alternative pour forcer une image précise :
+
+```powershell
+.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageUri "northamerica-northeast1-docker.pkg.dev/nutriproof-imx/nutriproof/nutriproof-api:latest" -AllowUnauthenticated
+```
+
+### 3) (Optionnel) Déployer le site statique website/public sur Firebase Hosting
+
+```powershell
+.\scripts\deploy-website-static.ps1 -ProjectId nutriproof-imx -HostingOnly
+```
+
+Prérequis CLI :
+- `gcloud auth login` + `gcloud auth application-default login`
+- `firebase login`
+
+---
+
 ## Configuration
 - `dbase/parameters.json` : configuration des types de formulaires et paramètres OCR à extraire
 - `templates/` : templates HTML (index, review, maintenance)

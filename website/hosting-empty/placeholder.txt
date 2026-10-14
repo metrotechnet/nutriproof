@@ -1,0 +1,2 @@
+This folder is intentionally minimal.
+Firebase Hosting rewrites all routes to Cloud Run (nutriproof-api).

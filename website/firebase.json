@@ -1,10 +1,19 @@
 {
   "hosting": {
-    "public": "public",
+    "public": "hosting-empty",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "nutriproof-api",
+          "region": "northamerica-northeast1"
+        }
+      }
     ],
     "headers": [
       {
