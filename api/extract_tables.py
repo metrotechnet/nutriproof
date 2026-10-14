@@ -1343,13 +1343,13 @@ class OCRDocument:
         pieces.sort(key=lambda m: (m[0], m[1]))
         return " ".join(t for _, _, t in pieces)
 
-    def _cell_has_mark(self, cell, gray_img, dark_threshold=253, dark_ratio=125, inset=4):
-        """Return True if the cell region in ``gray_img`` contains enough dark
-        pixels to be considered a handwritten mark (check, tick, cross, ...).
+    def _cell_has_mark(self, cell, gray_img, dark_threshold=253, dark_ratio=50, dark_area_ratio=0.005, inset=3):
+        """Return a dark-pixel score for a cell when mark density is sufficient.
 
         - Crops the cell bbox with a small ``inset`` to ignore the grid lines.
         - Counts pixels darker than ``dark_threshold`` via the image histogram.
-        - Considers a cell marked if it contains at least ``dark_ratio`` dark pixels.
+        - Applies an area-aware threshold: ``max(dark_ratio, cell_area * dark_area_ratio)``.
+        - Returns ``dark`` when threshold is met, otherwise ``0``.
         """
         if gray_img is None:
             return False
@@ -1371,12 +1371,13 @@ class OCRDocument:
         total = (x2 - x1) * (y2 - y1)
         if total <= 0:
             return False
-        # print ratio and debug info
-        row = cell.get("row", "?")
-        col = cell.get("col", "?")
-        # print(f"Cell dark: {dark}, total: {total} at row={row} col={col}")
-
-        return dark   # threshold for "marked cell" can be adjusted based on testing
+        area_floor = max(0.0, float(dark_area_ratio)) * float(total)
+        absolute_floor = 0.0
+        if isinstance(dark_ratio, (int, float)) and dark_ratio > 1:
+            absolute_floor = float(dark_ratio)
+        required_dark = max(area_floor, absolute_floor)
+        # print(f"dark={dark}, required_dark={required_dark}, total={total}")
+        return dark if dark >= required_dark else 0
 
     def _match_labels_to_cells(self, config_data, cells, gray_img=None):
         """For each label in ``config_data``, find the cell whose text contains
@@ -1396,6 +1397,13 @@ class OCRDocument:
         value_bbox_ordered = OrderedDict((label, None) for label in labels)
         extract_values_ordered = OrderedDict((label, None) for label in labels)
         matched_text_ordered = OrderedDict((label, None) for label in labels)
+
+        def _is_group_question_param(param):
+            if not isinstance(param, dict):
+                return False
+            label = str(param.get("label", "")).strip()
+            param_type = str(param.get("type", "")).strip().lower()
+            return bool(re.match(r'^\s*G[123]\s*-', label, re.IGNORECASE)) and param_type == "question"
 
         # Build a (row, col) -> cell lookup for fast offset access.
         cells_by_rc = {}
@@ -1451,6 +1459,8 @@ class OCRDocument:
         # Flatten config into (label, [snippets], [position offsets]) tuples.
         label_specs = []
         for param in config_data:
+            if not _is_group_question_param(param):
+                continue
             label = param.get("label")
             if not label:
                 continue
@@ -1462,7 +1472,7 @@ class OCRDocument:
         # For each cell, score every config label's snippets against the cell
         # text and keep the best candidate over a minimum confidence threshold.
         # First accepted cell wins for that label.
-        min_match_score = 0.72
+        min_match_score = 0.5
         def _label_base(label):
             if not isinstance(label, str):
                 return ""
@@ -1528,17 +1538,43 @@ class OCRDocument:
                     offset_value = {1: 1.0, 2: 0.5, 3: 0.0}
                     chosen_value = None
                     value_bboxes = []
+                    offset_debug = []
+                    best_dark = None
+                    best_off = None
+                    # _trace(
+                    #     f"_match_labels_to_cells: label='{label}' anchor=({row},{col}) "
+                    #     f"offsets={offsets} cell_text='{(cell.get('text') or '').strip()[:120]}'"
+                    # )
                     for off in offsets:
                         target = cells_by_rc.get((row, col + off))
                         value_bboxes.append(target.get("bbox") if target else None)
                         if target is None:
+                            offset_debug.append({
+                                "offset": off,
+                                "target": [row, col + off],
+                                "exists": False,
+                                "dark": None
+                            })
                             continue
                         dark = self._cell_has_mark(target, gray_img)
-                        if isinstance(dark, (int, float)) and dark > 0:
-                            chosen_value = offset_value.get(off, 0.0)
-                            break
-                    total = chosen_value if chosen_value is not None else 0.0
-                    extract_values_ordered[label] = f"{total:g}"
+                        offset_debug.append({
+                            "offset": off,
+                            "target": [row, col + off],
+                            "exists": True,
+                            "dark": dark
+                        })
+                        if isinstance(dark, (int, float)):
+                            if best_dark is None or dark > best_dark:
+                                best_dark = dark
+                                best_off = off
+                    if isinstance(best_dark, (int, float)) and best_dark > 0 and best_off is not None:
+                        chosen_value = offset_value.get(best_off, 0.0)
+                    total = chosen_value
+                    # _trace(
+                    #     # f"_match_labels_to_cells: label='{label}' offset_eval={json.dumps(offset_debug, ensure_ascii=False)} "
+                    #     # f"best_offset={best_off} best_dark={best_dark} chosen_value={total}"
+                    # )
+                    extract_values_ordered[label] = f"{total:g}" if total is not None else None
                     value_bbox_ordered[label] = value_bboxes
                 else:
                     # No positions configured: fall back to the label cell itself.

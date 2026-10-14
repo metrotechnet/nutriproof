@@ -80,12 +80,6 @@ function applyPreviousPageValuesIfCurrentEmpty(currentData, previousData) {
   if (!previousData || typeof previousData !== "object") return false;
 
   let changed = false;
-  Object.entries(previousData).forEach(([key, value]) => {
-    if (isEmptyValue(currentData[key]) && !isEmptyValue(value)) {
-      currentData[key] = value;
-      changed = true;
-    }
-  });
 
   const previousParticipant = resolveParticipantHeaderValue(previousData);
   if (isEmptyValue(resolveParticipantHeaderValue(currentData)) && !isEmptyValue(previousParticipant)) {
@@ -373,6 +367,8 @@ async function displayPage(project_id, document_id, index, init_scroll=false, im
         // Affichage des polygones avec couleurs par label
         displayAllBlocks(svg, all_blocks, 0, 0, scaleX, scaleY);
 
+        displayMatchedQuestionCells(svg, label_bbox, 0, 0, scaleX, scaleY);
+
         displayAllGridCells(svg, grid_cells, 0, 0, scaleX, scaleY);
 
         displayBbox(svg, extract_values, value_bbox, 0, 0, scaleX, scaleY, "value");
@@ -516,15 +512,58 @@ function renderTableSection(imageOnly) {
           groupId,
           entries: [],
           filledCount: 0,
+          answeredQuestionCount: 0,
           firstIndex: indexInOrder
         });
       }
       const bucket = groupBuckets.get(groupId);
       bucket.entries.push([key, value]);
       if (!isEmptyValue(value)) bucket.filledCount += 1;
+      if (field_type[key] === "question" && !isEmptyValue(value)) {
+        bucket.answeredQuestionCount += 1;
+      }
     });
 
-    const reorderedContentEntries = Array.from(groupBuckets.values()).flatMap(group => group.entries);
+    const subsectionLabelById = {};
+    if (Array.isArray(subsections)) {
+      subsections.forEach(section => {
+        if (section && section.id) {
+          subsectionLabelById[section.id] = section.label || section.id;
+        }
+      });
+    }
+
+    const isInformationGroup = (groupId) => {
+      const normalizedId = normalizeKey(groupId);
+      const normalizedLabel = normalizeKey(subsectionLabelById[groupId] || "");
+      const tokens = ["information", "informations", "generale", "generales"];
+      return tokens.some(token => normalizedId.includes(token) || normalizedLabel.includes(token));
+    };
+
+    const groupsInOrder = Array.from(groupBuckets.values());
+    const informationGroups = groupsInOrder.filter(group => isInformationGroup(group.groupId));
+    const questionGroups = groupsInOrder.filter(group => !isInformationGroup(group.groupId));
+
+    let primaryQuestionGroup = null;
+    if (questionGroups.length > 0) {
+      primaryQuestionGroup = [...questionGroups].sort((a, b) => {
+        if (b.answeredQuestionCount !== a.answeredQuestionCount) {
+          return b.answeredQuestionCount - a.answeredQuestionCount;
+        }
+        if (b.filledCount !== a.filledCount) {
+          return b.filledCount - a.filledCount;
+        }
+        return a.firstIndex - b.firstIndex;
+      })[0];
+    }
+
+    const reorderedGroups = [
+      ...informationGroups,
+      ...(primaryQuestionGroup ? [primaryQuestionGroup] : []),
+      ...questionGroups.filter(group => group !== primaryQuestionGroup)
+    ];
+
+    const reorderedContentEntries = reorderedGroups.flatMap(group => group.entries);
     extract_values = Object.fromEntries([...reorderedContentEntries, ...hiddenEntries]);
 
     // Header actions (Nouveau / Prochaine)
@@ -757,6 +796,60 @@ function displayBbox(svg, data, boxes, offsetX,offsetY, scaleX, scaleY, boxType)
     });
   });
 
+}
+
+/**
+ * Highlights matched question label cells on the image overlay.
+ * @param {SVGElement} svg - Target SVG overlay.
+ * @param {Object} boxes - Label bbox map keyed by label.
+ * @param {number} offsetX - Horizontal pixel offset.
+ * @param {number} offsetY - Vertical pixel offset.
+ * @param {number} scaleX - Horizontal scaling factor.
+ * @param {number} scaleY - Vertical scaling factor.
+ * @returns {void}
+ */
+function displayMatchedQuestionCells(svg, boxes, offsetX, offsetY, scaleX, scaleY) {
+  if (!boxes || typeof boxes !== "object") return;
+
+  Object.entries(boxes).forEach(([label, bbox]) => {
+    if (!bbox) return;
+    if (field_type[label] !== "question") return;
+    if (!Array.isArray(bbox) || bbox.length !== 4) return;
+
+    const x = bbox[0][0] * scaleX + offsetX;
+    const y = bbox[0][1] * scaleY + offsetY;
+    const w = Math.max(1, (bbox[1][0] - bbox[0][0]) * scaleX);
+    const h = Math.max(1, (bbox[2][1] - bbox[1][1]) * scaleY);
+
+    const corners = [
+      [x, y],
+      [x + w, y],
+      [x + w, y + h],
+      [x, y + h]
+    ];
+
+    const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    polygon.setAttribute("points", corners.map(([px, py]) => `${px},${py}`).join(" "));
+    polygon.setAttribute("class", "bbox");
+    polygon.setAttribute("fill", "rgba(25, 135, 84, 0.22)");
+    polygon.setAttribute("stroke", "rgba(25, 135, 84, 0.95)");
+    polygon.setAttribute("stroke-width", "1.5");
+    polygon.setAttribute("title", label);
+
+    polygon.addEventListener("mouseenter", () => {
+      tooltip.textContent = `Question match: ${label}`;
+      tooltip.style.opacity = 1;
+    });
+    polygon.addEventListener("mousemove", (e) => {
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+    });
+    polygon.addEventListener("mouseleave", () => {
+      tooltip.style.opacity = 0;
+    });
+
+    svg.appendChild(polygon);
+  });
 }
 
 // === DISPLAY ALL GRID CELLS ===
@@ -1460,34 +1553,10 @@ function generateEditableTable(data, containerId = "table-values-container") {
         return ordered;
       })()
     : (() => {
-        const allDataKeys = Object.keys(data || {});
-        const ordered = [];
-        const seen = new Set();
-        const preferredOrder = Array.isArray(field_order) ? field_order : [];
-
-        const appendOrderedKeys = (keys, matchByNormalized = false) => {
-          keys.forEach(key => {
-            if (!key || seen.has(key)) return;
-            if (allDataKeys.includes(key)) {
-              ordered.push(key);
-              seen.add(key);
-              return;
-            }
-            if (!matchByNormalized) return;
-            const normalizedTarget = normalizeKey(key);
-            const candidate = allDataKeys.find(k => !seen.has(k) && normalizeKey(k) === normalizedTarget);
-            if (candidate) {
-              ordered.push(candidate);
-              seen.add(candidate);
-            }
-          });
-        };
-
-        appendOrderedKeys(preferredOrder, true);
-        appendOrderedKeys(Object.keys(field_text || {}), true);
-        appendOrderedKeys(allDataKeys);
-
-        return ordered;
+        // Keep the order received from renderTableSection (extract_values),
+        // because it already applies group-priority rules (info first, then
+        // most-answered question group, then the others).
+        return Object.keys(data || {});
       })();
 
   for (const key of orderedKeys) {
