@@ -85,10 +85,10 @@
                                "allowToChangeInstallationDirectory":  true,
                                "createDesktopShortcut":  true,
                                "createStartMenuShortcut":  true,
-                               "artifactName":  "NutriProof-Beta-Setup.${ext}"
+                               "artifactName":  "${productName}-Setup.${ext}"
                            },
                   "dmg":  {
-                              "artifactName":  "NutriProof-Beta.${ext}",
+                              "artifactName":  "${productName}.${ext}",
                               "format":  "ULFO"
                           }
               },

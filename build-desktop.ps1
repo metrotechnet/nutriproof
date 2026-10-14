@@ -177,7 +177,13 @@ if (-not $SkipElectron) {
 # -------------------------------------------------------------------
 if ($Installer) {
     $outputDir = Join-Path $ProjectRoot "dist\electron"
-    $canonicalInstallerName = "NutriProof-Beta-Setup.exe"
+    $electronPackageJsonPath = Join-Path $ProjectRoot "electron\package.json"
+    $electronPackage = Get-Content -Raw $electronPackageJsonPath | ConvertFrom-Json
+    $productName = $electronPackage.build.productName
+    if ([string]::IsNullOrWhiteSpace($productName)) {
+        throw "build.productName is missing in $electronPackageJsonPath"
+    }
+    $canonicalInstallerName = "$productName-Setup.exe"
     $canonicalInstallerPath = Join-Path $outputDir $canonicalInstallerName
 
     $setupInstallers = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending

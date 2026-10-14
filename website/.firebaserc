@@ -1,5 +1,21 @@
 {
   "projects": {
     "default": "nutriproof-imx"
+  },
+  "targets": {
+    "nutriproof-imx": {
+      "hosting": {
+        "app": [
+          "nutriproof-imx"
+        ]
+      }
+    },
+    "imx-nutriproof": {
+      "hosting": {
+        "website": [
+          "imx-nutriproof"
+        ]
+      }
+    }
   }
 }

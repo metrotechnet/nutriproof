@@ -1,6 +1,5 @@
 param(
-    [string]$ProjectId = "nutriproof-imx",
-    [switch]$HostingOnly
+    [string]$ProjectId = "imx-nutriproof"
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,14 +24,10 @@ if (-not (Test-Path $websiteDir)) {
 
 Set-Location $websiteDir
 
-$deployArgs = @("deploy", "--project", $ProjectId)
-if ($HostingOnly) {
-    $deployArgs += @("--only", "hosting")
-}
+$deployArgs = @("deploy", "--project", $ProjectId, "--only", "hosting:website")
 
 Write-Host "==> Déploiement Firebase (projet: $ProjectId)"
-Write-Host "NOTE: Ce script déploie le site statique contenu dans website/public (marketing/download)."
-Write-Host "      L'interface applicative NutriProof (templates + static) est déployée avec l'API Cloud Run."
+Write-Host "NOTE: Ce script déploie website/public vers la cible hosting 'website' (imx-nutriproof.web.app)."
 & firebase @deployArgs
 
 Write-Host ""

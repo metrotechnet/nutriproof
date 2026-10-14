@@ -7,7 +7,8 @@ pool:
 variables:
   pythonVersion: '3.11'
   nodeVersion: '20.x'
-  installerPath: 'dist/electron/NutriProof-Beta-Setup.exe'
+  appProductName: 'NutriProof-Beta'
+  installerPath: 'dist/electron/$(appProductName)-Setup.exe'
   timestampUrl: 'http://timestamp.acs.microsoft.com/'
 
   # Configure in Azure DevOps pipeline variables:

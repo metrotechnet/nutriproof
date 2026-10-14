@@ -1,33 +1,51 @@
 {
-  "hosting": {
-    "public": "hosting-empty",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "run": {
-          "serviceId": "nutriproof-api",
-          "region": "northamerica-northeast1"
+  "hosting": [
+    {
+      "target": "app",
+      "public": "hosting-empty",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "nutriproof-api",
+            "region": "northamerica-northeast1"
+          }
         }
-      }
-    ],
-    "headers": [
-      {
-        "source": "**/*.html",
-        "headers": [
-          { "key": "Cache-Control", "value": "no-cache" }
-        ]
-      },
-      {
-        "source": "**/*.png",
-        "headers": [
-          { "key": "Cache-Control", "value": "max-age=31536000" }
-        ]
-      }
-    ]
-  }
+      ]
+    },
+    {
+      "target": "website",
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        {
+          "source": "**/*.png",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }

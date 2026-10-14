@@ -58,14 +58,18 @@ jobs:
         shell: pwsh
         run: |
           $outputDir = "dist\electron"
-          $canonical = Join-Path $outputDir "NutriProof-Beta-Setup.exe"
+          $electronPackage = Get-Content -Raw "electron\package.json" | ConvertFrom-Json
+          $productName = $electronPackage.build.productName
+          if ([string]::IsNullOrWhiteSpace($productName)) { throw "build.productName is missing in electron/package.json" }
+          $canonicalInstallerName = "$productName-Setup.exe"
+          $canonical = Join-Path $outputDir $canonicalInstallerName
           $found = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $found) { throw "No Setup installer found in $outputDir" }
-          if ($found.Name -ne "NutriProof-Beta-Setup.exe") {
+          if ($found.Name -ne $canonicalInstallerName) {
             Move-Item $found.FullName $canonical -Force
           }
           Get-ChildItem $outputDir -Filter "*Setup*.exe" -File |
-            Where-Object { $_.Name -ne "NutriProof-Beta-Setup.exe" } |
+            Where-Object { $_.Name -ne $canonicalInstallerName } |
             Remove-Item -Force -ErrorAction SilentlyContinue
 
       # - name: Sign Windows installer (Azure Artifact Signing)
@@ -98,15 +102,15 @@ jobs:
       #     $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
       #       Sort-Object FullName -Descending | Select-Object -First 1
       #     if (-not $signtool) { throw "signtool.exe not found" }
-      #     & $signtool.FullName verify /pa /v "dist\electron\NutriProof-Beta-Setup.exe"
+      #     & $signtool.FullName verify /pa /v "dist\electron\*-Setup.exe"
       #     if ($LASTEXITCODE -ne 0) { throw "Signature verification failed" }
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: NutriProof-Windows
           path: |
-            dist/electron/NutriProof-Beta-Setup.exe
+            dist/electron/*-Setup.exe
             dist/electron/latest.yml
 
   # ── macOS build ────────────────────────────────────────────────────
@@ -345,7 +349,7 @@ jobs:
       #     echo "Notarization complete!"
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: NutriProof-macOS
           path: |
@@ -361,7 +365,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 

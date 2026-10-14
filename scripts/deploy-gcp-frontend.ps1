@@ -1,6 +1,5 @@
 param(
-    [string]$ProjectId = "nutriproof-imx",
-    [switch]$HostingOnly
+    [string]$ProjectId = "imx-nutriproof"
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,4 +12,4 @@ if (-not (Test-Path $newScript)) {
 }
 
 Write-Warning "Le script deploy-gcp-frontend.ps1 est déprécié. Utilisez scripts/deploy-website-static.ps1."
-& $newScript -ProjectId $ProjectId -HostingOnly:$HostingOnly
+& $newScript -ProjectId $ProjectId
