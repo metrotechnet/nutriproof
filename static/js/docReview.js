@@ -13,11 +13,13 @@ let field_text = {};
 let field_type = {};
 let field_parse = {};
 let field_subsection = {};
+let field_order = [];
 let subsections = [];
 let lastNewIncrementPageIndex = null;
 let hasRenderedTableSection = false;
 let autoSaveInFlight = false;
 let autoSavePending = false;
+let pendingAutoSaveAfterRender = false;
 
 let currentDocPage = 0;
 let currentDocID = 0;
@@ -70,6 +72,55 @@ function normalizeKey(value) {
     .replace(/[-_/]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function applyPreviousPageValuesIfCurrentEmpty(currentData, previousData) {
+  if (!currentData || typeof currentData !== "object") return false;
+  if (!previousData || typeof previousData !== "object") return false;
+
+  let changed = false;
+  Object.entries(previousData).forEach(([key, value]) => {
+    if (isEmptyValue(currentData[key]) && !isEmptyValue(value)) {
+      currentData[key] = value;
+      changed = true;
+    }
+  });
+
+  const previousParticipant = resolveParticipantHeaderValue(previousData);
+  if (isEmptyValue(resolveParticipantHeaderValue(currentData)) && !isEmptyValue(previousParticipant)) {
+    currentData["No du participant"] = previousParticipant;
+    currentData.nomat = previousParticipant;
+    changed = true;
+  }
+
+  const previousObservationDate = resolveObservationDateHeaderValue(previousData);
+  if (isEmptyValue(resolveObservationDateHeaderValue(currentData)) && !isEmptyValue(previousObservationDate)) {
+    currentData["Date d'observation (DD-MM-YY)"] = previousObservationDate;
+    currentData.date_visite = previousObservationDate;
+    changed = true;
+  }
+
+  const previousPhaseVisit = parsePhaseAndVisit(previousData.Visites || "");
+  if (isEmptyValue(currentData.Phase) && !isEmptyValue(previousPhaseVisit.phase)) {
+    currentData.Phase = previousPhaseVisit.phase;
+    changed = true;
+  }
+  if (isEmptyValue(currentData.Visite) && !isEmptyValue(previousPhaseVisit.visit)) {
+    currentData.Visite = previousPhaseVisit.visit;
+    changed = true;
+  }
+  if (isEmptyValue(currentData.Visites)) {
+    const currentPhaseVisit = parsePhaseAndVisit(currentData.Visites || "");
+    const phase = currentPhaseVisit.phase || currentData.Phase || previousPhaseVisit.phase || "";
+    const visit = currentPhaseVisit.visit || currentData.Visite || previousPhaseVisit.visit || "";
+    const combined = `${phase ? `P${phase}` : ""}${visit ? `V${visit}` : ""}`.trim();
+    if (!isEmptyValue(combined)) {
+      currentData.Visites = combined;
+      changed = true;
+    }
+  }
+
+  return changed;
 }
 
 function shouldHideLegacyLipidAliasKey(key, category = currentCategory) {
@@ -172,7 +223,7 @@ function createFileList(project_id, document_id, fileArray) {
  * @param {boolean} [renderTable=true] - Whether to rebuild/refresh the table section after image render.
  * @returns {Promise<boolean|undefined>} True when page data is loaded; false/undefined otherwise.
  */
-async function loadPage(project_id, index, init_scroll=false, sourceMode="edited", renderTable=true) {
+async function loadPage(project_id, index, init_scroll=false, sourceMode="edited", renderTable=true, copyFromPreviousIfEmpty=false) {
   
   if (currentFileList.length === 0 || index <= 0 || index > nbrPageMax) {
     console.error("No files available for loading.");
@@ -216,8 +267,15 @@ async function loadPage(project_id, index, init_scroll=false, sourceMode="edited
         previousPageTableData = previousData;
       }
     }
+    if (copyFromPreviousIfEmpty) {
+      const didBackfill = applyPreviousPageValuesIfCurrentEmpty(extract_values, previousPageTableData);
+      if (didBackfill) {
+        pendingAutoSaveAfterRender = true;
+      }
+    }
     // console.log("Raw extract values:", raw_extract_values);
     field_visibility = responses[2].field_visibility || {};
+    field_order = responses[2].field_order || [];
     field_text = responses[2].field_text || {};
     field_type = responses[2].field_type || {};
     field_parse = responses[2].field_parse || {};
@@ -401,7 +459,9 @@ function renderTableSection(imageOnly) {
       // Keep parameter table order aligned with JSON definition order.
       // 1) keys order from label_bbox (built from config JSON order on backend)
       // 2) append any remaining keys in their existing insertion order
-      const labelOrder = Object.keys(label_bbox || {});
+      const labelOrder = Array.isArray(field_order) && field_order.length
+        ? field_order
+        : Object.keys(label_bbox || {});
       const entries = Object.entries(extract_values || {});
 
       // Keep both exact and normalized views so keys like
@@ -463,33 +523,7 @@ function renderTableSection(imageOnly) {
       if (!isEmptyValue(value)) bucket.filledCount += 1;
     });
 
-    const subsectionLabelById = {};
-    if (Array.isArray(subsections)) {
-      subsections.forEach(section => {
-        if (section && section.id) {
-          subsectionLabelById[section.id] = section.label || section.id;
-        }
-      });
-    }
-
-    const normalizedInfoTokens = ["info", "informations", "information"];
-    const isInfoGroup = (groupId) => {
-      const normalizedId = normalizeKey(groupId);
-      const normalizedLabel = normalizeKey(subsectionLabelById[groupId] || "");
-      return normalizedInfoTokens.some(token =>
-        normalizedId.includes(token) || normalizedLabel.includes(token)
-      );
-    };
-
-    const sortedGroups = Array.from(groupBuckets.values()).sort((a, b) => {
-      const aIsInfo = isInfoGroup(a.groupId);
-      const bIsInfo = isInfoGroup(b.groupId);
-      if (aIsInfo !== bIsInfo) return aIsInfo ? -1 : 1;
-      if (b.filledCount !== a.filledCount) return b.filledCount - a.filledCount;
-      return a.firstIndex - b.firstIndex;
-    });
-
-    const reorderedContentEntries = sortedGroups.flatMap(group => group.entries);
+    const reorderedContentEntries = Array.from(groupBuckets.values()).flatMap(group => group.entries);
     extract_values = Object.fromEntries([...reorderedContentEntries, ...hiddenEntries]);
 
     // Header actions (Nouveau / Prochaine)
@@ -501,6 +535,12 @@ function renderTableSection(imageOnly) {
     generateEditableTable(extract_values);
     // Pagination après le tableau
     createPaginationControls(currentPageIndex, nbrPageMax);
+    if (pendingAutoSaveAfterRender) {
+      pendingAutoSaveAfterRender = false;
+      setTimeout(() => {
+        scheduleAutoSaveFromInput();
+      }, 0);
+    }
     return;
   }
 
@@ -843,7 +883,7 @@ function createTopActionControls() {
   const instructions = document.createElement("div");
   instructions.className = "table-header-actions-instructions";
   const instructionLine2 = document.createElement("div");
-  instructionLine2.innerHTML = "<strong>Note :</strong> cliquez sur « Copier » pour copier les valeurs de l'entête de la page précédente.";
+  instructionLine2.innerHTML = "<strong>Note :</strong> Asurez vous de bien entré les valeurs de l'entete";
   instructions.append(instructionLine2);
   const buttons = document.createElement("div");
   buttons.className = "table-header-actions-buttons";
@@ -852,8 +892,8 @@ function createTopActionControls() {
   prochaineBtn.id = "next-workflow-btn";
   prochaineBtn.type = "button";
   prochaineBtn.className = "btn btn-outline-primary btn-sm save-table-btn";
-  prochaineBtn.textContent = "Copier";
-  prochaineBtn.onclick = copyPreviousPageValuesToEditedAndSave;
+  prochaineBtn.textContent = "Effacer";
+  prochaineBtn.onclick = clearHeaderValuesAndSave;
 
   buttons.append(prochaineBtn);
 
@@ -976,7 +1016,7 @@ function previousPage() {
  */
 function nextPage() {
   if (currentPageIndex >= nbrPageMax) return;
-  loadPage(currentProjectID, currentPageIndex + 1, false, "edited",true)
+  loadPage(currentProjectID, currentPageIndex + 1, false, "edited", true, true)
     .catch((err) => {
       console.error("Navigation load failed:", err);
     });
@@ -984,13 +1024,11 @@ function nextPage() {
 
 
 /**
- * Copies values shown in the "Page précédente" column into the editable value cells,
- * then persists the current page to the server.
+ * Clears all editable values from the header summary table and persists
+ * the current page to the server.
  * @returns {Promise<void>}
  */
-async function copyPreviousPageValuesToEditedAndSave() {
-  if (!previousPageTableData || typeof previousPageTableData !== "object") return;
-
+async function clearHeaderValuesAndSave() {
   const headerRows = document.querySelectorAll(".header-summary-table tbody tr");
   headerRows.forEach(row => {
     const keyCell = row.querySelector("td.param-cell");
@@ -999,49 +1037,9 @@ async function copyPreviousPageValuesToEditedAndSave() {
 
     const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
     if (!key) return;
-
-    const value = previousPageTableData[key] ?? previousPageHeaderValues[key] ?? "";
-    const stringValue = value === null || value === undefined ? "" : String(value);
-    editCell.textContent = stringValue;
-
-    if (key === "Phase") {
-      const cleanedPhase = String(stringValue).replace(/^P/i, "").trim();
-      extract_values.Phase = cleanedPhase;
-      const currentVisit = parsePhaseAndVisit(extract_values.Visites || "").visit;
-      const combined = `${cleanedPhase ? `P${cleanedPhase}` : ""}${currentVisit ? `V${currentVisit}` : ""}`.trim();
-      extract_values.Visites = combined;
-      return;
-    }
-
-    if (key === "Visite") {
-      const cleanedVisit = String(stringValue).replace(/^V/i, "").trim();
-      extract_values.Visite = cleanedVisit;
-      const currentPhase = parsePhaseAndVisit(extract_values.Visites || "").phase;
-      const combined = `${currentPhase ? `P${currentPhase}` : ""}${cleanedVisit ? `V${cleanedVisit}` : ""}`.trim();
-      extract_values.Visites = combined;
-      return;
-    }
-
-    extract_values[key] = stringValue;
+    editCell.textContent = "";
+    applyHeaderValueToData(extract_values, key, "");
   });
-
-  const table = document.querySelector(".param-table");
-  if (table) {
-    table.querySelectorAll("tbody tr").forEach(row => {
-      if (row.classList.contains("group-separator-row")) return;
-      const keyCell = row.querySelector("td.param-cell");
-      const valueCell = row.querySelector("td.value-cell");
-      if (!keyCell || !valueCell) return;
-
-      const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
-      if (!key) return;
-
-      const value = previousPageTableData[key] ?? "";
-      const stringValue = value === null || value === undefined ? "" : String(value);
-      valueCell.textContent = stringValue;
-      extract_values[key] = stringValue;
-    });
-  }
 
   const payload = collectTableDataForSave();
   if (!payload) return;
@@ -1148,7 +1146,7 @@ function validateAndNormalizeByParse(rawValue, parseRule) {
 }
 
 /**
- * Validates all non-empty table values before the "Copier" workflow.
+ * Validates all non-empty table values before the save workflow.
  * Invalid cells are highlighted and the workflow is blocked until corrected.
  * @returns {boolean}
  */
@@ -1262,6 +1260,17 @@ function isAllowedEditableTableKey(key) {
   return fieldKeys.has(key);
 }
 
+function isPersistedFormulaireHeaderKey(key) {
+  if (!key) return false;
+  const persistedKeys = new Set([
+    "Phase",
+    "Visite",
+    "No du participant",
+    "Date d'observation (DD-MM-YY)"
+  ]);
+  return persistedKeys.has(key);
+}
+
 function resolveParticipantHeaderValue(payload) {
   if (!payload || typeof payload !== "object") return "";
   return payload["No du participant"] ?? payload.nomat ?? payload["# du participant (4 chiffres)"] ?? payload["No du participant (4 chiffres)"] ?? "";
@@ -1272,16 +1281,63 @@ function resolveObservationDateHeaderValue(payload) {
   return payload["Date d'observation (DD-MM-YY)"] ?? payload.date_visite ?? payload["Date de visite (DD-MM-YY)"] ?? "";
 }
 
+function applyHeaderValueToData(data, key, rawValue) {
+  const nextValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+  if (key === "Phase") {
+    const cleanedPhase = nextValue.replace(/^P/i, "").trim();
+    data.Phase = cleanedPhase;
+    extract_values.Phase = cleanedPhase;
+
+    const currentVisit = parsePhaseAndVisit(data.Visites || "").visit;
+    const combined = `${cleanedPhase ? `P${cleanedPhase}` : ""}${currentVisit ? `V${currentVisit}` : ""}`.trim();
+    data.Visites = combined;
+    extract_values.Visites = combined;
+    return;
+  }
+
+  if (key === "Visite") {
+    const cleanedVisit = nextValue.replace(/^V/i, "").trim();
+    data.Visite = cleanedVisit;
+    extract_values.Visite = cleanedVisit;
+
+    const currentPhase = parsePhaseAndVisit(data.Visites || "").phase;
+    const combined = `${currentPhase ? `P${currentPhase}` : ""}${cleanedVisit ? `V${cleanedVisit}` : ""}`.trim();
+    data.Visites = combined;
+    extract_values.Visites = combined;
+    return;
+  }
+
+  if (key === "No du participant") {
+    data["No du participant"] = nextValue;
+    data.nomat = nextValue;
+    extract_values["No du participant"] = nextValue;
+    extract_values.nomat = nextValue;
+    return;
+  }
+
+  if (key === "Date d'observation (DD-MM-YY)") {
+    data["Date d'observation (DD-MM-YY)"] = nextValue;
+    data.date_visite = nextValue;
+    extract_values["Date d'observation (DD-MM-YY)"] = nextValue;
+    extract_values.date_visite = nextValue;
+    return;
+  }
+
+  data[key] = nextValue;
+  extract_values[key] = nextValue;
+}
+
 function generateHeaderTable(data) {
   const tableValuesContainer = document.getElementById("table-values-container");
   if (!tableValuesContainer || currentCategory !== "formulaire_suivi") return;
+  let hasAutoCopiedFromPrevious = false;
 
   const table = document.createElement("table");
   table.className = "param-table header-summary-table";
 
   const headerTitleRow = document.createElement("tr");
   const headerTitleCell = document.createElement("td");
-  headerTitleCell.colSpan = 3;
+  headerTitleCell.colSpan = 2;
   headerTitleCell.textContent = "Entête";
   headerTitleCell.style.textAlign = "left";
   headerTitleCell.style.fontWeight = "700";
@@ -1295,7 +1351,7 @@ function generateHeaderTable(data) {
 
   const thead = document.createElement("thead");
   const headRow = document.createElement("tr");
-  ["Paramètre", "Page précédente", "Valeurs éditées"].forEach(text => {
+  ["Paramètre", "Valeurs éditées"].forEach(text => {
     const th = document.createElement("th");
     th.textContent = text;
     headRow.appendChild(th);
@@ -1318,64 +1374,42 @@ function generateHeaderTable(data) {
     labelCell.className = "param-cell";
     labelCell.dataset.originalKey = rowDef.key;
 
-    const prevCell = document.createElement("td");
     const previousValue = rowDef.previousGetter ? rowDef.previousGetter() : "";
-    prevCell.textContent = previousValue !== undefined && previousValue !== null ? String(previousValue) : "";
-    prevCell.className = "value-cell previous-value-cell";
-    prevCell.dataset.role = "previous";
 
     const editCell = document.createElement("td");
     const editValue = rowDef.getter();
-    editCell.textContent = editValue !== undefined && editValue !== null ? String(editValue) : "";
+    const shouldDefaultFromPrevious =
+      currentPageIndex > 1 &&
+      isEmptyValue(editValue) &&
+      !isEmptyValue(previousValue);
+    const initialEditedValue = shouldDefaultFromPrevious ? previousValue : editValue;
+    editCell.textContent = initialEditedValue !== undefined && initialEditedValue !== null ? String(initialEditedValue) : "";
     editCell.className = "value-cell editable-header-cell";
     editCell.contentEditable = "true";
     editCell.dataset.originalKey = rowDef.key;
     editCell.dataset.role = "edited";
 
+    applyHeaderValueToData(data, rowDef.key, editCell.textContent);
+    if (shouldDefaultFromPrevious) {
+      hasAutoCopiedFromPrevious = true;
+    }
+
     editCell.addEventListener("input", () => {
-      const nextValue = editCell.textContent.trim();
-
-      if (rowDef.key === "Phase") {
-        const cleanedPhase = String(nextValue).replace(/^P/i, "").trim();
-        data.Phase = cleanedPhase;
-        extract_values.Phase = cleanedPhase;
-
-        const currentVisit = parsePhaseAndVisit(data.Visites || "").visit;
-        const combined = `${cleanedPhase ? `P${cleanedPhase}` : ""}${currentVisit ? `V${currentVisit}` : ""}`.trim();
-        data.Visites = combined;
-        extract_values.Visites = combined;
-      } else if (rowDef.key === "Visite") {
-        const cleanedVisit = String(nextValue).replace(/^V/i, "").trim();
-        data.Visite = cleanedVisit;
-        extract_values.Visite = cleanedVisit;
-
-        const currentPhase = parsePhaseAndVisit(data.Visites || "").phase;
-        const combined = `${currentPhase ? `P${currentPhase}` : ""}${cleanedVisit ? `V${cleanedVisit}` : ""}`.trim();
-        data.Visites = combined;
-        extract_values.Visites = combined;
-      } else if (rowDef.key === "No du participant") {
-        data["No du participant"] = nextValue;
-        data.nomat = nextValue;
-        extract_values["No du participant"] = nextValue;
-        extract_values.nomat = nextValue;
-      } else if (rowDef.key === "Date d'observation (DD-MM-YY)") {
-        data["Date d'observation (DD-MM-YY)"] = nextValue;
-        data.date_visite = nextValue;
-        extract_values["Date d'observation (DD-MM-YY)"] = nextValue;
-        extract_values.date_visite = nextValue;
-      } else {
-        data[rowDef.key] = nextValue;
-        extract_values[rowDef.key] = nextValue;
-      }
+      applyHeaderValueToData(data, rowDef.key, editCell.textContent);
       scheduleAutoSaveFromInput();
     });
 
-    row.append(labelCell, prevCell, editCell);
+    row.append(labelCell, editCell);
     tbody.appendChild(row);
   });
 
   table.appendChild(tbody);
   tableValuesContainer.appendChild(table);
+  if (hasAutoCopiedFromPrevious) {
+    setTimeout(() => {
+      scheduleAutoSaveFromInput();
+    }, 0);
+  }
 }
 
 /**
@@ -1425,31 +1459,32 @@ function generateEditableTable(data, containerId = "table-values-container") {
         return ordered;
       })()
     : (() => {
-        const sectionOrder = Array.isArray(subsections)
-          ? subsections.map(section => section && section.id ? String(section.id) : null).filter(Boolean)
-          : [];
         const allDataKeys = Object.keys(data || {});
         const ordered = [];
         const seen = new Set();
+        const preferredOrder = Array.isArray(field_order) ? field_order : [];
 
-        const appendOrderedKeys = (keys) => {
+        const appendOrderedKeys = (keys, matchByNormalized = false) => {
           keys.forEach(key => {
-            if (!seen.has(key)) {
+            if (!key || seen.has(key)) return;
+            if (allDataKeys.includes(key)) {
               ordered.push(key);
               seen.add(key);
+              return;
+            }
+            if (!matchByNormalized) return;
+            const normalizedTarget = normalizeKey(key);
+            const candidate = allDataKeys.find(k => !seen.has(k) && normalizeKey(k) === normalizedTarget);
+            if (candidate) {
+              ordered.push(candidate);
+              seen.add(candidate);
             }
           });
         };
 
-        sectionOrder.forEach(sectionId => {
-          const sectionKeys = allDataKeys.filter(key => String(field_subsection[key] || "") === sectionId);
-          appendOrderedKeys(Object.keys(field_text || {}).filter(key => sectionKeys.includes(key)));
-          appendOrderedKeys(sectionKeys.filter(key => !Object.keys(field_text || {}).includes(key)));
-        });
-
-        const remainingKeys = allDataKeys.filter(key => !seen.has(key));
-        appendOrderedKeys(Object.keys(field_text || {}).filter(key => remainingKeys.includes(key)));
-        appendOrderedKeys(remainingKeys.filter(key => !Object.keys(field_text || {}).includes(key)));
+        appendOrderedKeys(preferredOrder, true);
+        appendOrderedKeys(Object.keys(field_text || {}), true);
+        appendOrderedKeys(allDataKeys);
 
         return ordered;
       })();
@@ -1587,12 +1622,14 @@ function collectTableDataForSave() {
   const data = { ...extract_values };
   rows.forEach(row => {
     if (row.classList.contains("group-separator-row")) return;
+    const isHeaderSummaryRow = Boolean(row.closest(".header-summary-table"));
 
     const keyCell = row.querySelector("td.param-cell");
     if (!keyCell) return;
 
     const key = keyCell.dataset.originalKey || keyCell.textContent.trim();
-    if (!key || !isAllowedEditableTableKey(key)) return;
+    const isAllowedHeaderKey = isHeaderSummaryRow && isPersistedFormulaireHeaderKey(key);
+    if (!key || (!isAllowedEditableTableKey(key) && !isAllowedHeaderKey)) return;
 
     const editedCell = row.querySelector("td.editable-header-cell")
       || row.querySelector("td.value-cell:not(.previous-value-cell)")
@@ -1615,7 +1652,9 @@ function collectTableDataForSave() {
 
   if (currentCategory === "formulaire_suivi") {
     Object.keys(data).forEach(key => {
-      if (!isAllowedEditableTableKey(key)) delete data[key];
+      if (!isAllowedEditableTableKey(key) && !isPersistedFormulaireHeaderKey(key)) {
+        delete data[key];
+      }
     });
   }
 

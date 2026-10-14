@@ -262,6 +262,7 @@ def get_data(project_id, document_id, filename):
         return jsonify({
             "data_string": json.dumps(data),
             "category": category,
+            "field_order": key_order,
             "field_visibility": field_visibility,
             "field_text": field_text,
             "field_type": field_type,

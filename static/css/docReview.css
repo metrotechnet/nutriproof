@@ -382,10 +382,8 @@ body {
 }
 
 .header-summary-table td:nth-child(2),
-.header-summary-table th:nth-child(2),
-.header-summary-table td:nth-child(3),
-.header-summary-table th:nth-child(3) {
-    width: 22%;
+.header-summary-table th:nth-child(2) {
+    width: 45%;
     text-align: center;
 }
 

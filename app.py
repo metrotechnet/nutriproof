@@ -210,7 +210,7 @@ else:
 print(LOCAL_FOLDER)
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.61'
+APP_VERSION = '1.1.62'
 
 def create_app():
 
@@ -282,6 +282,18 @@ def create_app():
 
     for category, value in config.items():
         items = value.get("fields", []) if isinstance(value, dict) else value
+        if isinstance(items, list):
+            sortable_items = []
+            for idx, item in enumerate(items):
+                order = idx + 1
+                if isinstance(item, dict):
+                    try:
+                        order = int(item.get("order", order))
+                    except (TypeError, ValueError):
+                        order = idx + 1
+                sortable_items.append((order, idx, item))
+            sortable_items.sort(key=lambda entry: (entry[0], entry[1]))
+            items = [entry[2] for entry in sortable_items]
         subsections = _normalize_subsections(value.get("subsections", [])) if isinstance(value, dict) else []
         key_order[category] = [item.get("label") for item in items if "label" in item]
         field_keys[category] = [str(item.get("key")) for item in items if isinstance(item, dict) and item.get("key") is not None]

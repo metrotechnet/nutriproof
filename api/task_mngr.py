@@ -70,8 +70,10 @@ class AsyncTaskManager:
         task = self.tasks.get(job_id)
         if not task:
             return jsonify({
-                "status": "not_found"
-            }), 404
+                "status": "not_found",
+                "progress": "",
+                "result": ""
+            })
 
         result = {
             "status": task["status"],
