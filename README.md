@@ -140,6 +140,7 @@ Scripts PowerShell fournis :
 
 - Build image API : [scripts/build-gcp-api.ps1](./scripts/build-gcp-api.ps1)
 - Deploy API (Cloud Run) : [scripts/deploy-gcp-api.ps1](./scripts/deploy-gcp-api.ps1)
+- App principale Firebase (nutriproof-imx.web.app) : [scripts/deploy-hosting-app.ps1](./scripts/deploy-hosting-app.ps1)
 - Site statique website/public (Firebase Hosting) : [scripts/deploy-website-static.ps1](./scripts/deploy-website-static.ps1)
 
 ### 1) Builder/pusher l'image API
@@ -165,10 +166,16 @@ Option alternative pour forcer une image précise :
 .\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageUri "northamerica-northeast1-docker.pkg.dev/nutriproof-imx/nutriproof/nutriproof-api:latest" -AllowUnauthenticated
 ```
 
-### 3) (Optionnel) Déployer le site statique website/public sur Firebase Hosting
+### 3) Déployer l'app principale vers nutriproof-imx.web.app (hosting:app)
 
 ```powershell
-.\scripts\deploy-website-static.ps1 -ProjectId nutriproof-imx -HostingOnly
+.\scripts\deploy-hosting-app.ps1 -ProjectId nutriproof-imx
+```
+
+### 4) Déployer le site statique website/public vers imx-nutriproof.web.app (hosting:website)
+
+```powershell
+.\scripts\deploy-website-static.ps1 -ProjectId imx-nutriproof
 ```
 
 Prérequis CLI :
