@@ -1,5 +1,6 @@
 import math
 import os
+import tempfile
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -26,9 +27,9 @@ class GridDetector:
             return candidate[0], candidate[1], candidate[2], candidate[3], candidate[4]
         return candidate[0], candidate[1], candidate[2], candidate[3], None
 
-    def _save_debug_contours(self, base_img, candidates, filename, color=(0, 255, 0), thickness=2):
+    def _save_debug_contours(self, base_img, candidates, filename, debug_dir, color=(0, 255, 0), thickness=2):
         """Save remaining contours/boxes for a detection stage."""
-        if cv2 is None:
+        if cv2 is None or not debug_dir:
             return
         debug_img = base_img.copy()
         for cand in candidates:
@@ -37,9 +38,9 @@ class GridDetector:
                 cv2.drawContours(debug_img, [cnt], -1, color, thickness)
             else:
                 cv2.rectangle(debug_img, (x, y), (x + bw, y + bh), color, thickness)
-        cv2.imwrite(os.path.join("debug", filename), debug_img)
+        cv2.imwrite(os.path.join(debug_dir, filename), debug_img)
 
-    def detect_grid_cells(self, image) -> Dict:
+    def detect_grid_cells(self, image, debug_dir=None) -> Dict:
         if cv2 is None:
             return {
                 "error": "OpenCV is not available. Please install opencv-python-headless.",
@@ -70,7 +71,12 @@ class GridDetector:
             35,
             12,
         )
-        os.makedirs("debug", exist_ok=True)
+        if not debug_dir:
+            debug_dir = os.path.join(tempfile.gettempdir(), "NutriProof", "debug")
+        try:
+            os.makedirs(debug_dir, exist_ok=True)
+        except OSError:
+            debug_dir = None
 
  
         h, w = binary_inv.shape
@@ -84,7 +90,8 @@ class GridDetector:
 
         # Save binary image for debugging
         binary_inv_color = cv2.cvtColor(pre, cv2.COLOR_GRAY2BGR)
-        cv2.imwrite("debug/binary_inv.png", binary_inv_color)
+        if debug_dir:
+            cv2.imwrite(os.path.join(debug_dir, "binary_inv.png"), binary_inv_color)
 
         contours, _ = cv2.findContours(pre, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -301,5 +308,4 @@ class GridDetector:
 
         inner_area = float(max(1, iw * ih))
         return (inter / inner_area) >= min_ratio
-
 

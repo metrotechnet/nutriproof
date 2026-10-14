@@ -112,7 +112,10 @@ def process_ocr():
 
 
                         # Detect grid/cell positions and checked boxes (for handwritten forms).
-                        grid_data = grid_detector.detect_grid_cells(resized_image)
+                        grid_data = grid_detector.detect_grid_cells(
+                            resized_image,
+                            debug_dir=os.path.join(local_path, "debug"),
+                        )
                         grid_ok = not grid_data.get("error")
                         if grid_ok:
                             grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
