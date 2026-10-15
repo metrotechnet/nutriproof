@@ -77,9 +77,28 @@ $json = $pkg | ConvertTo-Json -Depth 20
 Write-Host "Ensured macOS DMG format compatibility (UDZO)" -ForegroundColor Green
 
 # Stage, commit, tag, push
-Invoke-CheckedCommand -Command 'git' -Arguments @('add', '-A')
-Invoke-CheckedCommand -Command 'git' -Arguments @('commit', '-m', "release: $tag")
-Invoke-CheckedCommand -Command 'git' -Arguments @('tag', $tag)
+$gitStatus = (& git status --porcelain 2>$null)
+$tagExists = (& git rev-parse --verify --quiet "refs/tags/$tag" 2>$null)
+$headMessage = (& git log -1 --pretty=%s 2>$null)
+
+if ($gitStatus) {
+    Invoke-CheckedCommand -Command 'git' -Arguments @('add', '-A')
+    Invoke-CheckedCommand -Command 'git' -Arguments @('commit', '-m', "release: $tag")
+}
+elseif ($headMessage -eq "release: $tag") {
+    Write-Host "Release commit for $tag already exists and the working tree is clean. Skipping commit." -ForegroundColor Yellow
+}
+else {
+    Write-Host "Working tree is clean. No new commit required for $tag." -ForegroundColor Yellow
+}
+
+if (-not $tagExists) {
+    Invoke-CheckedCommand -Command 'git' -Arguments @('tag', $tag)
+}
+else {
+    Write-Host "Tag $tag already exists. Skipping tag creation." -ForegroundColor Yellow
+}
+
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag) -AllowedMessages @('Everything up-to-date', 'already exists', 'up-to-date')
 
