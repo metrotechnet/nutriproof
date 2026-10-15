@@ -59,13 +59,7 @@ if (($billingOutput | Out-String).Trim().ToLowerInvariant() -ne "true") {
     throw "La facturation n'est pas activée pour le projet '$ProjectId'. Active-la dans la console GCP: https://console.cloud.google.com/billing/linkedaccount?project=$ProjectId"
 }
 
-Write-Host "==> Vérification du bucket GCS"
-if ($StorageMode -eq "gcs") {
-    $bucketExists = & gcloud storage buckets list --project $ProjectId --format "value(name)" | Where-Object { $_ -eq "gs://$GcsBucket/" }
-    if (-not $bucketExists) {
-        throw "Le bucket GCS 'gs://$GcsBucket/' n'existe pas dans le projet '$ProjectId'."
-    }
-}
+Write-Host "==> Vérification du bucket GCS (désactivée: stockage local uniquement)"
 
 Write-Host "==> Activation des APIs GCP nécessaires au déploiement"
 Invoke-GCloudChecked -Args @(

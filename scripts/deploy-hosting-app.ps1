@@ -1,5 +1,6 @@
 param(
-    [string]$ProjectId = "nutriproof-imx"
+    [string]$ProjectId = "nutriproof-web",
+    [string]$HostingSite = "nutriproof-web"
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,11 +25,20 @@ if (-not (Test-Path $websiteDir)) {
 
 Set-Location $websiteDir
 
-$deployArgs = @("deploy", "--project", $ProjectId, "--only", "hosting:app")
+Write-Host "==> Sélection du projet Firebase actif: $ProjectId"
+& firebase use $ProjectId
+if ($LASTEXITCODE -ne 0) {
+    throw "La commande firebase use a échoué."
+}
 
+$deployArgs = @("deploy", "--project", $ProjectId, "--only", "hosting:app")
 Write-Host "==> Déploiement Firebase (projet: $ProjectId)"
-Write-Host "NOTE: Ce script déploie la cible hosting 'app' (nutriproof-imx.web.app) avec rewrite vers Cloud Run."
+Write-Host "NOTE: Ce script déploie la cible hosting 'app' pour le site https://$HostingSite.web.app avec rewrite vers Cloud Run."
 & firebase @deployArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "Le déploiement Firebase a échoué."
+}
 
 Write-Host ""
 Write-Host "Cible hosting:app déployée ✅"
+Write-Host "URL: https://$HostingSite.web.app"

@@ -1,6 +1,7 @@
 # release.ps1 — Bump version, commit, tag, and push to trigger CI/CD build
+# Compatible with older PowerShell / Windows environments and the macOS DMG compatibility fix.
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version
 )
@@ -9,7 +10,30 @@ $ErrorActionPreference = 'Stop'
 
 $tag = "v$Version"
 
-# Check for uncommitted changes
+function Invoke-CheckedCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Command,
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$Arguments = @()
+    )
+
+    $output = & $Command @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        if ($output) {
+            Write-Host ($output | Out-String)
+        }
+        throw "Command failed: $Command $($Arguments -join ' ')"
+    }
+
+    if ($output) {
+        Write-Host ($output | Out-String).TrimEnd()
+    }
+}
+
 $status = git status --porcelain
 if ($status) {
     Write-Host "Uncommitted changes detected. Committing all changes..." -ForegroundColor Yellow
@@ -30,12 +54,22 @@ $appContent = $appContent -replace "APP_VERSION = '[^']*'", "APP_VERSION = '$Ver
 [System.IO.File]::WriteAllText($appPath, $appContent, [System.Text.UTF8Encoding]::new($false))
 Write-Host "Updated app.py -> $Version" -ForegroundColor Green
 
+# Keep the DMG format consistent with the old macOS compatibility requirement.
+# The format property lives under build.dmg, not under build.mac.target entries.
+$pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+if (-not $pkg.build) { $pkg | Add-Member -NotePropertyName build -NotePropertyValue ([pscustomobject]@{}) }
+if (-not $pkg.build.dmg) { $pkg.build | Add-Member -NotePropertyName dmg -NotePropertyValue ([pscustomobject]@{}) }
+$pkg.build.dmg.format = 'UDZO'
+$json = $pkg | ConvertTo-Json -Depth 20
+[System.IO.File]::WriteAllText($pkgPath, $json, [System.Text.UTF8Encoding]::new($false))
+Write-Host "Ensured macOS DMG format compatibility (UDZO)" -ForegroundColor Green
+
 # Stage, commit, tag, push
-git add -A
-git commit -m "release: $tag"
-git tag $tag
-git push origin main
-git push origin $tag
+Invoke-CheckedCommand -Command 'git' -Arguments @('add', '-A')
+Invoke-CheckedCommand -Command 'git' -Arguments @('commit', '-m', "release: $tag")
+Invoke-CheckedCommand -Command 'git' -Arguments @('tag', $tag)
+Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main')
+Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag)
 
 Write-Host ""
 Write-Host "Release $tag pushed. GitHub Actions build started." -ForegroundColor Cyan

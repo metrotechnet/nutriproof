@@ -1,5 +1,5 @@
 param(
-    [string]$ProjectId = "nutriproof-imx",
+    [string]$ProjectId = "nutriproof",
     [string]$Region = "northamerica-northeast1",
     [string]$ServiceName = "nutriproof-api",
     [string]$ArtifactRepo = "nutriproof",

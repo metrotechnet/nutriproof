@@ -1,12 +1,12 @@
 {
   "projects": {
-    "default": "nutriproof-imx"
+    "default": "nutriproof-web"
   },
   "targets": {
-    "nutriproof-imx": {
+    "nutriproof-web": {
       "hosting": {
         "app": [
-          "nutriproof-imx"
+          "nutriproof-web"
         ]
       }
     },

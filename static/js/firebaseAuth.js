@@ -2,9 +2,9 @@
 // TODO: Replace with your Firebase project config
 const firebaseConfig = {
   apiKey: "AIzaSyAt84PdROclkyKffND6q5bAH3xvsx5r9RA",
-  authDomain: "imx-nutriproof.firebaseapp.com",
-  projectId: "imx-nutriproof",
-  storageBucket: "imx-nutriproof.firebasestorage.app",
+  authDomain: "nutriproof-web.firebaseapp.com",
+  projectId: "nutriproof-web",
+  storageBucket: "nutriproof-web.firebasestorage.app",
   messagingSenderId: "201727461753",
   appId: "1:201727461753:web:e347f73f403d874c2e87a8",
   measurementId: "G-CSMWL58692"
