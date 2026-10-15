@@ -26,11 +26,13 @@ def _resolve_key_order(project_id, document_id):
       3. First category defined in parameters.json (fallback)
     """
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+    storage_backend = current_app.config['STORAGE_BACKEND']
     key_order_map = current_app.config['KEY_ORDER']  # {category: [labels]}
 
     category = request.args.get('category')
     if not category:
         try:
+            storage_backend.hydrate_document(project_id, document_id)
             info = load_project_info(os.path.join(LOCAL_FOLDER, project_id, document_id))
             category = info.get('category')
         except Exception:
@@ -201,7 +203,10 @@ def _filter_labels_by_group(labels, matched_group):
 @data_bp.route("/get_image/<project_id>/<document_id>/<filename>")
 def get_image(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+    storage_backend = current_app.config['STORAGE_BACKEND']
     image_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
+    if not os.path.exists(image_path) and storage_backend.mode == "gcs":
+        storage_backend.hydrate_document(project_id, document_id)
     if os.path.exists(image_path):
         return send_file(image_path, mimetype="image/png")
     return jsonify("Image not found"), 404
@@ -211,7 +216,10 @@ def get_image(project_id, document_id, filename):
 @data_bp.route("/get_data/<project_id>/<document_id>/<filename>")
 def get_data(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+    storage_backend = current_app.config['STORAGE_BACKEND']
     document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
+    if (not os.path.exists(document_dir) or not os.path.exists(os.path.join(document_dir, "info.json"))) and storage_backend.mode == "gcs":
+        storage_backend.hydrate_document(project_id, document_id)
     key_order, category = _resolve_key_order(project_id, document_id)
     matched_group = _read_matched_group(LOCAL_FOLDER, project_id, document_id, filename)
     key_order = _filter_labels_by_group(key_order, matched_group)
@@ -277,6 +285,8 @@ def get_data(project_id, document_id, filename):
 @data_bp.route("/get_raw_data/<project_id>/<document_id>/<filename>")
 def get_raw_data(project_id, document_id, filename):
     LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+    storage_backend = current_app.config['STORAGE_BACKEND']
+    storage_backend.hydrate_document(project_id, document_id)
     file_path = os.path.join(LOCAL_FOLDER, project_id, document_id, filename)
     if os.path.exists(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -290,6 +300,7 @@ def get_raw_data(project_id, document_id, filename):
 def put_data():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+        storage_backend = current_app.config['STORAGE_BACKEND']
 
         project_id = request.form.get("project_id")
         document_id = request.form.get("document_id")
@@ -300,6 +311,8 @@ def put_data():
             return jsonify({"error": "Missing project_id or filename or document_id"}), 400
 
         document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
+        storage_backend.hydrate_document(project_id, document_id)
+        
         file_path, saved_filename = _resolve_table_write_path(document_dir, filename)
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -373,6 +386,7 @@ def download_xls():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         ocr_document = current_app.config['OCR_DOCUMENT']
+        storage_backend = current_app.config['STORAGE_BACKEND']
 
         project_id = request.form.get("project_id")
         document_id = request.form.get("document_id")
@@ -381,6 +395,7 @@ def download_xls():
         if not project_id or not document_id or not nbr_pages:
             return jsonify({"error": "Missing project_id, document_id or nbr_pages"}), 400
 
+        storage_backend.hydrate_document(project_id, document_id)
         document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
         file_paths = _collect_document_file_paths(document_dir, nbr_pages)
         sample_data = _load_sample_data(file_paths)
@@ -398,6 +413,7 @@ def download_xls_formulaire_suivi():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         ocr_document = current_app.config['OCR_DOCUMENT']
+        storage_backend = current_app.config['STORAGE_BACKEND']
 
         project_id = request.form.get("project_id")
         document_id = request.form.get("document_id")
@@ -406,6 +422,7 @@ def download_xls_formulaire_suivi():
         if not project_id or not document_id or not nbr_pages:
             return jsonify({"error": "Missing project_id, document_id or nbr_pages"}), 400
 
+        storage_backend.hydrate_document(project_id, document_id)
         document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
         file_paths = _collect_document_file_paths(document_dir, nbr_pages)
         xls_file = _build_xls_for_document(

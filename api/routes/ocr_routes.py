@@ -4,7 +4,7 @@ import os
 import sys
 import json
 
-from api.routes.helpers import load_project_info, save_project_info
+from api.routes.helpers import load_project_info, save_project_info, save_json_file
 
 ocr_bp = Blueprint('ocr', __name__)
 
@@ -29,6 +29,7 @@ def process_ocr():
         CONFIG_PATH = current_app.config['CONFIG_PATH']
         ocr_document = current_app.config['OCR_DOCUMENT']
         task_manager = current_app.config['TASK_MANAGER']
+        storage_backend = current_app.config['STORAGE_BACKEND']
 
         project_name = request.form.get("projectName")
         if not project_name:
@@ -63,11 +64,13 @@ def process_ocr():
         allowed_categories = list(current_app.config.get('KEY_ORDER', {}).keys())
         if not category or category not in allowed_categories:
             return jsonify({"error": f"Invalid or missing category. Expected one of: {allowed_categories}"}), 400
+
+        storage_backend.hydrate_document(project_name, document_id)
         
         async def run_extraction(job_id):
             _trace(f"run_extraction: start job_id={job_id} doc={document_id} pages={start_page}..{nbr_pages}")
             try:
-                local_path = f'{LOCAL_FOLDER}/{project_name}/{document_id}/'
+                local_path = os.path.join(LOCAL_FOLDER, project_name, document_id)
                 os.makedirs(local_path, exist_ok=True)
                 _trace(f"run_extraction: local_path={local_path}")
                 for idx in range(start_page, nbr_pages):
@@ -79,7 +82,9 @@ def process_ocr():
                     
                     # extract page from pdf
                     _trace(f"run_extraction: get_pdf_image idx={idx}")
-                    chunk_file = ocr_document.get_pdf_image(local_path+filename, local_path, page_index=idx, dpi=300)
+                    chunk_file = ocr_document.get_pdf_image(
+                        os.path.join(local_path, filename), local_path, page_index=idx, dpi=300
+                    )
                     
                     # Set progress
                     progress = f"{idx + 1}/{nbr_pages} pages"
@@ -106,8 +111,7 @@ def process_ocr():
                         
                         # Save layout to JSON
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
-                        with open(layout_json_path, "w", encoding="utf-8") as f:
-                            json.dump(layout, f, indent=4, ensure_ascii=False)
+                        save_json_file(layout_json_path, layout)
                         _trace(f"run_extraction: layout saved to {layout_json_path}")
 
 
@@ -119,8 +123,7 @@ def process_ocr():
                         grid_ok = not grid_data.get("error")
                         if grid_ok:
                             grid_json_path = os.path.join(local_path, f"grid_{pageid}.json")
-                            with open(grid_json_path, "w", encoding="utf-8") as f:
-                                json.dump(grid_data, f, indent=4, ensure_ascii=False)
+                            save_json_file(grid_json_path, grid_data)
                             ocr_document.extract_tables_with_grid(CONFIG_PATH, category, grid_json_path, local_path, pageid)
                             _trace(f"run_extraction: extract_tables_with_grid done pageid={pageid}")
                     else:
@@ -139,8 +142,7 @@ def process_ocr():
 
                         # Save layout to JSON
                         layout_json_path = os.path.join(local_path, f"output_{pageid}.json")
-                        with open(layout_json_path, "w", encoding="utf-8") as f:
-                            json.dump(layout, f, indent=4, ensure_ascii=False)
+                        save_json_file(layout_json_path, layout)
                         _trace(f"run_extraction: layout saved to {layout_json_path}")
 
                         ocr_document.extract_tables(CONFIG_PATH, category, layout_json_path, local_path, pageid)

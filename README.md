@@ -157,13 +157,19 @@ Options utiles :
 ### 2) Déployer l'API sur Cloud Run
 
 ```powershell
-.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageTag latest -AllowUnauthenticated
+.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageTag latest -StorageMode gcs -GcsBucket nutriproof-imx-uploads -AllowUnauthenticated
 ```
 
 Option alternative pour forcer une image précise :
 
 ```powershell
-.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageUri "northamerica-northeast1-docker.pkg.dev/nutriproof-imx/nutriproof/nutriproof-api:latest" -AllowUnauthenticated
+.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageUri "northamerica-northeast1-docker.pkg.dev/nutriproof-imx/nutriproof/nutriproof-api:latest" -StorageMode gcs -GcsBucket nutriproof-imx-uploads -AllowUnauthenticated
+```
+
+Pour revenir au comportement local (build Mac/desktop), utiliser :
+
+```powershell
+.\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageTag latest -StorageMode local -AllowUnauthenticated
 ```
 
 ### 3) Déployer l'app principale vers nutriproof-imx.web.app (hosting:app)

@@ -2,6 +2,11 @@ from flask import Flask, render_template, redirect
 import os, sys, json
 from waitress import serve
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover
+    load_dotenv = None
+
 def _pyocr_log(msg):
     """Write a diagnostic line that survives PyInstaller stderr buffering."""
     try:
@@ -22,6 +27,12 @@ if getattr(sys, 'frozen', False):
     _bundle_dir = sys._MEIPASS
 else:
     _bundle_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Respect a local .env file for local development without requiring manual export.
+if load_dotenv is not None:
+    _env_path = os.path.join(_bundle_dir, '.env')
+    if os.path.exists(_env_path):
+        load_dotenv(_env_path)
 
 # pyocr (frozen mode) checks for tessdata at <_MEIPASS>/data/tessdata (nested!).
 # It then sets TESSDATA_PREFIX to <_MEIPASS>/data/tessdata. To make sure pyocr
@@ -178,6 +189,7 @@ from api.extract_tables import OCRDocument
 from api.task_mngr import AsyncTaskManager
 from api.clean_mngr import CleanManager
 from api.firebase_auth import init_usage_tracker
+from api.storage_backend import StorageBackend
 
 from api.routes.project_routes import project_bp
 from api.routes.document_routes import document_bp
@@ -208,6 +220,11 @@ elif getattr(sys, 'frozen', False):
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
 print(LOCAL_FOLDER)
+STORAGE_MODE = os.environ.get("STORAGE_MODE", "local").strip().lower()
+GCS_BUCKET = os.environ.get("GCS_BUCKET", "").strip()
+GCS_PREFIX = os.environ.get("GCS_PREFIX", "uploads").strip()
+if STORAGE_MODE == "gcs" and not GCS_BUCKET:
+    raise RuntimeError("STORAGE_MODE=gcs requires GCS_BUCKET to be set; local storage is the default and only supported mode.")
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
 APP_VERSION = '1.1.64'
@@ -222,6 +239,12 @@ def create_app():
     #Create main project
     local_path = os.path.join(LOCAL_FOLDER, PROJECT_ID)
     os.makedirs(local_path, exist_ok=True)
+    storage_backend = StorageBackend(
+        local_root=LOCAL_FOLDER,
+        mode=STORAGE_MODE,
+        bucket_name=GCS_BUCKET,
+        prefix=GCS_PREFIX
+    )
     # Init local usage tracker for demo mode
     init_usage_tracker(LOCAL_FOLDER)
     # Management des fichiers temporaires
@@ -337,6 +360,7 @@ def create_app():
     app.config['CONFIG_PATH'] = CONFIG_PATH
     app.config['OCR_DOCUMENT'] = ocr_document
     app.config['TASK_MANAGER'] = task_manager
+    app.config['STORAGE_BACKEND'] = storage_backend
     app.config['KEY_ORDER'] = key_order
     app.config['FORM_LABELS'] = form_labels
     app.config['FIELD_VISIBILITY'] = field_visibility

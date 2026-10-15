@@ -18,10 +18,8 @@ def delete_document():
     if not project_id or not document_id:
         return jsonify({'error': 'project_id et document_id requis'}), 400
     try:
-        LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
-        folder_path = os.path.join(LOCAL_FOLDER, project_id, document_id)
-        if os.path.exists(folder_path):
-            shutil.rmtree(folder_path, ignore_errors=True)
+        storage_backend = current_app.config['STORAGE_BACKEND']
+        storage_backend.delete_document(project_id, document_id)
         return jsonify({'success': True}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -33,6 +31,7 @@ def upload_pdf():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         ocr_document = current_app.config['OCR_DOCUMENT']
+        storage_backend = current_app.config['STORAGE_BACKEND']
 
         project_name = request.form.get("projectName")
         if not project_name:
@@ -113,6 +112,7 @@ def upload_pdf():
 def validate_document():
     try:
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+        storage_backend = current_app.config['STORAGE_BACKEND']
 
         project_name = request.form.get("projectName")
         if not project_name:
@@ -131,6 +131,7 @@ def validate_document():
             return jsonify({"error": "value is required"}), 400
 
         local_path = os.path.join(LOCAL_FOLDER, project_name, document_id)
+        storage_backend.hydrate_document(project_name, document_id)
         project_data = load_project_info(local_path)
 
         project_data[label] = value

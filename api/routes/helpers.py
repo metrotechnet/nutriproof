@@ -11,13 +11,18 @@ def load_project_info(file_path):
         return json.load(f)
 
 
+def save_json_file(file_path, payload):
+    """Write JSON to disk without syncing immediately."""
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=4, ensure_ascii=False)
+
+
 def save_project_info(file_path, project_info):
     """
     Sauvegarde les informations du projet dans le fichier local.
     """
     full_path = os.path.join(file_path, "info.json")
-    with open(full_path, "w", encoding="utf-8") as f:
-        json.dump(project_info, f, indent=4, ensure_ascii=False)
+    save_json_file(full_path, project_info)
 
 
 def load_all_project_info(local_folder, project_id):
