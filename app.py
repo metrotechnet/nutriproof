@@ -1,11 +1,43 @@
 from flask import Flask, render_template, redirect
 import os, sys, json
+from datetime import datetime
 from waitress import serve
 
 try:
     from dotenv import load_dotenv
 except ImportError:  # pragma: no cover
     load_dotenv = None
+
+def _resolve_runtime_log_path():
+    env_path = os.environ.get('NUTRIPROOF_LOG_PATH')
+    if env_path:
+        return env_path
+
+    if getattr(sys, 'frozen', False):
+        if sys.platform == 'win32':
+            base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+            return os.path.join(base, 'NutriProof', 'debug.log')
+        if sys.platform == 'darwin':
+            return os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', 'NutriProof', 'debug.log')
+        base = os.environ.get('XDG_DATA_HOME') or os.path.join(os.path.expanduser('~'), '.local', 'share')
+        return os.path.join(base, 'NutriProof', 'debug.log')
+
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nutriproof-debug.log')
+
+RUNTIME_LOG_PATH = _resolve_runtime_log_path()
+
+
+def _write_runtime_log(msg):
+    try:
+        log_dir = os.path.dirname(RUNTIME_LOG_PATH)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        with open(RUNTIME_LOG_PATH, 'a', encoding='utf-8') as handle:
+            handle.write(f"[{datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}] {msg}\n")
+            handle.flush()
+    except Exception:
+        pass
+
 
 def _pyocr_log(msg):
     """Write a diagnostic line that survives PyInstaller stderr buffering."""
@@ -19,8 +51,9 @@ def _pyocr_log(msg):
         sys.stdout.flush()
     except Exception:
         pass
+    _write_runtime_log(msg)
 
-_pyocr_log(f"[pyocr-fix] app.py loaded; frozen={getattr(sys, 'frozen', False)}")
+_pyocr_log(f"[pyocr-fix] app.py loaded; frozen={getattr(sys, 'frozen', False)}; log_path={RUNTIME_LOG_PATH}")
 
 # When running as a PyInstaller bundle, resolve paths relative to the bundle
 if getattr(sys, 'frozen', False):
@@ -223,28 +256,48 @@ print(LOCAL_FOLDER)
 STORAGE_MODE = os.environ.get("STORAGE_MODE", "local").strip().lower()
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "").strip()
 GCS_PREFIX = os.environ.get("GCS_PREFIX", "uploads").strip()
+_runtime_trace = {
+    "platform": sys.platform,
+    "frozen": getattr(sys, 'frozen', False),
+    "bundle_dir": _bundle_dir,
+    "cwd": os.getcwd(),
+    "UPLOAD_ROOT": _upload_root_override,
+    "LOCAL_FOLDER": LOCAL_FOLDER,
+    "STORAGE_MODE": STORAGE_MODE,
+    "GCS_BUCKET": GCS_BUCKET or "(unset)",
+    "GCS_PREFIX": GCS_PREFIX,
+    "CONFIG_PATH": CONFIG_PATH,
+}
+_pyocr_log("[runtime-trace] startup " + json.dumps(_runtime_trace, ensure_ascii=False))
 if STORAGE_MODE == "gcs" and not GCS_BUCKET:
     raise RuntimeError("STORAGE_MODE=gcs requires GCS_BUCKET to be set; local storage is the default and only supported mode.")
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.65'
+APP_VERSION = '1.1.66'
 
 def create_app():
 
     # === Initialisation ===
+    _pyocr_log(f"[runtime-trace] create_app start: platform={sys.platform}, cwd={os.getcwd()}, local_root={LOCAL_FOLDER}")
     ocr_document = OCRDocument()
     task_manager = AsyncTaskManager()
     # clean_manager = CleanManager()
     
     #Create main project
     local_path = os.path.join(LOCAL_FOLDER, PROJECT_ID)
-    os.makedirs(local_path, exist_ok=True)
+    try:
+        os.makedirs(local_path, exist_ok=True)
+        _pyocr_log(f"[runtime-trace] ensured project path exists: {local_path}")
+    except Exception as exc:
+        _pyocr_log(f"[runtime-trace] failed to create project path {local_path}: {exc}")
+        raise
     storage_backend = StorageBackend(
         local_root=LOCAL_FOLDER,
         mode=STORAGE_MODE,
         bucket_name=GCS_BUCKET,
         prefix=GCS_PREFIX
     )
+    _pyocr_log(f"[runtime-trace] storage_backend initialized: mode={STORAGE_MODE}, local_root={LOCAL_FOLDER}, bucket={GCS_BUCKET or '(unset)'}")
     # Init local usage tracker for demo mode
     init_usage_tracker(LOCAL_FOLDER)
     # Management des fichiers temporaires
@@ -352,6 +405,10 @@ def create_app():
     app = Flask(__name__,
                 template_folder=os.path.join(_bundle_dir, 'templates'),
                 static_folder=os.path.join(_bundle_dir, 'static'))
+    _pyocr_log(
+        f"[runtime-trace] Flask init: template_dir={app.template_folder}, static_dir={app.static_folder}, "
+        f"bundle_dir={_bundle_dir}, platform={sys.platform}"
+    )
     app.config['TEMPLATES_AUTO_RELOAD'] = True
     app.jinja_env.auto_reload = True
 
@@ -410,11 +467,13 @@ def create_app():
 
 
 # Create app instance for gunicorn
+_pyocr_log("[runtime-trace] creating Flask app instance")
 app = create_app()
 
 # Start  web server
 if __name__ == '__main__':
     # For local development
     port = int(os.environ.get('PORT', 8080))
+    _pyocr_log(f"[runtime-trace] starting server on port={port}, host=0.0.0.0, platform={sys.platform}")
     print(f"Starting server on port {port}...")
     serve(app, host='0.0.0.0', port=port)

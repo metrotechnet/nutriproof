@@ -2544,18 +2544,27 @@ class OCRDocument:
             title_style = xlwt.easyxf('font: bold on, height 220;')
             date_style = xlwt.easyxf('font: bold on;')
             header_style = xlwt.easyxf('align: vert centre, horiz center; pattern: pattern solid, fore_colour light_green;')
+
+            def _excel_cell_value(value):
+                if value is None:
+                    return "."
+                if isinstance(value, str):
+                    return "." if value.strip() in ("", "None", "null") else value
+                return value
+
             for row_idx, row in enumerate(all_rows):
                 for col_idx, value in enumerate(row):
+                    normalized_value = _excel_cell_value(value)
                     if row_idx == 0:
-                        ws.write(row_idx, col_idx, value, title_style)
+                        ws.write(row_idx, col_idx, normalized_value, title_style)
                     elif row_idx == 1:
-                        ws.write(row_idx, col_idx, value, date_style)
+                        ws.write(row_idx, col_idx, normalized_value, date_style)
                     elif row_idx == 2:
-                        ws.write(row_idx, col_idx, value)
+                        ws.write(row_idx, col_idx, normalized_value)
                     elif row_idx == 3:
-                        ws.write(row_idx, col_idx, value, header_style)
+                        ws.write(row_idx, col_idx, normalized_value, header_style)
                     else:
-                        ws.write(row_idx, col_idx, value)
+                        ws.write(row_idx, col_idx, normalized_value)
             output = io.BytesIO()
             wb.save(output)
             output.seek(0)
