@@ -16,21 +16,33 @@ function Invoke-CheckedCommand {
         [string]$Command,
 
         [Parameter(Mandatory = $false)]
-        [string[]]$Arguments = @()
+        [string[]]$Arguments = @(),
+
+        [Parameter(Mandatory = $false)]
+        [string[]]$AllowedMessages = @()
     )
 
-    $output = & $Command @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
-
-    if ($exitCode -ne 0) {
-        if ($output) {
-            Write-Host ($output | Out-String)
-        }
-        throw "Command failed: $Command $($Arguments -join ' ')"
+    $previousErrorPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & $Command @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorPreference
     }
 
-    if ($output) {
-        Write-Host ($output | Out-String).TrimEnd()
+    $text = if ($null -ne $output) { ($output | Out-String).Trim() } else { '' }
+    if ($text) { Write-Host $text }
+
+    if ($exitCode -ne 0) {
+        foreach ($pattern in $AllowedMessages) {
+            if ($text -match $pattern) {
+                Write-Warning "Command returned a non-zero exit code but matched an allowed message: $pattern"
+                return
+            }
+        }
+        throw "Command failed: $Command $($Arguments -join ' ')"
     }
 }
 
@@ -68,8 +80,8 @@ Write-Host "Ensured macOS DMG format compatibility (UDZO)" -ForegroundColor Gree
 Invoke-CheckedCommand -Command 'git' -Arguments @('add', '-A')
 Invoke-CheckedCommand -Command 'git' -Arguments @('commit', '-m', "release: $tag")
 Invoke-CheckedCommand -Command 'git' -Arguments @('tag', $tag)
-Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main')
-Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag)
+Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
+Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag) -AllowedMessages @('Everything up-to-date', 'already exists', 'up-to-date')
 
 Write-Host ""
 Write-Host "Release $tag pushed. GitHub Actions build started." -ForegroundColor Cyan
