@@ -12,8 +12,8 @@ param(
     [int]$MaxInstances = 100,
     [int]$TimeoutSeconds = 300,
     [ValidateSet("local", "gcs")]
-    [string]$StorageMode = "gcs",
-    [string]$GcsBucket = "nutriproof-dbase",
+    [string]$StorageMode = "local",
+    [string]$GcsBucket = "",
     [string]$GcsPrefix = "uploads",
     [switch]$AlwaysAllocatedCpu,
     [switch]$AllowUnauthenticated
@@ -69,7 +69,7 @@ Invoke-GCloudChecked -Args @(
 
 $image = if ($ImageUri) { $ImageUri } else { "$Region-docker.pkg.dev/$ProjectId/$ArtifactRepo/$ServiceName`:$ImageTag" }
 if ($StorageMode -eq "gcs" -and [string]::IsNullOrWhiteSpace($GcsBucket)) {
-    throw "StorageMode=gcs requires -GcsBucket to be set. For this project, use -GcsBucket nutriproof-dbase."
+    throw "StorageMode=gcs requires -GcsBucket to be set."
 }
 
 $envVars = @("UPLOAD_ROOT=/tmp/uploads", "STORAGE_MODE=$StorageMode")
