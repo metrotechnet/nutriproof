@@ -2493,6 +2493,38 @@ class OCRDocument:
                 return merged_rows
             return raw_page_payloads
 
+        def _coerce_numeric_value(value):
+            if value is None or value == "":
+                return ""
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value
+            if not isinstance(value, str):
+                return value
+
+            text = value.strip()
+            if text in ("", ".", "None", "null", "none"):
+                return ""
+
+            normalized = text.replace(" ", "").replace("\u202f", "").replace("\xa0", "")
+            if normalized.lower() in {"none", "null"}:
+                return ""
+
+            if "," in normalized and "." in normalized:
+                if normalized.rfind(",") > normalized.rfind("."):
+                    normalized = normalized.replace(".", "").replace(",", ".")
+                else:
+                    normalized = normalized.replace(",", "")
+            elif "," in normalized:
+                normalized = normalized.replace(",", ".")
+
+            if re.fullmatch(r"[-+]?\d+", normalized):
+                return int(normalized)
+            if re.fullmatch(r"[-+]?\d+\.\d+", normalized):
+                return float(normalized)
+            return value
+
         def _build_row_for_headers(headers, page_data, label_aliases):
             row = []
             for key in headers:
@@ -2529,6 +2561,8 @@ class OCRDocument:
                     value = _weight_lbs_from_kg(value)
                 else:
                     value = _lookup_value(page_data, key, label_aliases)
+
+                value = _coerce_numeric_value(value)
 
                 if value is None or value == "" or str(value).lower() in {"none", "null"}:
                     row.append("")

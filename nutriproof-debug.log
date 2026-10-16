@@ -11,3 +11,16 @@
 [2026-10-16T13:54:06Z] [runtime-trace] storage_backend initialized: mode=local, local_root=.\uploads, bucket=(unset)
 [2026-10-16T13:54:06Z] [runtime-trace] Flask init: template_dir=C:\dev\NUTRISS-OCR\templates, static_dir=C:\dev\NUTRISS-OCR\static, bundle_dir=C:\dev\NUTRISS-OCR, platform=win32
 [2026-10-16T13:54:06Z] [runtime-trace] starting server on port=8080, host=0.0.0.0, platform=win32
+[2026-10-16T20:12:03Z] [pyocr-fix] app.py loaded; frozen=False; log_path=C:\dev\NUTRISS-OCR\nutriproof-debug.log
+[2026-10-16T20:12:03Z] [pyocr-fix] about to import pyocr-using modules
+[2026-10-16T20:12:03Z] [pyocr-fix] tesseract_raw.init() raised: 
+[2026-10-16T20:12:03Z] [pyocr-fix] relaxed argtypes ok=False
+[2026-10-16T20:12:03Z] [pyocr-fix] read-back argtypes failed: 'NoneType' object has no attribute 'TessBaseAPISetImage'
+[2026-10-16T20:12:03Z] [pyocr-fix] monkey-patched tesseract_raw.set_image
+[2026-10-16T20:12:06Z] [runtime-trace] startup {"platform": "win32", "frozen": false, "bundle_dir": "C:\\dev\\NUTRISS-OCR", "cwd": "C:\\dev\\NUTRISS-OCR", "UPLOAD_ROOT": null, "LOCAL_FOLDER": ".\\uploads", "STORAGE_MODE": "local", "GCS_BUCKET": "(unset)", "GCS_PREFIX": "uploads", "CONFIG_PATH": "C:\\dev\\NUTRISS-OCR\\dbase\\parameters.json"}
+[2026-10-16T20:12:06Z] [runtime-trace] creating Flask app instance
+[2026-10-16T20:12:06Z] [runtime-trace] create_app start: platform=win32, cwd=C:\dev\NUTRISS-OCR, local_root=.\uploads
+[2026-10-16T20:12:06Z] [runtime-trace] ensured project path exists: .\uploads\main
+[2026-10-16T20:12:06Z] [runtime-trace] storage_backend initialized: mode=local, local_root=.\uploads, bucket=(unset)
+[2026-10-16T20:12:06Z] [runtime-trace] Flask init: template_dir=C:\dev\NUTRISS-OCR\templates, static_dir=C:\dev\NUTRISS-OCR\static, bundle_dir=C:\dev\NUTRISS-OCR, platform=win32
+[2026-10-16T20:12:06Z] [runtime-trace] starting server on port=8080, host=0.0.0.0, platform=win32
