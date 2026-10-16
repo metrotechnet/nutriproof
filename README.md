@@ -172,13 +172,42 @@ Pour revenir au comportement local (build Mac/desktop), utiliser :
 .\scripts\deploy-gcp-api.ps1 -ProjectId nutriproof-imx -ImageTag latest -StorageMode local -AllowUnauthenticated
 ```
 
-### 3) Déployer l'app principale vers nutriproof-imx.web.app (hosting:app)
+### 3) Déployer sur une VM GCP avec disque persistant
+
+Cette option conserve les fichiers de travail sur un disque SSD persistant, sans dépendre du bucket Cloud Storage comme stockage principal.
+
+```powershell
+.\scripts\deploy-gcp-vm-with-disk.ps1 `
+  -ProjectId nutriproof-imx `
+  -Region northamerica-northeast1 `
+  -Zone northamerica-northeast1-a `
+  -InstanceName nutriproof-vm `
+  -DiskName nutriproof-data `
+  -DiskSizeGb 200 `
+  -MachineType e2-standard-2 `
+  -AppPort 8080 `
+  -DomainName imxtech.ca `
+  -Subdomain nutriproof
+```
+
+Le script :
+- crée ou réutilise une VM Ubuntu
+- crée un disque SSD persistant et le monte à `/mnt/nutriproof`
+- installe Docker + Docker Compose
+- crée un IP statique et l’attache à la VM
+- clone le dépôt dans `/opt/nutriproof`
+- configure `UPLOAD_ROOT=/mnt/nutriproof/uploads`
+- crée un service `systemd` pour relancer l’application après un reboot du VM
+- met à jour automatiquement l’enregistrement DNS A `nutriproof.imxtech.ca` si une zone Cloud DNS est trouvée
+- lance l'application avec `docker compose up -d --build`
+
+### 4) Déployer l'app principale vers nutriproof-imx.web.app (hosting:app)
 
 ```powershell
 .\scripts\deploy-hosting-app.ps1 -ProjectId nutriproof-imx
 ```
 
-### 4) Déployer le site statique website/public vers imx-nutriproof.web.app (hosting:website)
+### 5) Déployer le site statique website/public vers imx-nutriproof.web.app (hosting:website)
 
 ```powershell
 .\scripts\deploy-website-static.ps1 -ProjectId imx-nutriproof

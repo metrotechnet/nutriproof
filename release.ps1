@@ -25,7 +25,10 @@ function Invoke-CheckedCommand {
     $previousErrorPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $output = & $Command @Arguments 2>&1
+        # Git often writes progress to stderr even when the command succeeds (for example
+        # `To https://...` during push). Redirecting stderr prevents PowerShell from surfacing
+        # those non-fatal lines as false-native-command errors while still capturing stdout.
+        $output = & $Command @Arguments 2>$null
         $exitCode = $LASTEXITCODE
     }
     finally {
