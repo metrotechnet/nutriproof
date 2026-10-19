@@ -1,75 +1,57 @@
-# Unsigned build configuration (GitHub Actions)
+# macOS signing and notarization
 
-Le workflow [build.yml](C:/dev/NUTRISS-OCR/.github/workflows/build.yml) est actuellement configuré pour produire des builds **non signés**:
+Le workflow GitHub Actions [build.yml](.github/workflows/build.yml) est configuré pour tenter un build macOS signé et notarisé lorsque les secrets Apple sont fournis.
 
-- Windows: build de l'installeur sans étape de signature
-- macOS: build DMG avec `--config.mac.identity=null`
-- notarization macOS: étape commentée (désactivée)
-
-## 1) Secrets GitHub requis actuellement
-
-### Windows (Azure Trusted Signing)
-
-Actuellement, la signature Windows est désactivée dans [build.yml](C:/dev/NUTRISS-OCR/.github/workflows/build.yml) (étapes commentées).
-
-Si vous réactivez la signature Windows, ces secrets deviennent requis:
-
-- `ARTIFACT_SIGNING_ACCOUNT`
-- `ARTIFACT_SIGNING_PROFILE`
-- `AZURE_CLIENT_ID`
-- `AZURE_TENANT_ID`
-- `AZURE_CLIENT_SECRET`
+## 1) Secrets GitHub requis
 
 ### macOS signing (Developer ID Application)
 
-Actuellement non utilisés car le build force le mode unsigned:
+Ces secrets doivent être ajoutés dans les repository or organization secrets:
 
-- `MAC_CSC_LINK` (certificat encodé/base64 ou lien vers le certificat)
-- `MAC_CSC_KEY_PASSWORD` (mot de passe du certificat)
-- `MAC_CSC_NAME` (nom exact de l’identité, ex: `Developer ID Application: ...`) — fortement recommandé
+- `MAC_CSC_LINK` (ou `CSC_LINK`), le certificat encodé/base64 ou le chemin vers le .p12
+- `MAC_CSC_KEY_PASSWORD` (ou `CSC_KEY_PASSWORD`)
+- `MAC_CSC_NAME` (ou `CSC_NAME`), par exemple `Developer ID Application: Acme Inc. (TEAMID)`
 
 ### macOS notarization (Apple)
-
-Actuellement non utilisés car l’étape de notarization est commentée:
 
 - `APPLE_ID`
 - `APPLE_APP_SPECIFIC_PASSWORD`
 - `APPLE_TEAM_ID`
 
-## 2) Comportement du pipeline si secrets manquants
+## 2) Comportement du pipeline
 
-- **Windows**: aucune signature n’est effectuée tant que les étapes restent commentées.
-- **macOS build**: le workflow construit toujours un DMG **non signé** (`--config.mac.identity=null`).
-- **macOS notarization**: aucune notarization n’est tentée tant que l’étape reste commentée.
+- Le build macOS appelle `electron-builder` sans `--config.mac.identity=null`.
+- Le hook `electron/signing/afterSign.js` resigne aussi les binaires mach-O internes pour éviter les échecs de notarization.
+- La step de notarization est exécutée uniquement si les secrets Apple sont présents.
+- Si un secret manque, le pipeline affiche un message explicite et continue avec un build non signé localement; ce comportement est utile pour les tests, mais il ne doit pas être utilisé pour une distribution publique.
 
 ## 3) Checklist de validation rapide
 
-1. Vérifier qu’aucune étape de signature/notarization n’a été réactivée par erreur.
+1. Vérifier que les secrets Apple sont bien présents dans GitHub.
 2. Lancer un workflow sur un tag `v*`.
-3. Contrôler les logs:
-   - Windows: build `.exe` généré.
-   - macOS: build DMG avec `--config.mac.identity=null`.
+3. Contrôler les logs du job `build-macos`:
+   - signature des binaires .app
+   - génération du DMG
+   - étape de notarization si les secrets sont configurés
 4. Vérifier les artefacts publiés:
-   - `NutriProof-Beta-Setup.exe` (non signé)
-   - `*.dmg` (non signé / non notarisé)
+   - `*.dmg`
+   - `latest-mac.yml`
 
 ## 4) Erreur fréquente
-
-Erreur typique:
 
 ```text
 SecKeychainUnlock: The user name or passphrase you entered is not correct.
 ```
 
-Ce n’est pas un bug applicatif. C’est un problème de certificat/identité/keychain macOS côté CI.
+Ce n’est pas un bug applicatif. Il s’agit d’un problème de certificat, d’identité ou de keychain macOS côté CI.
 
-## 5) Mode unsigned (usage interne uniquement)
+## 5) Build local sans signature
 
-Pour un build local non signé:
+Pour un build local non signé uniquement, par exemple en test rapide:
 
 ```bash
 cd electron
 npx electron-builder --mac --publish never --config.mac.identity=null
 ```
 
-⚠️ Ce mode est pratique pour test interne, mais **pas adapté à une distribution production** (Gatekeeper affichera un avertissement ou bloquera l’ouverture).
+⚠️ Ce mode est pratique pour un test interne, mais il n’est pas adapté à une distribution publique car Gatekeeper peut afficher un avertissement ou bloquer l’ouverture de l’application.

@@ -55,7 +55,7 @@ exports.default = async function afterSign(context) {
     const { electronPlatformName, appOutDir, packager } = context;
     if (electronPlatformName !== 'darwin') return;
 
-    const identity = process.env.CSC_NAME || process.env.MAC_SIGN_IDENTITY;
+    const identity = process.env.CSC_NAME || process.env.MAC_CSC_NAME || process.env.MAC_SIGN_IDENTITY;
     let signIdentity = identity;
     if (!signIdentity) {
         try {
