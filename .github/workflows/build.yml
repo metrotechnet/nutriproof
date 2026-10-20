@@ -295,82 +295,73 @@ jobs:
         run: |
           cd electron
           npm install
-
-          echo "=== macOS signing debug ==="
-          for name in CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
-            if [ -n "${!name:-}" ]; then
-              len=$(printf '%s' "${!name}" | wc -c | tr -d ' ')
-              echo "$name is set (length=${len})"
-            else
-              echo "$name is EMPTY"
-            fi
-          done
-
-          echo "--- installed signing identities ---"
-          security find-identity -v -p codesigning || true
-
-          # Use signed builds when Apple Developer credentials are configured.
-          # If they are missing, this step still allows local or CI test builds to proceed
-          # without failing the pipeline, while the release job can continue with an unsigned artifact.
-          if [ -z "${CSC_LINK:-}" ] || [ -z "${CSC_KEY_PASSWORD:-}" ] || [ -z "${CSC_NAME:-}" ]; then
-            echo "Skipping macOS code signing: missing CSC_LINK / CSC_KEY_PASSWORD / CSC_NAME"
-            npx electron-builder --mac --publish never
-            exit 0
-          fi
-
-          echo "=== starting electron-builder signed macOS build ==="
-          npx electron-builder --mac --publish never
+          # Ensure no signing credentials leak from repo/environment secrets.
+          unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          # Build unsigned DMG (no Apple signing).
+          npx electron-builder --mac --publish never --config.mac.identity=null
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK || secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD || secrets.CSC_KEY_PASSWORD }}
-          CSC_NAME: ${{ secrets.MAC_CSC_NAME || secrets.CSC_NAME }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ''
+          CSC_KEY_PASSWORD: ''
+          CSC_NAME: ''
+          # Signing credentials intentionally not used for unsigned builds.
 
-      - name: Notarize macOS app (Gatekeeper)
-        if: ${{ env.APPLE_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != '' && env.APPLE_TEAM_ID != '' }}
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -e
-
-          DMG_PATH=$(ls -1 dist/electron/*.dmg 2>/dev/null | head -n1)
-          if [ -z "$DMG_PATH" ]; then
-            echo "No DMG found to notarize"
-            exit 1
-          fi
-
-          echo "Notarizing: $DMG_PATH"
-          SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --wait 2>&1)
-          echo "$SUBMIT_OUTPUT"
-
-          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^[[:space:]]*id:' | head -n1 | awk '{print $2}')
-          STATUS=$(echo "$SUBMIT_OUTPUT" | grep -E 'status:' | tail -n1 | awk '{print $2}')
-
-          if [ "$STATUS" != "Accepted" ]; then
-            echo "::error::Notarization failed with status: $STATUS"
-            if [ -n "$SUBMISSION_ID" ]; then
-              echo "=== Fetching notarization log for $SUBMISSION_ID ==="
-              xcrun notarytool log "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --team-id "$APPLE_TEAM_ID" \
-                --password "$APPLE_APP_SPECIFIC_PASSWORD" || true
-            fi
-            exit 1
-          fi
-
-          echo "Stapling notarization ticket to DMG..."
-          xcrun stapler staple "$DMG_PATH"
-          echo "Notarization complete!"
+      # - name: Build Electron installer (macOS signed)
+      #   run: |
+      #     cd electron
+      #     npm install
+      #     npx electron-builder --mac --publish never
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      #     CSC_LINK: ${{ secrets.MAC_CSC_LINK || secrets.CSC_LINK }}
+      #     CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD || secrets.CSC_KEY_PASSWORD }}
+      #     CSC_NAME: ${{ secrets.MAC_CSC_NAME || secrets.CSC_NAME }}
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #
+      # - name: Notarize macOS app (Gatekeeper)
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #   run: |
+      #     set -e
+      #
+      #     DMG_PATH=$(ls -1 dist/electron/*.dmg 2>/dev/null | head -n1)
+      #     if [ -z "$DMG_PATH" ]; then
+      #       echo "No DMG found to notarize"
+      #       exit 1
+      #     fi
+      #
+      #     echo "Notarizing: $DMG_PATH"
+      #     SUBMIT_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
+      #       --apple-id "$APPLE_ID" \
+      #       --team-id "$APPLE_TEAM_ID" \
+      #       --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+      #       --wait 2>&1)
+      #     echo "$SUBMIT_OUTPUT"
+      #
+      #     SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -E '^[[:space:]]*id:' | head -n1 | awk '{print $2}')
+      #     STATUS=$(echo "$SUBMIT_OUTPUT" | grep -E 'status:' | tail -n1 | awk '{print $2}')
+      #
+      #     if [ "$STATUS" != "Accepted" ]; then
+      #       echo "::error::Notarization failed with status: $STATUS"
+      #       if [ -n "$SUBMISSION_ID" ]; then
+      #         echo "=== Fetching notarization log for $SUBMISSION_ID ==="
+      #         xcrun notarytool log "$SUBMISSION_ID" \
+      #           --apple-id "$APPLE_ID" \
+      #           --team-id "$APPLE_TEAM_ID" \
+      #           --password "$APPLE_APP_SPECIFIC_PASSWORD" || true
+      #       fi
+      #       exit 1
+      #     fi
+      #
+      #     echo "Stapling notarization ticket to DMG..."
+      #     xcrun stapler staple "$DMG_PATH"
+      #     echo "Notarization complete!"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v7
