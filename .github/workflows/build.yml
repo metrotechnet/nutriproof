@@ -296,6 +296,19 @@ jobs:
           cd electron
           npm install
 
+          echo "=== macOS signing debug ==="
+          for name in CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name:-}" ]; then
+              len=$(printf '%s' "${!name}" | wc -c | tr -d ' ')
+              echo "$name is set (length=${len})"
+            else
+              echo "$name is EMPTY"
+            fi
+          done
+
+          echo "--- installed signing identities ---"
+          security find-identity -v -p codesigning || true
+
           # Use signed builds when Apple Developer credentials are configured.
           # If they are missing, this step still allows local or CI test builds to proceed
           # without failing the pipeline, while the release job can continue with an unsigned artifact.
@@ -305,6 +318,7 @@ jobs:
             exit 0
           fi
 
+          echo "=== starting electron-builder signed macOS build ==="
           npx electron-builder --mac --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
