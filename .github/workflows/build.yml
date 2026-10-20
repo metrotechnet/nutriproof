@@ -115,7 +115,9 @@ jobs:
 
   # ── macOS build ────────────────────────────────────────────────────
   build-macos:
-    runs-on: macos-latest
+    # Intel x86_64 build: matches the local macOS machine architecture that is still
+    # using the x64 package layout. macos-latest can switch to arm64 on newer runners.
+    runs-on: macos-13
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -291,14 +293,15 @@ jobs:
           echo "=== tessdata mirrored to $PYI_DATA_DIR ==="
           ls -la "$PYI_DATA_DIR"
 
-      - name: Build Electron installer (macOS)
+      - name: Build Electron installer (macOS x64 unsigned)
         run: |
           cd electron
           npm install
           # Ensure no signing credentials leak from repo/environment secrets.
           unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
-          # Build unsigned DMG (no Apple signing).
-          npx electron-builder --mac --publish never --config.mac.identity=null
+          # Build an Intel x64 DMG to match x86_64 Macs; do not enable Apple signing
+          # in this unsigned fallback build.
+          npx electron-builder --mac --x64 --publish never --config.mac.identity=null
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
