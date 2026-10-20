@@ -55,19 +55,9 @@ exports.default = async function afterSign(context) {
     const { electronPlatformName, appOutDir, packager } = context;
     if (electronPlatformName !== 'darwin') return;
 
-    const identity = process.env.CSC_NAME || process.env.MAC_CSC_NAME || process.env.MAC_SIGN_IDENTITY;
-    let signIdentity = identity;
+    const signIdentity = process.env.CSC_NAME || process.env.MAC_CSC_NAME || process.env.MAC_SIGN_IDENTITY;
     if (!signIdentity) {
-        try {
-            const out = execSync('security find-identity -v -p codesigning', { encoding: 'utf8' });
-            const m = out.match(/"(Developer ID Application:[^"]+)"/);
-            if (m) signIdentity = m[1];
-        } catch (e) {
-            console.warn('[afterSign] could not auto-detect signing identity:', e.message);
-        }
-    }
-    if (!signIdentity) {
-        console.warn('[afterSign] No Developer ID Application identity found; skipping embedded binary signing.');
+        console.warn('[afterSign] No explicit signing identity configured; skipping embedded binary signing.');
         return;
     }
 
