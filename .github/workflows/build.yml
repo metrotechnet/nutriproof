@@ -326,11 +326,12 @@ jobs:
           fi
 
           echo "=== starting electron-builder signed macOS build ==="
+          signed_build_log="${RUNNER_TEMP:-/tmp}/macos-signed-build-$$.log"
           set +e
-          npx electron-builder --mac --publish never > /tmp/macos-signed-build.log 2>&1
+          npx electron-builder --mac --publish never > "$signed_build_log" 2>&1
           signed_build_exit=$?
           set -e
-          cat /tmp/macos-signed-build.log
+          cat "$signed_build_log"
 
           if [ "$signed_build_exit" -eq 0 ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
@@ -338,7 +339,7 @@ jobs:
           fi
 
           # Handle known keychain unlock/signing setup failures from macOS security tooling.
-          if grep -Eq "SecKeychainUnlock: The user name or passphrase you entered is not correct|security set-key-partition-list" /tmp/macos-signed-build.log; then
+          if grep -Eq "SecKeychainUnlock: The user name or passphrase you entered is not correct|security set-key-partition-list" "$signed_build_log"; then
             echo "::warning::Signed macOS build failed due to keychain unlock/passphrase mismatch. Retrying unsigned build."
             unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             if ! npx electron-builder --mac --publish never; then
