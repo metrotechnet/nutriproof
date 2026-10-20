@@ -330,7 +330,10 @@ jobs:
           if grep -q "SecKeychainUnlock: The user name or passphrase you entered is not correct" /tmp/macos-signed-build.log; then
             echo "::warning::Signed macOS build failed due to keychain unlock/passphrase mismatch. Retrying unsigned build."
             unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
-            npx electron-builder --mac --publish never
+            if ! npx electron-builder --mac --publish never; then
+              echo "::error::Unsigned fallback macOS build failed."
+              exit 1
+            fi
             echo "signed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
