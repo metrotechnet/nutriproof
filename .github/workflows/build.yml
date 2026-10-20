@@ -322,7 +322,12 @@ jobs:
           fi
 
           echo "=== starting electron-builder signed macOS build ==="
-          if npx electron-builder --mac --publish never 2>&1 | tee /tmp/macos-signed-build.log; then
+          set +e
+          npx electron-builder --mac --publish never 2>&1 | tee /tmp/macos-signed-build.log
+          signed_build_exit=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$signed_build_exit" -eq 0 ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
