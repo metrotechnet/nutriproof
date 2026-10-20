@@ -293,6 +293,7 @@ jobs:
 
       - name: Build Electron installer (macOS)
         id: build_macos_installer
+        shell: bash
         run: |
           set -euo pipefail
           cd electron
@@ -332,7 +333,8 @@ jobs:
             exit 0
           fi
 
-          if grep -q "SecKeychainUnlock: The user name or passphrase you entered is not correct" /tmp/macos-signed-build.log; then
+          # Handle known keychain unlock/signing setup failures from macOS security tooling.
+          if grep -Eq "SecKeychainUnlock: The user name or passphrase you entered is not correct|security set-key-partition-list" /tmp/macos-signed-build.log; then
             echo "::warning::Signed macOS build failed due to keychain unlock/passphrase mismatch. Retrying unsigned build."
             unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             if ! npx electron-builder --mac --publish never; then
