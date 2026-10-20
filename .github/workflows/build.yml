@@ -117,7 +117,7 @@ jobs:
   build-macos:
     # Intel x86_64 build: matches the local macOS machine architecture that is still
     # using the x64 package layout. macos-latest can switch to arm64 on newer runners.
-    runs-on: macos-15
+    runs-on: macos-15-large
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
