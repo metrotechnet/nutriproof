@@ -338,8 +338,10 @@ jobs:
             exit 0
           fi
 
-          # Handle known keychain unlock/signing setup failures from macOS security tooling.
-          if grep -Eq "SecKeychainUnlock: The user name or passphrase you entered is not correct|security set-key-partition-list" "$signed_build_log"; then
+          # Handle known signing/keychain setup failures from macOS security tooling.
+          # Keep this broad enough to tolerate message changes across runner/macOS versions.
+          signing_setup_error_pattern="SecKeychainUnlock|set-key-partition-list|No signing identity|could not be found in the keychain|User interaction is not allowed"
+          if grep -Eiq "$signing_setup_error_pattern" "$signed_build_log"; then
             echo "::warning::Signed macOS build failed due to keychain unlock/passphrase mismatch. Retrying unsigned build."
             unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             if ! npx electron-builder --mac --publish never; then
