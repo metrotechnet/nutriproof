@@ -7,7 +7,7 @@ pool:
 variables:
   pythonVersion: '3.11'
   nodeVersion: '20.x'
-  appProductName: 'NutriProof-Beta'
+  appProductName: 'NutriProof'
   installerPath: 'dist/electron/$(appProductName)-Setup.exe'
   timestampUrl: 'http://timestamp.acs.microsoft.com/'
 
