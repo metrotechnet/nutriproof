@@ -317,7 +317,10 @@ jobs:
           # without failing the pipeline, while the release job can continue with an unsigned artifact.
           if [ -z "${CSC_LINK:-}" ] || [ -z "${CSC_KEY_PASSWORD:-}" ] || [ -z "${CSC_NAME:-}" ]; then
             echo "Skipping macOS code signing: missing CSC_LINK / CSC_KEY_PASSWORD / CSC_NAME"
-            npx electron-builder --mac --publish never
+            if ! npx electron-builder --mac --publish never; then
+              echo "::error::Unsigned macOS build failed."
+              exit 1
+            fi
             echo "signed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
