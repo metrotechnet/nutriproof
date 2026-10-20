@@ -292,7 +292,10 @@ jobs:
           ls -la "$PYI_DATA_DIR"
 
       - name: Build Electron installer (macOS)
+        id: build_macos_installer
+        shell: bash
         run: |
+          set -euo pipefail
           cd electron
           npm install
 
@@ -314,12 +317,43 @@ jobs:
           # without failing the pipeline, while the release job can continue with an unsigned artifact.
           if [ -z "${CSC_LINK:-}" ] || [ -z "${CSC_KEY_PASSWORD:-}" ] || [ -z "${CSC_NAME:-}" ]; then
             echo "Skipping macOS code signing: missing CSC_LINK / CSC_KEY_PASSWORD / CSC_NAME"
-            npx electron-builder --mac --publish never
+            if ! npx electron-builder --mac --publish never; then
+              echo "::error::Unsigned macOS build failed."
+              exit 1
+            fi
+            echo "signed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "=== starting electron-builder signed macOS build ==="
-          npx electron-builder --mac --publish never
+          signed_build_log="${RUNNER_TEMP:-/tmp}/macos-signed-build-$$.log"
+          set +e
+          npx electron-builder --mac --publish never > "$signed_build_log" 2>&1
+          signed_build_exit=$?
+          set -e
+          cat "$signed_build_log"
+
+          if [ "$signed_build_exit" -eq 0 ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Handle known signing/keychain setup failures from macOS security tooling.
+          # Keep this broad enough to tolerate message changes across runner/macOS versions.
+          signing_setup_error_pattern="SecKeychainUnlock|set-key-partition-list|No signing identity|could not be found in the keychain|User interaction is not allowed"
+          if grep -Eiq "$signing_setup_error_pattern" "$signed_build_log"; then
+            echo "::warning::Signed macOS build failed due to keychain unlock/passphrase mismatch. Retrying unsigned build."
+            unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            if ! npx electron-builder --mac --publish never; then
+              echo "::error::Unsigned fallback macOS build failed."
+              exit 1
+            fi
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::error::Signed macOS build failed for a non-signing reason."
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -331,7 +365,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Notarize macOS app (Gatekeeper)
-        if: ${{ env.APPLE_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != '' && env.APPLE_TEAM_ID != '' }}
+        if: ${{ steps.build_macos_installer.outputs.signed == 'true' && env.APPLE_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != '' && env.APPLE_TEAM_ID != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
