@@ -7,11 +7,14 @@ node_modules/
 # Build artifacts
 dist/
 build/
+build-artifacts/
 tesseract-bundle/
 uploads/
 uploads - Copie/
 cert/
 doc/
+*.dmg
+*.exe
 
 # Azure Artifact Signing local secrets/binaries
 ci/artifact-signing/metadata.json
