@@ -273,7 +273,7 @@ if STORAGE_MODE == "gcs" and not GCS_BUCKET:
     raise RuntimeError("STORAGE_MODE=gcs requires GCS_BUCKET to be set; local storage is the default and only supported mode.")
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.79'
+APP_VERSION = '1.1.80'
 
 def create_app():
 
