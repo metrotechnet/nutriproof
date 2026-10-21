@@ -2,6 +2,15 @@ name: Build & Release
 
 on:
   workflow_dispatch:
+    inputs:
+      include_uploads:
+        description: 'Include uploads/main data in release package'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   push:
     tags: ['v*']
 
@@ -113,11 +122,34 @@ jobs:
             dist/electron/*-Setup.exe
             dist/electron/latest.yml
 
+      - name: Package uploads data (optional)
+        if: ${{ github.event.inputs.include_uploads == 'true' }}
+        shell: pwsh
+        run: |
+          if (Test-Path "uploads/main") {
+            $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $zipName = "nutriproof-uploads-data-$timestamp.zip"
+            $zipPath = Join-Path "dist/electron" $zipName
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::CreateFromDirectory("uploads/main", $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+            Write-Host "Created data package: $zipName"
+          } else {
+            Write-Host "No uploads/main folder found, skipping data package"
+          }
+
+      - name: Upload data artifacts (optional)
+        if: ${{ github.event.inputs.include_uploads == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: NutriProof-Windows-Data
+          path: dist/electron/nutriproof-uploads-data-*.zip
+          if-no-files-found: ignore
+
   # ── macOS build ────────────────────────────────────────────────────
   build-macos:
     # Intel x86_64 build: matches the local macOS machine architecture that is still
     # using the x64 package layout. macos-latest can switch to arm64 on newer runners.
-    runs-on: macos-15-large
+    runs-on: macos-13
     env:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -374,6 +406,29 @@ jobs:
             dist/electron/*.dmg
             dist/electron/latest-mac.yml
 
+      - name: Package uploads data (optional)
+        if: ${{ github.event.inputs.include_uploads == 'true' }}
+        run: |
+          if [ -d "uploads/main" ]; then
+            timestamp=$(date +%Y%m%d-%H%M%S)
+            zip_name="nutriproof-uploads-data-$timestamp.zip"
+            zip_path="dist/electron/$zip_name"
+            cd uploads/main
+            zip -r -q "../../$zip_path" .
+            cd ../..
+            echo "Created data package: $zip_name"
+          else
+            echo "No uploads/main folder found, skipping data package"
+          fi
+
+      - name: Upload data artifacts (optional)
+        if: ${{ github.event.inputs.include_uploads == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: NutriProof-macOS-Data
+          path: dist/electron/nutriproof-uploads-data-*.zip
+          if-no-files-found: ignore
+
   # ── Publish to GitHub Releases (only on tags) ─────────────────────
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -393,6 +448,8 @@ jobs:
           files: |
             artifacts/NutriProof-Windows/*.exe
             artifacts/NutriProof-Windows/latest.yml
+            artifacts/NutriProof-Windows-Data/*.zip
             artifacts/NutriProof-macOS/*.dmg
             artifacts/NutriProof-macOS/latest-mac.yml
+            artifacts/NutriProof-macOS-Data/*.zip
           generate_release_notes: true
