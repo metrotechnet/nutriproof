@@ -375,29 +375,6 @@ jobs:
             dist/electron/*.dmg
             dist/electron/latest-mac.yml
 
-      - name: Package uploads data (optional)
-        if: ${{ github.event.inputs.include_uploads == 'true' }}
-        run: |
-          if [ -d "uploads/main" ]; then
-            timestamp=$(date +%Y%m%d-%H%M%S)
-            zip_name="nutriproof-uploads-data-$timestamp.zip"
-            zip_path="dist/electron/$zip_name"
-            cd uploads/main
-            zip -r -q "../../$zip_path" .
-            cd ../..
-            echo "Created data package: $zip_name"
-          else
-            echo "No uploads/main folder found, skipping data package"
-          fi
-
-      - name: Upload data artifacts (optional)
-        if: ${{ github.event.inputs.include_uploads == 'true' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: NutriProof-macOS-Data
-          path: dist/electron/nutriproof-uploads-data-*.zip
-          if-no-files-found: ignore
-
   # ── Publish to GitHub Releases (only on tags) ─────────────────────
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -411,14 +388,21 @@ jobs:
         with:
           path: artifacts
 
+      - name: Prepare latest-release aliases
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp -f artifacts/NutriProof-Windows/*.exe release-assets/NutriProof-Latest.exe
+          cp -f artifacts/NutriProof-macOS/*.dmg release-assets/NutriProof-Latest.dmg
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/NutriProof-Windows/*.exe
             artifacts/NutriProof-Windows/latest.yml
-            artifacts/NutriProof-Windows-Data/*.zip
             artifacts/NutriProof-macOS/*.dmg
             artifacts/NutriProof-macOS/latest-mac.yml
-            artifacts/NutriProof-macOS-Data/*.zip
+            release-assets/NutriProof-Latest.exe
+            release-assets/NutriProof-Latest.dmg
           generate_release_notes: true
