@@ -90,6 +90,12 @@ function Invoke-CheckedCommand {
     }
 }
 
+$branchName = (& git branch --show-current 2>$null)
+if ($branchName -and $branchName -ne 'main') {
+    Write-Error "Release must be run from the main branch. Current branch: $branchName"
+    throw "Release aborted: wrong branch ($branchName)"
+}
+
 $status = git status --porcelain
 if ($status) {
     Write-Host "Uncommitted changes detected. Committing all changes..." -ForegroundColor Yellow
@@ -140,7 +146,8 @@ if (-not $tagExists) {
     Invoke-CheckedCommand -Command 'git' -Arguments @('tag', $tag)
 }
 else {
-    Write-Host "Tag $tag already exists. Skipping tag creation." -ForegroundColor Yellow
+    Write-Error "Tag $tag already exists locally. Remove it with 'git tag -d $tag' or choose a new version before running the release again."
+    throw "Release aborted: duplicate tag $tag"
 }
 
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
