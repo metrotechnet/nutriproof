@@ -1,17 +1,58 @@
 # release.ps1 — Bump version, commit, tag, and push to trigger CI/CD build
 # Compatible with older PowerShell / Windows environments and the macOS DMG compatibility fix.
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
 
     [Parameter(Mandatory = $false)]
-    [switch]$IncludeUploads
+    [switch]$IncludeUploads,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
 
+function Get-CurrentReleaseVersion {
+    $appPath = Join-Path $PSScriptRoot 'app.py'
+    if (Test-Path $appPath) {
+        $appText = [System.IO.File]::ReadAllText($appPath)
+        $appMatch = [regex]::Match($appText, 'APP_VERSION\s*=\s*[''\"](?<version>\d+\.\d+\.\d+)[''\"]')
+        if ($appMatch.Success) {
+            return $appMatch.Groups['version'].Value
+        }
+    }
+
+    $pkgPath = Join-Path $PSScriptRoot 'electron\package.json'
+    if (Test-Path $pkgPath) {
+        try {
+            $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+            if ($pkg.version) {
+                return [string]$pkg.version
+            }
+        }
+        catch {
+            # Ignore invalid JSON and fall through to the explicit error below.
+        }
+    }
+
+    throw "Unable to determine the current application version from app.py or electron/package.json. Pass -Version explicitly."
+}
+
+if (-not $Version) {
+    $Version = Get-CurrentReleaseVersion
+}
+
 $tag = "v$Version"
+$dryRun = $WhatIf.IsPresent
+
+if ($dryRun) {
+    Write-Host "Dry run enabled. No version files, git commits, tags, pushes, or workflow dispatches will be changed." -ForegroundColor Yellow
+    Write-Host "Release version: $Version" -ForegroundColor Cyan
+    Write-Host "Git tag: $tag" -ForegroundColor Cyan
+    return
+}
 
 function Invoke-CheckedCommand {
     param(
