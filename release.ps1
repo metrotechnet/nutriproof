@@ -105,8 +105,27 @@ else {
     Write-Host "Tag $tag already exists. Skipping tag creation." -ForegroundColor Yellow
 }
 
-Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
-Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag) -AllowedMessages @('Everything up-to-date', 'already exists', 'up-to-date')
+Write-Host "Pushing main branch to origin..." -ForegroundColor Cyan
+try {
+    & git push origin main 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git push origin main failed" }
+}
+catch {
+    Write-Error "Git push to origin/main failed. Check GitHub auth, repo permissions, and branch protection."
+    Write-Error $_.Exception.Message
+    throw
+}
+
+Write-Host "Pushing tag $tag to origin..." -ForegroundColor Cyan
+try {
+    & git push origin $tag 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "git push origin $tag failed" }
+}
+catch {
+    Write-Error "Git push for tag $tag failed. Check GitHub auth, repo permissions, and tag protection."
+    Write-Error $_.Exception.Message
+    throw
+}
 
 # Trigger workflow_dispatch with optional inputs
 if ($IncludeUploads) {
