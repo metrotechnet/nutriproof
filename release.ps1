@@ -3,7 +3,10 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version
+    [string]$Version,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$IncludeUploads
 )
 
 $ErrorActionPreference = 'Stop'
@@ -104,6 +107,26 @@ else {
 
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag) -AllowedMessages @('Everything up-to-date', 'already exists', 'up-to-date')
+
+# Trigger workflow_dispatch with optional inputs
+if ($IncludeUploads) {
+    Write-Host ""
+    Write-Host "Triggering GitHub Actions with include_uploads=true..." -ForegroundColor Cyan
+    
+    $workflowInput = @{
+        include_uploads = 'true'
+    } | ConvertTo-Json
+    
+    $gh_args = @(
+        'workflow', 'run',
+        'build.yml',
+        '--ref', 'main',
+        '--raw-field', "inputs=$workflowInput"
+    )
+    
+    Invoke-CheckedCommand -Command 'gh' -Arguments $gh_args
+    Write-Host "Workflow dispatched with uploads packaging enabled." -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "Release $tag pushed. GitHub Actions build started." -ForegroundColor Cyan
