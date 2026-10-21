@@ -1,58 +1,17 @@
 # release.ps1 — Bump version, commit, tag, and push to trigger CI/CD build
 # Compatible with older PowerShell / Windows environments and the macOS DMG compatibility fix.
 param(
-    [Parameter(Mandatory = $false)]
+    [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
 
     [Parameter(Mandatory = $false)]
-    [switch]$IncludeUploads,
-
-    [Parameter(Mandatory = $false)]
-    [switch]$WhatIf
+    [switch]$IncludeUploads
 )
 
 $ErrorActionPreference = 'Stop'
 
-function Get-CurrentReleaseVersion {
-    $appPath = Join-Path $PSScriptRoot 'app.py'
-    if (Test-Path $appPath) {
-        $appText = [System.IO.File]::ReadAllText($appPath)
-        $appMatch = [regex]::Match($appText, 'APP_VERSION\s*=\s*[''\"](?<version>\d+\.\d+\.\d+)[''\"]')
-        if ($appMatch.Success) {
-            return $appMatch.Groups['version'].Value
-        }
-    }
-
-    $pkgPath = Join-Path $PSScriptRoot 'electron\package.json'
-    if (Test-Path $pkgPath) {
-        try {
-            $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-            if ($pkg.version) {
-                return [string]$pkg.version
-            }
-        }
-        catch {
-            # Ignore invalid JSON and fall through to the explicit error below.
-        }
-    }
-
-    throw "Unable to determine the current application version from app.py or electron/package.json. Pass -Version explicitly."
-}
-
-if (-not $Version) {
-    $Version = Get-CurrentReleaseVersion
-}
-
 $tag = "v$Version"
-$dryRun = $WhatIf.IsPresent
-
-if ($dryRun) {
-    Write-Host "Dry run enabled. No version files, git commits, tags, pushes, or workflow dispatches will be changed." -ForegroundColor Yellow
-    Write-Host "Release version: $Version" -ForegroundColor Cyan
-    Write-Host "Git tag: $tag" -ForegroundColor Cyan
-    return
-}
 
 function Invoke-CheckedCommand {
     param(
@@ -90,35 +49,6 @@ function Invoke-CheckedCommand {
             }
         }
         throw "Command failed: $Command $($Arguments -join ' ')"
-    }
-}
-
-function Test-GitHubAuth {
-    Write-Host "Checking GitHub CLI authentication..." -ForegroundColor Cyan
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw "GitHub CLI 'gh' is not installed or not on PATH. Install it before running release.ps1."
-    }
-
-    $ghStatus = & gh auth status 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "GitHub CLI is not authenticated. Run 'gh auth login' and retry."
-        Write-Error ($ghStatus | Out-String)
-        throw "GitHub authentication required for release automation."
-    }
-
-    Write-Host ($ghStatus | Out-String).Trim() -ForegroundColor Green
-}
-
-function Invoke-GitPush {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$RefName
-    )
-
-    Write-Host "Pushing $RefName to origin..." -ForegroundColor Cyan
-    & git push --porcelain --progress origin $RefName 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "git push origin $RefName failed. Check GitHub auth, remote permissions, and branch protection."
     }
 }
 
@@ -175,23 +105,26 @@ else {
     Write-Host "Tag $tag already exists. Skipping tag creation." -ForegroundColor Yellow
 }
 
-Test-GitHubAuth
-Invoke-GitPush -RefName 'main'
-Invoke-GitPush -RefName $tag
+Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
+Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag) -AllowedMessages @('Everything up-to-date', 'already exists', 'up-to-date')
 
 # Trigger workflow_dispatch with optional inputs
 if ($IncludeUploads) {
     Write-Host ""
     Write-Host "Triggering GitHub Actions with include_uploads=true..." -ForegroundColor Cyan
-    Test-GitHubAuth
-
-    Invoke-CheckedCommand -Command 'gh' -Arguments @(
+    
+    $workflowInput = @{
+        include_uploads = 'true'
+    } | ConvertTo-Json
+    
+    $gh_args = @(
         'workflow', 'run',
         'build.yml',
         '--ref', 'main',
-        '-f', 'include_uploads=true'
+        '--raw-field', "inputs=$workflowInput"
     )
-
+    
+    Invoke-CheckedCommand -Command 'gh' -Arguments $gh_args
     Write-Host "Workflow dispatched with uploads packaging enabled." -ForegroundColor Green
 }
 
