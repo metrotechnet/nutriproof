@@ -142,6 +142,55 @@ if getattr(sys, 'frozen', False):
 
 _pyocr_log("[pyocr-fix] about to import pyocr-using modules")
 
+# Ensure the bundled Tesseract binary is discoverable even when pyocr checks
+# `shutil.which('tesseract')` before we have modified PATH. The PyInstaller bundle
+# keeps the binary next to the backend under ../tesseract-bundle/bin, so inject
+# that directory early in the process environment.
+def _ensure_tesseract_in_path():
+    bundle_dir = getattr(sys, '_MEIPASS', None) or os.path.dirname(os.path.abspath(__file__))
+    candidates = []
+    if os.environ.get('TESSERACT_PATH'):
+        candidates.append(os.environ['TESSERACT_PATH'])
+    if getattr(sys, 'frozen', False):
+        probe = os.path.dirname(bundle_dir)
+        for _ in range(4):
+            candidates.extend([
+                os.path.join(probe, 'tesseract-bundle', 'bin'),
+                os.path.join(probe, 'tesseract-bundle'),
+                os.path.join(probe, 'tesseract-bundle', 'bin', 'tesseract'),
+            ])
+            probe = os.path.dirname(probe)
+        candidates.append(os.path.join(bundle_dir, 'tesseract'))
+        candidates.append(os.path.join(bundle_dir, 'bin'))
+    for cand in candidates:
+        exe = cand if os.path.basename(cand) == 'tesseract' else os.path.join(cand, 'tesseract')
+        if os.path.isfile(exe) and os.access(exe, os.X_OK):
+            parent = os.path.dirname(exe)
+            os.environ['TESSERACT_PATH'] = parent
+            os.environ['PATH'] = parent + os.pathsep + os.environ.get('PATH', '')
+            if sys.platform == 'darwin':
+                tess_lib = os.path.join(os.path.dirname(parent), 'lib')
+                if os.path.isdir(tess_lib):
+                    for env_key in ('DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH'):
+                        existing = os.environ.get(env_key, '')
+                        values = [tess_lib]
+                        if existing:
+                            values.append(existing)
+                        os.environ[env_key] = ':'.join(values)
+            _pyocr_log(f"[pyocr-fix] PATH updated with bundled Tesseract: {parent}")
+            return exe
+    _pyocr_log("[pyocr-fix] no bundled tesseract executable found in PATH candidates")
+    return None
+
+_tesseract_exe = _ensure_tesseract_in_path()
+if _tesseract_exe is not None:
+    try:
+        import pyocr.tesseract as _pyocr_tesseract
+        _pyocr_tesseract.TESSERACT_CMD = _tesseract_exe
+        _pyocr_log(f"[pyocr-fix] patched pyocr.tesseract.TESSERACT_CMD={_tesseract_exe}")
+    except Exception as exc:
+        _pyocr_log(f"[pyocr-fix] could not patch pyocr.tesseract.TESSERACT_CMD: {exc}")
+
 # pyocr 0.8.5 monkey-patch: on some platforms (notably macOS), ctypes does NOT
 # auto-convert a `bytes` object to `POINTER(c_char)`, causing TessBaseAPISetImage
 # to raise `argument 2: TypeError: wrong type`. Wrap set_image to pass a proper
@@ -273,7 +322,7 @@ if STORAGE_MODE == "gcs" and not GCS_BUCKET:
     raise RuntimeError("STORAGE_MODE=gcs requires GCS_BUCKET to be set; local storage is the default and only supported mode.")
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.82'
+APP_VERSION = '1.1.83'
 
 def create_app():
 
