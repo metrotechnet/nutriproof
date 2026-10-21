@@ -1,0 +1,119 @@
+[debug] [2026-10-21T23:58:24.712Z] ----------------------------------------------------------------------
+[debug] [2026-10-21T23:58:24.713Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\denis\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --project imx-nutriproof --only hosting:website --debug
+[debug] [2026-10-21T23:58:24.713Z] CLI Version:   15.19.0
+[debug] [2026-10-21T23:58:24.714Z] Platform:      win32
+[debug] [2026-10-21T23:58:24.714Z] Node Version:  v24.13.0
+[debug] [2026-10-21T23:58:24.714Z] Time:          Wed Oct 21 2026 19:58:24 GMT-0400 (heure avancée de l’Est)
+[debug] [2026-10-21T23:58:24.714Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-21T23:58:25.476Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-21T23:58:25.477Z] > authorizing via signed-in user (dboulanger363@gmail.com)
+[debug] [2026-10-21T23:58:25.477Z] [iam] checking project imx-nutriproof for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-10-21T23:58:25.478Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:25.478Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:25.479Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/imx-nutriproof:testIamPermissions [none]
+[debug] [2026-10-21T23:58:25.479Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/imx-nutriproof:testIamPermissions  x-goog-user-project=imx-nutriproof
+[debug] [2026-10-21T23:58:25.479Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/imx-nutriproof:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-10-21T23:58:25.829Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/imx-nutriproof:testIamPermissions 200
+[debug] [2026-10-21T23:58:25.830Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/imx-nutriproof:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-10-21T23:58:25.830Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:25.830Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:25.830Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/imx-nutriproof [none]
+[debug] [2026-10-21T23:58:26.221Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/imx-nutriproof 200
+[debug] [2026-10-21T23:58:26.221Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/imx-nutriproof {"projectId":"imx-nutriproof","projectNumber":"201727461753","displayName":"IMX-nutriproof","name":"projects/imx-nutriproof","resources":{"hostingSite":"imx-nutriproof"},"state":"ACTIVE","labels":{"firebase":"enabled"},"etag":"1_c61dac9c-fa1a-4b8f-b674-e2ae51998e64"}
+[info] 
+[info] === Deploying to 'imx-nutriproof'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-10-21T23:58:26.223Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:26.223Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:26.223Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/imx-nutriproof/sites/imx-nutriproof [none]
+[debug] [2026-10-21T23:58:26.817Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/imx-nutriproof/sites/imx-nutriproof 200
+[debug] [2026-10-21T23:58:26.817Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/imx-nutriproof/sites/imx-nutriproof {"name":"projects/imx-nutriproof/sites/imx-nutriproof","defaultUrl":"https://imx-nutriproof.web.app","appId":"1:201727461753:web:e347f73f403d874c2e87a8","type":"DEFAULT_SITE"}
+[debug] [2026-10-21T23:58:26.820Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:26.820Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:26.820Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions [none]
+[debug] [2026-10-21T23:58:26.820Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-10-21T23:58:27.400Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions 200
+[debug] [2026-10-21T23:58:27.400Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions {"name":"projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[imx-nutriproof]: beginning deploy... 
+[info] i  hosting[imx-nutriproof]: found 3 files in public 
+[debug] [2026-10-21T23:58:27.406Z] [hosting] uploading with 200 concurrency
+[debug] [2026-10-21T23:58:27.409Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:27.409Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:27.410Z] [hosting] hash cache [cHVibGlj] stored for 3 files
+[debug] [2026-10-21T23:58:27.410Z] [hosting][hash queue][FINAL] {"max":2,"min":1,"avg":1.3333333333333333,"active":0,"complete":3,"success":3,"errored":0,"retried":0,"total":3,"elapsed":3}
+[debug] [2026-10-21T23:58:27.410Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89:populateFiles [none]
+[debug] [2026-10-21T23:58:27.410Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89:populateFiles {"files":{"/logo-imx.png":"8e8f921132dc823b668a5b8fdd9a88d0cfea1e67aa94dadf239b459c0968f3e9","/icon.png":"86bc9804b7912679eb7f2d57cdc807202f4b9c9879e0ddb4b4b07785ab76078c","/index.html":"a2d34262e4b15672b2b491672dd68f8ff22e1efd310aff966b797cc195d4e8ef"}}
+[debug] [2026-10-21T23:58:27.699Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89:populateFiles 200
+[debug] [2026-10-21T23:58:27.699Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89:populateFiles {"uploadRequiredHashes":["a2d34262e4b15672b2b491672dd68f8ff22e1efd310aff966b797cc195d4e8ef"],"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/imx-nutriproof/versions/1a02b4c0aca4dc89/files"}
+[debug] [2026-10-21T23:58:27.699Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:27.699Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:27.699Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/imx-nutriproof/versions/1a02b4c0aca4dc89/files/a2d34262e4b15672b2b491672dd68f8ff22e1efd310aff966b797cc195d4e8ef [none]
+[debug] [2026-10-21T23:58:27.699Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/imx-nutriproof/versions/1a02b4c0aca4dc89/files/a2d34262e4b15672b2b491672dd68f8ff22e1efd310aff966b797cc195d4e8ef [stream]
+[debug] [2026-10-21T23:58:27.700Z] [hosting][populate queue][FINAL] {"max":290,"min":290,"avg":290,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":291}
+[debug] [2026-10-21T23:58:27.700Z] [hosting] uploads queued: 1
+[debug] [2026-10-21T23:58:28.408Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/imx-nutriproof/versions/1a02b4c0aca4dc89/files/a2d34262e4b15672b2b491672dd68f8ff22e1efd310aff966b797cc195d4e8ef 200
+[debug] [2026-10-21T23:58:28.408Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/imx-nutriproof/versions/1a02b4c0aca4dc89/files/a2d34262e4b15672b2b491672dd68f8ff22e1efd310aff966b797cc195d4e8ef [stream]
+[debug] [2026-10-21T23:58:28.408Z] [hosting][upload queue][FINAL] {"max":709,"min":709,"avg":709,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":709}
+[info] i  hosting: upload complete 
+[info] +  hosting[imx-nutriproof]: file upload complete 
+[debug] [2026-10-21T23:58:28.408Z] [hosting] deploy completed after 1006ms
+[debug] [2026-10-21T23:58:28.409Z] [
+  {
+    "config": {
+      "target": "website",
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        {
+          "source": "**/*.png",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=31536000"
+            }
+          ]
+        }
+      ],
+      "site": "imx-nutriproof"
+    },
+    "version": "projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89"
+  }
+]
+[info] i  hosting[imx-nutriproof]: finalizing version... 
+[debug] [2026-10-21T23:58:28.409Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:28.409Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:28.409Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions/1a02b4c0aca4dc89 updateMask=status%2Cconfig
+[debug] [2026-10-21T23:58:28.409Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions/1a02b4c0aca4dc89 {"status":"FINALIZED","config":{"headers":[{"glob":"**/*.html","headers":{"Cache-Control":"no-cache"}},{"glob":"**/*.png","headers":{"Cache-Control":"max-age=31536000"}}]}}
+[debug] [2026-10-21T23:58:28.736Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions/1a02b4c0aca4dc89 200
+[debug] [2026-10-21T23:58:28.736Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/versions/1a02b4c0aca4dc89 {"name":"projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89","status":"FINALIZED","config":{"headers":[{"headers":{"Cache-Control":"no-cache"},"glob":"**/*.html"},{"headers":{"Cache-Control":"max-age=31536000"},"glob":"**/*.png"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-10-21T23:58:26.952963Z","createUser":{"email":"dboulanger363@gmail.com"},"finalizeTime":"2026-10-21T23:58:28.621429Z","finalizeUser":{"email":"dboulanger363@gmail.com"}}
+[debug] [2026-10-21T23:58:28.736Z] [hosting] finalized version for imx-nutriproof:[object Object]
+[info] +  hosting[imx-nutriproof]: version finalized 
+[info] i  hosting[imx-nutriproof]: releasing new version... 
+[debug] [2026-10-21T23:58:28.736Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:28.736Z] Checked if tokens are valid: true, expires at: 1792630643283
+[debug] [2026-10-21T23:58:28.736Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/channels/live/releases versionName=projects%2F201727461753%2Fsites%2Fimx-nutriproof%2Fversions%2F1a02b4c0aca4dc89
+[debug] [2026-10-21T23:58:28.736Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/channels/live/releases {}
+[debug] [2026-10-21T23:58:29.041Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/channels/live/releases 200
+[debug] [2026-10-21T23:58:29.042Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/imx-nutriproof/channels/live/releases {"name":"projects/201727461753/sites/imx-nutriproof/channels/live/releases/1792627108355000","version":{"name":"projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89","status":"FINALIZED","config":{"headers":[{"headers":{"Cache-Control":"no-cache"},"glob":"**/*.html"},{"headers":{"Cache-Control":"max-age=31536000"},"glob":"**/*.png"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-10-21T23:58:26.952963Z","createUser":{"email":"dboulanger363@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocIC19AQVDsPys5H6tsYqwYJeN8asGlPPJPSXNY4SJjHLCckjA=mo"},"finalizeTime":"2026-10-21T23:58:28.621429Z","finalizeUser":{"email":"dboulanger363@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocIC19AQVDsPys5H6tsYqwYJeN8asGlPPJPSXNY4SJjHLCckjA=mo"}},"type":"DEPLOY","releaseTime":"2026-10-21T23:58:28.355Z","releaseUser":{"email":"dboulanger363@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocIC19AQVDsPys5H6tsYqwYJeN8asGlPPJPSXNY4SJjHLCckjA=mo"}}
+[debug] [2026-10-21T23:58:29.042Z] [hosting] release: {"name":"projects/201727461753/sites/imx-nutriproof/channels/live/releases/1792627108355000","version":{"name":"projects/201727461753/sites/imx-nutriproof/versions/1a02b4c0aca4dc89","status":"FINALIZED","config":{"headers":[{"headers":{"Cache-Control":"no-cache"},"glob":"**/*.html"},{"headers":{"Cache-Control":"max-age=31536000"},"glob":"**/*.png"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-10-21T23:58:26.952963Z","createUser":{"email":"dboulanger363@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocIC19AQVDsPys5H6tsYqwYJeN8asGlPPJPSXNY4SJjHLCckjA=mo"},"finalizeTime":"2026-10-21T23:58:28.621429Z","finalizeUser":{"email":"dboulanger363@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocIC19AQVDsPys5H6tsYqwYJeN8asGlPPJPSXNY4SJjHLCckjA=mo"}},"type":"DEPLOY","releaseTime":"2026-10-21T23:58:28.355Z","releaseUser":{"email":"dboulanger363@gmail.com","imageUrl":"https://lh3.googleusercontent.com/a/ACg8ocIC19AQVDsPys5H6tsYqwYJeN8asGlPPJPSXNY4SJjHLCckjA=mo"}}
+[info] +  hosting[imx-nutriproof]: release complete 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/imx-nutriproof/overview
+[info] Hosting URL: https://imx-nutriproof.web.app

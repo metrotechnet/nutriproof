@@ -24,6 +24,9 @@ if (-not (Test-Path $websiteDir)) {
 
 Set-Location $websiteDir
 
+# Ensure Firebase uses the hosting target configured for the static website.
+& firebase use $ProjectId --add
+
 $deployArgs = @("deploy", "--project", $ProjectId, "--only", "hosting:website")
 
 Write-Host "==> Déploiement Firebase (projet: $ProjectId)"
