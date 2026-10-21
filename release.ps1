@@ -52,6 +52,35 @@ function Invoke-CheckedCommand {
     }
 }
 
+function Test-GitHubAuth {
+    Write-Host "Checking GitHub CLI authentication..." -ForegroundColor Cyan
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        throw "GitHub CLI 'gh' is not installed or not on PATH. Install it before running release.ps1."
+    }
+
+    $ghStatus = & gh auth status 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "GitHub CLI is not authenticated. Run 'gh auth login' and retry."
+        Write-Error ($ghStatus | Out-String)
+        throw "GitHub authentication required for release automation."
+    }
+
+    Write-Host ($ghStatus | Out-String).Trim() -ForegroundColor Green
+}
+
+function Invoke-GitPush {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RefName
+    )
+
+    Write-Host "Pushing $RefName to origin..." -ForegroundColor Cyan
+    & git push --porcelain --progress origin $RefName 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "git push origin $RefName failed. Check GitHub auth, remote permissions, and branch protection."
+    }
+}
+
 $status = git status --porcelain
 if ($status) {
     Write-Host "Uncommitted changes detected. Committing all changes..." -ForegroundColor Yellow
@@ -105,45 +134,23 @@ else {
     Write-Host "Tag $tag already exists. Skipping tag creation." -ForegroundColor Yellow
 }
 
-Write-Host "Pushing main branch to origin..." -ForegroundColor Cyan
-try {
-    & git push origin main 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "git push origin main failed" }
-}
-catch {
-    Write-Error "Git push to origin/main failed. Check GitHub auth, repo permissions, and branch protection."
-    Write-Error $_.Exception.Message
-    throw
-}
-
-Write-Host "Pushing tag $tag to origin..." -ForegroundColor Cyan
-try {
-    & git push origin $tag 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "git push origin $tag failed" }
-}
-catch {
-    Write-Error "Git push for tag $tag failed. Check GitHub auth, repo permissions, and tag protection."
-    Write-Error $_.Exception.Message
-    throw
-}
+Test-GitHubAuth
+Invoke-GitPush -RefName 'main'
+Invoke-GitPush -RefName $tag
 
 # Trigger workflow_dispatch with optional inputs
 if ($IncludeUploads) {
     Write-Host ""
     Write-Host "Triggering GitHub Actions with include_uploads=true..." -ForegroundColor Cyan
-    
-    $workflowInput = @{
-        include_uploads = 'true'
-    } | ConvertTo-Json
-    
-    $gh_args = @(
+    Test-GitHubAuth
+
+    Invoke-CheckedCommand -Command 'gh' -Arguments @(
         'workflow', 'run',
         'build.yml',
         '--ref', 'main',
-        '--raw-field', "inputs=$workflowInput"
+        '-f', 'include_uploads=true'
     )
-    
-    Invoke-CheckedCommand -Command 'gh' -Arguments $gh_args
+
     Write-Host "Workflow dispatched with uploads packaging enabled." -ForegroundColor Green
 }
 
