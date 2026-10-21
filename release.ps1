@@ -1,17 +1,55 @@
 # release.ps1 — Bump version, commit, tag, and push to trigger CI/CD build
 # Compatible with older PowerShell / Windows environments and the macOS DMG compatibility fix.
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
 
     [Parameter(Mandatory = $false)]
-    [switch]$IncludeUploads
+    [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
 
+if (-not $Version) {
+    $appPath = Join-Path $PSScriptRoot 'app.py'
+    if (Test-Path $appPath) {
+        $appText = [System.IO.File]::ReadAllText($appPath)
+        $appMatch = [regex]::Match($appText, 'APP_VERSION\s*=\s*[''\"](?<version>\d+\.\d+\.\d+)[''\"]')
+        if ($appMatch.Success) {
+            $Version = $appMatch.Groups['version'].Value
+        }
+    }
+}
+
+if (-not $Version) {
+    $pkgPath = Join-Path $PSScriptRoot 'electron\package.json'
+    if (Test-Path $pkgPath) {
+        try {
+            $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+            if ($pkg.version) {
+                $Version = [string]$pkg.version
+            }
+        }
+        catch {
+            # ignore JSON read issues and fall through to a clear validation error below
+        }
+    }
+}
+
+if (-not $Version) {
+    throw "Version is required. Pass -Version or ensure app.py/electron/package.json contains a valid semantic version."
+}
+
 $tag = "v$Version"
+$dryRun = $WhatIf.IsPresent
+
+if ($dryRun) {
+    Write-Host "Dry run enabled. No version files, git commits, tags, pushes, or workflow dispatches will be changed." -ForegroundColor Yellow
+    Write-Host "Release version: $Version" -ForegroundColor Cyan
+    Write-Host "Git tag: $tag" -ForegroundColor Cyan
+    return
+}
 
 function Invoke-CheckedCommand {
     param(
@@ -108,26 +146,6 @@ else {
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', 'main') -AllowedMessages @('Everything up-to-date', 'up-to-date')
 Invoke-CheckedCommand -Command 'git' -Arguments @('push', 'origin', $tag) -AllowedMessages @('Everything up-to-date', 'already exists', 'up-to-date')
 
-# Trigger workflow_dispatch with optional inputs
-if ($IncludeUploads) {
-    Write-Host ""
-    Write-Host "Triggering GitHub Actions with include_uploads=true..." -ForegroundColor Cyan
-    
-    $workflowInput = @{
-        include_uploads = 'true'
-    } | ConvertTo-Json
-    
-    $gh_args = @(
-        'workflow', 'run',
-        'build.yml',
-        '--ref', 'main',
-        '--raw-field', "inputs=$workflowInput"
-    )
-    
-    Invoke-CheckedCommand -Command 'gh' -Arguments $gh_args
-    Write-Host "Workflow dispatched with uploads packaging enabled." -ForegroundColor Green
-}
-
 Write-Host ""
-Write-Host "Release $tag pushed. GitHub Actions build started." -ForegroundColor Cyan
+Write-Host "Release $tag pushed. GitHub Actions build will start automatically on the tag push." -ForegroundColor Cyan
 Write-Host "Track progress: https://github.com/metrotechnet/nutriproof/actions" -ForegroundColor Cyan
