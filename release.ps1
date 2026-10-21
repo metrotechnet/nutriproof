@@ -113,15 +113,11 @@ if ($IncludeUploads) {
     Write-Host ""
     Write-Host "Triggering GitHub Actions with include_uploads=true..." -ForegroundColor Cyan
     
-    $workflowInput = @{
-        include_uploads = 'true'
-    } | ConvertTo-Json
-    
     $gh_args = @(
         'workflow', 'run',
         'build.yml',
         '--ref', 'main',
-        '--raw-field', "inputs=$workflowInput"
+        '-f', 'include_uploads=true'
     )
     
     Invoke-CheckedCommand -Command 'gh' -Arguments $gh_args
