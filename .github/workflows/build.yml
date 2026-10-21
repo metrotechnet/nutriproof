@@ -2,15 +2,6 @@ name: Build & Release
 
 on:
   workflow_dispatch:
-    inputs:
-      include_uploads:
-        description: 'Include uploads/main data in release package'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
   push:
     tags: ['v*']
 
@@ -122,28 +113,6 @@ jobs:
             dist/electron/*-Setup.exe
             dist/electron/latest.yml
 
-      - name: Package uploads data (optional)
-        if: ${{ github.event.inputs.include_uploads == 'true' }}
-        shell: pwsh
-        run: |
-          if (Test-Path "uploads/main") {
-            $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-            $zipName = "nutriproof-uploads-data-$timestamp.zip"
-            $zipPath = Join-Path "dist/electron" $zipName
-            Add-Type -AssemblyName System.IO.Compression.FileSystem
-            [System.IO.Compression.ZipFile]::CreateFromDirectory("uploads/main", $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
-            Write-Host "Created data package: $zipName"
-          } else {
-            Write-Host "No uploads/main folder found, skipping data package"
-          }
-
-      - name: Upload data artifacts (optional)
-        if: ${{ github.event.inputs.include_uploads == 'true' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: NutriProof-Windows-Data
-          path: dist/electron/nutriproof-uploads-data-*.zip
-          if-no-files-found: ignore
 
   # ── macOS build ────────────────────────────────────────────────────
   build-macos:
