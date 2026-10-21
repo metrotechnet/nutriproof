@@ -1,6 +1,6 @@
 {
     "name":  "nutriproof",
-    "version":  "1.1.83",
+    "version":  "1.1.84",
     "main":  "main.js",
     "author":  "NutriProof",
     "description":  "NutriProof Desktop Application",
@@ -85,10 +85,10 @@
                                "allowToChangeInstallationDirectory":  true,
                                "createDesktopShortcut":  true,
                                "createStartMenuShortcut":  true,
-                               "artifactName":  "${productName}-Setup.${ext}"
+                               "artifactName":  "${productName}_v${version}-Setup.${ext}"
                            },
                   "dmg":  {
-                              "artifactName":  "${productName}.${ext}",
+                              "artifactName":  "${productName}_v${version}.${ext}",
                               "format":  "UDZO"
                           }
               },

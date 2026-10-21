@@ -70,7 +70,8 @@ jobs:
           $electronPackage = Get-Content -Raw "electron\package.json" | ConvertFrom-Json
           $productName = $electronPackage.build.productName
           if ([string]::IsNullOrWhiteSpace($productName)) { throw "build.productName is missing in electron/package.json" }
-          $canonicalInstallerName = "$productName-Setup.exe"
+          $version = (Get-Content "electron\package.json" -Raw | ConvertFrom-Json).version
+          $canonicalInstallerName = "$productName_v$version-Setup.exe"
           $canonical = Join-Path $outputDir $canonicalInstallerName
           $found = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $found) { throw "No Setup installer found in $outputDir" }

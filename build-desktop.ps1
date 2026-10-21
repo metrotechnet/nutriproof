@@ -180,10 +180,11 @@ if ($Installer) {
     $electronPackageJsonPath = Join-Path $ProjectRoot "electron\package.json"
     $electronPackage = Get-Content -Raw $electronPackageJsonPath | ConvertFrom-Json
     $productName = $electronPackage.build.productName
+    $version = $electronPackage.version
     if ([string]::IsNullOrWhiteSpace($productName)) {
         throw "build.productName is missing in $electronPackageJsonPath"
     }
-    $canonicalInstallerName = "$productName-Setup.exe"
+    $canonicalInstallerName = "$productName_v$version-Setup.exe"
     $canonicalInstallerPath = Join-Path $outputDir $canonicalInstallerName
 
     $setupInstallers = Get-ChildItem $outputDir -Filter "*Setup*.exe" -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
