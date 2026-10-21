@@ -1,5 +1,5 @@
-from flask import Flask, render_template, redirect
-import os, sys, json
+from flask import Flask, render_template, redirect, send_file
+import os, sys, json, io, zipfile
 from datetime import datetime
 from waitress import serve
 
@@ -446,6 +446,30 @@ def create_app():
     def health():
         """Health check endpoint"""
         return {"status": "ok"}
+
+    @app.get("/export_all")
+    def export_all():
+        """Download a ZIP archive containing the project data under uploads/main."""
+        source_root = os.path.join(app.config.get('LOCAL_FOLDER', LOCAL_FOLDER), 'main')
+        if not os.path.isdir(source_root):
+            return {"error": f"No exportable data found at {source_root}"}, 404
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', compression=zipfile.ZIP_DEFLATED) as zip_file:
+            for current_root, _, files in os.walk(source_root):
+                for filename in files:
+                    full_path = os.path.join(current_root, filename)
+                    rel_path = os.path.relpath(full_path, source_root)
+                    zip_file.write(full_path, arcname=rel_path)
+
+        zip_buffer.seek(0)
+        stamp = datetime.utcnow().strftime('%Y%m%d-%H%M%S')
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'nutriproof-uploads-{stamp}.zip'
+        )
 
     # Page d'accueil
     @app.route("/")
