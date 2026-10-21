@@ -51,9 +51,11 @@ Ceci lance le backend Flask (port 8080) + la fenêtre Electron.
 
 Les installeurs sont disponibles sur le site web : **https://imx-nutriproof.web.app**
 
-Ou directement :
-- **Windows** : [NutriProof-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe)
-- **macOS** : [NutriProof.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg)
+Ou directement, en fonction de la version publiée :
+- **Windows** : [NutriProof_v${version}-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/download/v1.1.82/NutriProof_v1.1.82-Setup.exe)
+- **macOS** : [NutriProof_v${version}.dmg](https://github.com/metrotechnet/nutriproof/releases/download/v1.1.82/NutriProof_v1.1.82.dmg)
+
+Remplacez `v1.1.82` par la version exacte publiée dans GitHub Releases si vous souhaitez télécharger une version différente.
 
 L'application inclut les mises à jour automatiques via electron-updater.
 

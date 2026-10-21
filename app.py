@@ -145,7 +145,10 @@ _pyocr_log("[pyocr-fix] about to import pyocr-using modules")
 # Ensure the bundled Tesseract binary is discoverable even when pyocr checks
 # `shutil.which('tesseract')` before we have modified PATH. The PyInstaller bundle
 # keeps the binary next to the backend under ../tesseract-bundle/bin, so inject
-# that directory early in the process environment.
+# that directory early in the process environment. This must be done BEFORE the
+# pyocr module is imported, because pyocr's frozen-mode `_set_environment()` exits
+# early when `TESSDATA_PREFIX` is present and otherwise tries the wrong bundled
+# path under sys._MEIPASS.
 def _ensure_tesseract_in_path():
     bundle_dir = getattr(sys, '_MEIPASS', None) or os.path.dirname(os.path.abspath(__file__))
     candidates = []
@@ -158,26 +161,36 @@ def _ensure_tesseract_in_path():
                 os.path.join(probe, 'tesseract-bundle', 'bin'),
                 os.path.join(probe, 'tesseract-bundle'),
                 os.path.join(probe, 'tesseract-bundle', 'bin', 'tesseract'),
+                os.path.join(probe, 'tesseract-bundle', 'share', 'tessdata'),
             ])
             probe = os.path.dirname(probe)
-        candidates.append(os.path.join(bundle_dir, 'tesseract'))
-        candidates.append(os.path.join(bundle_dir, 'bin'))
+        candidates.extend([
+            os.path.join(bundle_dir, 'tesseract'),
+            os.path.join(bundle_dir, 'bin'),
+            os.path.join(bundle_dir, 'data', 'tessdata'),
+        ])
     for cand in candidates:
         exe = cand if os.path.basename(cand) == 'tesseract' else os.path.join(cand, 'tesseract')
         if os.path.isfile(exe) and os.access(exe, os.X_OK):
             parent = os.path.dirname(exe)
             os.environ['TESSERACT_PATH'] = parent
             os.environ['PATH'] = parent + os.pathsep + os.environ.get('PATH', '')
+            tessdata_dir = os.path.join(os.path.dirname(parent), 'share', 'tessdata')
+            if not os.path.isdir(tessdata_dir):
+                tessdata_dir = os.path.join(os.path.dirname(os.path.dirname(parent)), 'share', 'tessdata')
+            if os.path.isdir(tessdata_dir):
+                os.environ['TESSDATA_PREFIX'] = tessdata_dir
             if sys.platform == 'darwin':
-                tess_lib = os.path.join(os.path.dirname(parent), 'lib')
-                if os.path.isdir(tess_lib):
-                    for env_key in ('DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH'):
+                for env_key in ('DYLD_LIBRARY_PATH', 'DYLD_FALLBACK_LIBRARY_PATH'):
+                    lib_dir = os.path.join(os.path.dirname(parent), 'lib')
+                    if os.path.isdir(lib_dir):
                         existing = os.environ.get(env_key, '')
-                        values = [tess_lib]
+                        values = [lib_dir]
                         if existing:
                             values.append(existing)
                         os.environ[env_key] = ':'.join(values)
             _pyocr_log(f"[pyocr-fix] PATH updated with bundled Tesseract: {parent}")
+            _pyocr_log(f"[pyocr-fix] TESSDATA_PREFIX={os.environ.get('TESSDATA_PREFIX')}")
             return exe
     _pyocr_log("[pyocr-fix] no bundled tesseract executable found in PATH candidates")
     return None
@@ -188,6 +201,11 @@ if _tesseract_exe is not None:
         import pyocr.tesseract as _pyocr_tesseract
         _pyocr_tesseract.TESSERACT_CMD = _tesseract_exe
         _pyocr_log(f"[pyocr-fix] patched pyocr.tesseract.TESSERACT_CMD={_tesseract_exe}")
+        # pyocr's frozen-mode `_set_environment` exits early when `TESSDATA_PREFIX`
+        # is already present, otherwise it probes the wrong internal path and fails.
+        if 'TESSDATA_PREFIX' in os.environ and hasattr(_pyocr_tesseract, '_set_environment'):
+            _pyocr_tesseract._set_environment = lambda: None
+            _pyocr_log('[pyocr-fix] patched pyocr.tesseract._set_environment to no-op')
     except Exception as exc:
         _pyocr_log(f"[pyocr-fix] could not patch pyocr.tesseract.TESSERACT_CMD: {exc}")
 
@@ -322,7 +340,7 @@ if STORAGE_MODE == "gcs" and not GCS_BUCKET:
     raise RuntimeError("STORAGE_MODE=gcs requires GCS_BUCKET to be set; local storage is the default and only supported mode.")
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.1.85'
+APP_VERSION = '1.1.86'
 
 def create_app():
 

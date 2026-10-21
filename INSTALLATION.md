@@ -2,9 +2,9 @@
 
 ## Téléchargement
 
-Rendez-vous sur **https://imx-nutriproof.web.app** ou téléchargez directement :
-- **Windows** : [NutriProof-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof-Setup.exe)
-- **macOS** : [NutriProof.dmg](https://github.com/metrotechnet/nutriproof/releases/latest/download/NutriProof.dmg)
+Rendez-vous sur **https://imx-nutriproof.web.app** ou téléchargez directement depuis la release GitHub correspondante :
+- **Windows** : [NutriProof_v1.1.82-Setup.exe](https://github.com/metrotechnet/nutriproof/releases/download/v1.1.82/NutriProof_v1.1.82-Setup.exe)
+- **macOS** : [NutriProof_v1.1.82.dmg](https://github.com/metrotechnet/nutriproof/releases/download/v1.1.82/NutriProof_v1.1.82.dmg)
 
 ## Windows
 
