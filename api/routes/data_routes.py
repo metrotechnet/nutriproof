@@ -437,3 +437,64 @@ def download_xls_formulaire_suivi():
 
     except Exception as e:
         return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+
+@data_bp.route("/export_all", methods=["POST"])
+def export_all_xls():
+    try:
+        LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
+        ocr_document = current_app.config['OCR_DOCUMENT']
+        storage_backend = current_app.config['STORAGE_BACKEND']
+
+        payload = request.get_json(silent=True) or {}
+        project_id = payload.get("project_id")
+        documents = payload.get("documents")
+
+        if not project_id or not isinstance(documents, list) or not documents:
+            return jsonify({"error": "Missing project_id or documents payload"}), 400
+
+        all_file_paths = []
+        discovered_categories = set()
+
+        for item in documents:
+            if not isinstance(item, dict):
+                return jsonify({"error": "Invalid document entry in payload"}), 400
+
+            document_id = item.get("document_id")
+            nbr_pages = item.get("nbr_pages")
+            if not document_id or not nbr_pages:
+                return jsonify({"error": "Each document must include document_id and nbr_pages"}), 400
+
+            storage_backend.hydrate_document(project_id, document_id)
+            document_dir = os.path.join(LOCAL_FOLDER, project_id, document_id)
+
+            info = load_project_info(document_dir)
+            category = str(info.get("category") or "").strip()
+            if category:
+                discovered_categories.add(category)
+
+            all_file_paths.extend(_collect_document_file_paths(document_dir, nbr_pages))
+
+        if not all_file_paths:
+            return jsonify({"error": "No data files found for selected documents"}), 400
+
+        if len(discovered_categories) > 1:
+            return jsonify({"error": "All selected documents must have the same type"}), 400
+
+        selected_category = str(payload.get("category") or "").strip()
+        if discovered_categories:
+            selected_category = next(iter(discovered_categories))
+
+        force_form = "formulaire_suivi" if selected_category == "formulaire_suivi" else None
+        xls_file = _build_xls_for_document(
+            ocr_document,
+            all_file_paths,
+            sample_data=_load_sample_data(all_file_paths),
+            force_form=force_form,
+        )
+
+        filename = f"{project_id}_export_all.xls"
+        return send_file(xls_file, as_attachment=True, download_name=filename)
+
+    except Exception as e:
+        return jsonify({"error": f"Server error: {str(e)}"}), 500

@@ -79,7 +79,125 @@ function parseProjectDate(value) {
 
 // Nouveau fichier pour le projet projectId
 const btnNewFile = document.getElementById('btn-new-file');
+const btnExportFiles = document.getElementById('btn-export-files');
+const btnDeleteSelected = document.getElementById('btn-delete-selected');
 const fileBrowserMain = document.getElementById('file-browser-main');
+const selectAllDocuments = document.getElementById('select-all-documents');
+
+function updateSelectAllState() {
+    if (!selectAllDocuments) return;
+    const selectableRows = Array.from(document.querySelectorAll('.row-select:not(:disabled)'));
+    if (!selectableRows.length) {
+        selectAllDocuments.checked = false;
+        selectAllDocuments.indeterminate = false;
+        return;
+    }
+    const selectedRows = selectableRows.filter((checkbox) => checkbox.checked).length;
+    selectAllDocuments.checked = selectedRows === selectableRows.length;
+    selectAllDocuments.indeterminate = selectedRows > 0 && selectedRows < selectableRows.length;
+}
+
+if (selectAllDocuments) {
+    selectAllDocuments.addEventListener('change', function () {
+        const checked = this.checked;
+        const rowCheckboxes = document.querySelectorAll('.row-select:not(:disabled)');
+        rowCheckboxes.forEach((checkbox) => {
+            checkbox.checked = checked;
+        });
+        updateSelectAllState();
+    });
+}
+
+if (btnExportFiles) {
+    btnExportFiles.addEventListener('click', async () => {
+        const selectedRows = Array.from(document.querySelectorAll('.row-select:checked:not(:disabled)'));
+        if (!selectedRows.length) {
+            Swal.fire('Exportation', 'Sélectionnez au moins un document à exporter.', 'info');
+            return;
+        }
+
+        const selectedDocuments = selectedRows
+            .map((rowCheckbox) => ({
+                document_id: rowCheckbox.dataset.documentId || '',
+                nbr_pages: rowCheckbox.dataset.nbrPages || '',
+                category: rowCheckbox.dataset.category || '',
+            }))
+            .filter((doc) => doc.document_id && doc.nbr_pages);
+
+        if (!selectedDocuments.length) {
+            Swal.fire('Exportation', 'Aucun document valide à exporter.', 'warning');
+            return;
+        }
+
+        const categories = [...new Set(selectedDocuments.map((doc) => doc.category).filter(Boolean))];
+        if (categories.length > 1) {
+            const conflictTypes = categories
+                .map((categoryKey) => FORM_TYPES[categoryKey] || categoryKey)
+                .join(', ');
+            Swal.fire(
+                'Erreur',
+                `Tous les documents sélectionnés doivent être du même type pour être exportés ensemble.\n\nTypes détectés : ${conflictTypes}`,
+                'error'
+            );
+            return;
+        }
+
+        await exportAllSelectedDocuments(projectId, selectedDocuments, categories[0] || '');
+    });
+}
+
+if (btnDeleteSelected) {
+    btnDeleteSelected.addEventListener('click', async () => {
+        const selectedRows = Array.from(document.querySelectorAll('.row-select:checked:not(:disabled)'));
+        if (!selectedRows.length) {
+            Swal.fire('Suppression', "Aucun document n'est sélectionné.", 'error');
+            return;
+        }
+
+        const selectedDocumentIds = [...new Set(
+            selectedRows
+                .map((rowCheckbox) => rowCheckbox.dataset.documentId || '')
+                .filter(Boolean)
+        )];
+
+        if (!selectedDocumentIds.length) {
+            Swal.fire('Suppression', "Aucun document valide n'est sélectionné.", 'error');
+            return;
+        }
+
+        const confirmation = await Swal.fire({
+            title: 'Confirmer la suppression',
+            text: `Voulez-vous vraiment supprimer les ${selectedDocumentIds.length} documents sélectionnés ?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Oui, supprimer',
+            cancelButtonText: 'Annuler'
+        });
+        if (!confirmation.isConfirmed) return;
+
+        const failedDocuments = [];
+        startSpinner('Suppression en cours...');
+        try {
+            for (const documentId of selectedDocumentIds) {
+                try {
+                    await ProjectManager.deleteDocument(projectId, documentId);
+                } catch (err) {
+                    failedDocuments.push(documentId);
+                }
+            }
+            await loadProjects();
+        } finally {
+            stopSpinner();
+        }
+
+        if (failedDocuments.length) {
+            Swal.fire('Suppression partielle', `Certains documents n'ont pas pu être supprimés : ${failedDocuments.join(', ')}`, 'warning');
+            return;
+        }
+        Swal.fire('Suppression terminée', 'Les documents sélectionnés ont été supprimés.', 'success');
+    });
+}
+
 btnNewFile.addEventListener('click', async () => {
     const choice = await askFormType();
     if (!choice) return;
@@ -100,6 +218,12 @@ fileBrowserMain.addEventListener('change', async (event) => {
     stopSpinner();
 });
 
+document.addEventListener('change', (event) => {
+    if (event.target && event.target.classList && event.target.classList.contains('row-select')) {
+        updateSelectAllState();
+    }
+});
+
 
 // Utilitaire pour afficher le tableau des projets
 async function loadProjects() {
@@ -107,6 +231,7 @@ async function loadProjects() {
     tableBody.innerHTML = '';
     const data = await ProjectManager.listProjects();
     if (!Array.isArray(data) || !data.length) {
+        updateSelectAllState();
         return;
     }
     // On affiche chaque fichier du projet projectId sur une ligne
@@ -125,15 +250,15 @@ async function loadProjects() {
         for (const file of sortedDetails) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="align-middle text-center">${file.document_id || '-'}</td>
+                <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" data-document-id="${file.document_id || ''}" data-nbr-pages="${file.nbr_pages || ''}" data-category="${file.category || ''}"></td>
+                <td class="align-middle text-center" data-col="document-id">${file.document_id || '-'}</td>
                 <td class="align-middle text-center">${file.filename || '-'}</td>
                 <td class="align-middle text-center">${FORM_TYPES[file.category] || file.category || '-'}</td>
                 <td class="align-middle text-center">${file.upload_date || '-'}</td>
                 <td class="align-middle text-center">${file.nbr_pages || '-'}</td>
                 <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
-                <td class="align-middle text-center"><button class="btn btn-success btn-sm"  onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
                 <td class="align-middle text-center"><button class="btn btn-danger btn-sm" onclick="deleteDocumentConfirm('${file.document_id}')"><i class="fas fa-trash"></i></button></td>
-                <td class="align-middle text-center"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">Lecture</span></td>
+                <td class="align-middle text-center" data-col="status"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">Lecture</span></td>
                 <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
                 <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v2-${file.document_id}" ${file.v2=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v2',this.checked ? 'true' : 'false')"></td>
 
@@ -143,6 +268,7 @@ async function loadProjects() {
             pollJob(file.document_id);
         }
     }
+    updateSelectAllState();
     return;
 }
 
@@ -217,19 +343,20 @@ window.addFileToProject = async function(event, projectId) {
   const tableBody = document.querySelector('#projects-table tbody');
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td class="align-middle text-center">${jobid}</td>
+    <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" disabled></td>
+    <td class="align-middle text-center" data-col="document-id">${jobid}</td>
     <td class="align-middle text-center">${file.name}</td>
     <td class="align-middle text-center">${FORM_TYPES[selectedCategory] || selectedCategory || '-'}</td>
     <td class="align-middle text-center">-</td>
     <td class="align-middle text-center">-</td>
     <td class="align-middle text-center"><button class="btn btn-primary btn-sm" disabled><i class="fas fa-eye"></i></button></td>
-    <td class="align-middle text-center"><button class="btn btn-success btn-sm" disabled><i class="fas fa-download"></i></button></td>
     <td class="align-middle text-center"><button class="btn btn-danger btn-sm" disabled><i class="fas fa-trash"></i></button></td>
-    <td class="align-middle text-center"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">En cours</span></td>
+    <td class="align-middle text-center" data-col="status"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">En cours</span></td>
     <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
     <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
   `;
   tableBody.appendChild(tr);
+  updateSelectAllState();
 
   //start polling et mise à jour du status
   pollJob(jobid);
@@ -241,7 +368,7 @@ function disableLine(jobId) {
     const tableBody = document.querySelector('#projects-table tbody');
     const rows = tableBody.querySelectorAll('tr');
     for (const row of rows) {
-        const idCell = row.querySelector('td');
+        const idCell = row.querySelector('td[data-col="document-id"]');
         if (idCell && idCell.textContent === jobId) {
             // Désactive tous les boutons de la ligne
             const buttons = row.querySelectorAll('button');
@@ -250,19 +377,20 @@ function disableLine(jobId) {
             const checkboxes = row.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => cb.disabled = true);
             // Ajoute le style grisé au badge de status
-            const statusCell = row.querySelector('td:nth-child(9) span');
+            const statusCell = row.querySelector('td[data-col="status"] span');
             if (statusCell) {
                 statusCell.classList.add('text-muted');
             }
         }
     }
+    updateSelectAllState();
 }
 //Enable line in table
 function enableLine(jobId) {
     const tableBody = document.querySelector('#projects-table tbody');
     const rows = tableBody.querySelectorAll('tr');
     for (const row of rows) {
-        const idCell = row.querySelector('td');
+        const idCell = row.querySelector('td[data-col="document-id"]');
         if (idCell && idCell.textContent === jobId) {
             // Réactive tous les boutons de la ligne
             const buttons = row.querySelectorAll('button');
@@ -271,12 +399,13 @@ function enableLine(jobId) {
             const checkboxes = row.querySelectorAll('input[type="checkbox"]');
             checkboxes.forEach(cb => cb.disabled = false);
             // Retire le style grisé au badge de status
-            const statusCell = row.querySelector('td:nth-child(9) span');
+            const statusCell = row.querySelector('td[data-col="status"] span');
             if (statusCell) {
                 statusCell.classList.remove('text-muted');
             }
         }
     }
+    updateSelectAllState();
 }
 
 // Annuler un job OCR
@@ -315,10 +444,9 @@ async function pollJob(jobId) {
                 const tableBody = document.querySelector('#projects-table tbody');
                 const rows = tableBody.querySelectorAll('tr');
                 for (const row of rows) {
-                    const idCell = row.querySelector('td');
+                    const idCell = row.querySelector('td[data-col="document-id"]');
                     if (idCell && idCell.textContent === jobId) {
-                        // La colonne status est la 9ème (index 8)
-                        const statusCell = row.querySelector('td:nth-child(9)');
+                        const statusCell = row.querySelector('td[data-col="status"]');
                         if (statusCell) {
                             if(status_data.status=='running') {
                                 statusCell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><span class="badge px-3 py-2 bg-warning">${status_data.progress}</span><button class="btn btn-sm btn-outline-danger" onclick="cancelOCRJob('${jobId}')" title="Annuler"><i class="fas fa-times"></i></button></div>`;
@@ -340,20 +468,21 @@ async function pollJob(jobId) {
                                         if (file) {
                                             const tbody = document.querySelector('#projects-table tbody');
                                             for (const row of tbody.querySelectorAll('tr')) {
-                                                if (row.querySelector('td')?.textContent.trim() === jobId) {
+                                                if (row.querySelector('td[data-col="document-id"]')?.textContent.trim() === jobId) {
                                                     row.innerHTML = `
-                                                        <td class="align-middle text-center">${file.document_id || '-'}</td>
+                                                        <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" data-document-id="${file.document_id || ''}" data-nbr-pages="${file.nbr_pages || ''}" data-category="${file.category || ''}"></td>
+                                                        <td class="align-middle text-center" data-col="document-id">${file.document_id || '-'}</td>
                                                         <td class="align-middle text-center">${file.filename || '-'}</td>
                                                         <td class="align-middle text-center">${FORM_TYPES[file.category] || file.category || '-'}</td>
                                                         <td class="align-middle text-center">${file.upload_date || '-'}</td>
                                                         <td class="align-middle text-center">${file.nbr_pages || '-'}</td>
                                                         <td class="align-middle text-center"><button class="btn btn-primary btn-sm" onclick="viewProject(projectId,'${file.document_id}')"><i class="fas fa-eye"></i></button></td>
-                                                        <td class="align-middle text-center"><button class="btn btn-success btn-sm" onclick="downloadXlsFile(projectId,'${file.document_id}','${file.nbr_pages}')"><i class="fas fa-download"></i></button></td>
                                                         <td class="align-middle text-center"><button class="btn btn-danger btn-sm" onclick="deleteDocumentConfirm('${file.document_id}')"><i class="fas fa-trash"></i></button></td>
-                                                        <td class="align-middle text-center"><span class="badge px-3 py-2 bg-success" style="display:inline-block;width:120px;">Terminé</span></td>
+                                                        <td class="align-middle text-center" data-col="status"><span class="badge px-3 py-2 bg-success" style="display:inline-block;width:120px;">Terminé</span></td>
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v2-${file.document_id}" ${file.v2=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v2',this.checked ? 'true' : 'false')"></td>
                                                     `;
+                                                    updateSelectAllState();
                                                     break;
                                                 }
                                             }
@@ -375,14 +504,16 @@ async function pollJob(jobId) {
 }
 
 // === DOWNLOAD FINAL xls ===
-async function downloadXlsFile(projectId, documentId, nbrPages) {
+async function downloadXlsFile(projectId, documentId, nbrPages, options = {}) {
     if (!documentId) {
         alert("No document loaded");
-        return;
+        return false;
     }
+    const showSpinner = options.showSpinner !== false;
+    let success = false;
 
     try {
-        startSpinner('Téléchargement en cours...');
+        if (showSpinner) startSpinner('Téléchargement en cours...');
 
         let category = null;
         try {
@@ -411,9 +542,52 @@ async function downloadXlsFile(projectId, documentId, nbrPages) {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        success = true;
     } catch (err) {
         console.error("CSV export failed:", err);
         alert("Échec du téléchargement du fichier CSV.");
+    } finally {
+        if (showSpinner) stopSpinner();
+    }
+    return success;
+}
+
+async function exportAllSelectedDocuments(projectId, documents, category) {
+    startSpinner('Exportation en cours...');
+    try {
+        const response = await fetch('/export_all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_id: projectId,
+                category,
+                documents,
+            }),
+        });
+
+        if (!response.ok) {
+            let errorMessage = `HTTP error! Status: ${response.status}`;
+            try {
+                const payload = await response.json();
+                if (payload && payload.error) errorMessage = payload.error;
+            } catch (e) {
+                // Keep default message when response body is not JSON.
+            }
+            throw new Error(errorMessage);
+        }
+
+        const blob = await response.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.download = `export_all_${stamp}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        Swal.fire('Exportation terminée', 'Le fichier consolidé a été généré.', 'success');
+    } catch (err) {
+        console.error("Bulk export failed:", err);
+        Swal.fire('Erreur', err.message || "Échec de l'exportation groupée.", 'error');
     } finally {
         stopSpinner();
     }

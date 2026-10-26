@@ -33,7 +33,9 @@
                     <br>Pour toute assistance, <a href="mailto:info@imxtech.ca">contactez le support technique</a>.
                 </div>
                 <div class="ms-3" style="align-self: flex-end;">
-                    <button class="btn btn-success" id="btn-new-file">Nouveau Document</button>
+                    <button class="btn btn-outline-primary me-2" id="btn-export-files">Exporter</button>
+                    <button class="btn btn-outline-danger me-2" id="btn-delete-selected">Effacer</button>
+                    <button class="btn btn-success" id="btn-new-file">Nouveau</button>
                     <input type="file" id="file-browser-main" style="display:none;" multiple />
                 </div>
             </div>
@@ -42,13 +44,15 @@
     <table class="table table-bordered table-hover" id="projects-table">
         <thead class="table-light">
             <tr>
+                <th class="text-center">
+                    <input type="checkbox" id="select-all-documents" class="form-check-input" title="Tout sélectionner">
+                </th>
                 <th class="text-center">ID Document</th>
                 <th class="text-center">Nom du fichier</th>
                 <th class="text-center">Type</th>
                 <th class="text-center">Date</th>
                 <th class="text-center"># pages</th>
                 <th class="text-center">Visualiser</th>
-                <th class="text-center">Télécharger</th>
                 <th class="text-center">Effacer</th>
                 <th class="text-center">Statut</th>
                 <th class="text-center">V1</th>
