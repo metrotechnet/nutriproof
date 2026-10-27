@@ -340,7 +340,7 @@ _runtime_trace = {
 _pyocr_log("[runtime-trace] startup " + json.dumps(_runtime_trace, ensure_ascii=False))
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.2.9'
+APP_VERSION = '1.2.10'
 
 def create_app():
 

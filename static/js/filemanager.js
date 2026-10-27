@@ -97,6 +97,14 @@ function updateSelectAllState() {
     selectAllDocuments.indeterminate = selectedRows > 0 && selectedRows < selectableRows.length;
 }
 
+function refreshRowIndexes() {
+    const rows = document.querySelectorAll('#projects-table tbody tr');
+    rows.forEach((row, idx) => {
+        const indexCell = row.querySelector('td[data-col="row-index"]');
+        if (indexCell) indexCell.textContent = String(idx + 1);
+    });
+}
+
 if (selectAllDocuments) {
     selectAllDocuments.addEventListener('change', function () {
         const checked = this.checked;
@@ -256,6 +264,7 @@ async function loadProjects() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" data-document-id="${file.document_id || ''}" data-nbr-pages="${file.nbr_pages || ''}" data-category="${file.category || ''}"></td>
+                <td class="align-middle text-center" data-col="row-index"></td>
                 <td class="align-middle text-center" data-col="document-id">${file.document_id || '-'}</td>
                 <td class="align-middle text-center">${file.filename || '-'}</td>
                 <td class="align-middle text-center">${FORM_TYPES[file.category] || file.category || '-'}</td>
@@ -271,6 +280,7 @@ async function loadProjects() {
             //start polling et mise à jour du status
             pollJob(file.document_id);
         }
+        refreshRowIndexes();
     }
     updateSelectAllState();
     return;
@@ -348,6 +358,7 @@ window.addFileToProject = async function(event, projectId) {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" disabled></td>
+    <td class="align-middle text-center" data-col="row-index"></td>
     <td class="align-middle text-center" data-col="document-id">${jobid}</td>
     <td class="align-middle text-center">${file.name}</td>
     <td class="align-middle text-center">${FORM_TYPES[selectedCategory] || selectedCategory || '-'}</td>
@@ -359,6 +370,7 @@ window.addFileToProject = async function(event, projectId) {
     <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
   `;
   tableBody.appendChild(tr);
+  refreshRowIndexes();
   updateSelectAllState();
 
   //start polling et mise à jour du status
@@ -474,6 +486,7 @@ async function pollJob(jobId) {
                                                 if (row.querySelector('td[data-col="document-id"]')?.textContent.trim() === jobId) {
                                                     row.innerHTML = `
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" data-document-id="${file.document_id || ''}" data-nbr-pages="${file.nbr_pages || ''}" data-category="${file.category || ''}"></td>
+                                                        <td class="align-middle text-center" data-col="row-index"></td>
                                                         <td class="align-middle text-center" data-col="document-id">${file.document_id || '-'}</td>
                                                         <td class="align-middle text-center">${file.filename || '-'}</td>
                                                         <td class="align-middle text-center">${FORM_TYPES[file.category] || file.category || '-'}</td>
@@ -484,6 +497,7 @@ async function pollJob(jobId) {
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v2-${file.document_id}" ${file.v2=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v2',this.checked ? 'true' : 'false')"></td>
                                                     `;
+                                                    refreshRowIndexes();
                                                     updateSelectAllState();
                                                     break;
                                                 }
