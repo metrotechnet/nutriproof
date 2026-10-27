@@ -219,11 +219,34 @@ fileBrowserMain.addEventListener('change', async (event) => {
     const files = event.target.files;
     startSpinner("Chargement en cours...");
     if (!files || files.length === 0) { stopSpinner(); return; }
-    for (const file of files) {
-        const ok = await window.addFileToProject({ target: { files: [file] } }, projectId);
+    const tableBody = document.querySelector('#projects-table tbody');
+    const queuedFiles = Array.from(files).map((file) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" disabled></td>
+            <td class="align-middle text-center" data-col="row-index"></td>
+            <td class="align-middle text-center" data-col="document-id">-</td>
+            <td class="align-middle text-center">${file.name}</td>
+            <td class="align-middle text-center">${FORM_TYPES[selectedCategory] || selectedCategory || '-'}</td>
+            <td class="align-middle text-center">-</td>
+            <td class="align-middle text-center">-</td>
+            <td class="align-middle text-center"><button class="btn btn-primary btn-sm" disabled><i class="fas fa-eye"></i></button></td>
+            <td class="align-middle text-center" data-col="status"><span class="badge px-3 py-2 bg-secondary" style="display:inline-block;width:120px;">En attente</span></td>
+            <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
+            <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
+        `;
+        tableBody.appendChild(tr);
+        return { file, row: tr };
+    });
+    refreshRowIndexes();
+    updateSelectAllState();
+    stopSpinner();
+
+    for (const item of queuedFiles) {
+        const ok = await window.addFileToProject({ target: { files: [item.file] } }, projectId, item.row);
         if (!ok) break;
     }
-    stopSpinner();
+    fileBrowserMain.value = '';
 });
 
 document.addEventListener('change', (event) => {
@@ -339,43 +362,60 @@ window.deleteDocumentConfirm = async function(documentId) {
 };
 
 // Ajout de fichier au projet
-window.addFileToProject = async function(event, projectId) {
+window.addFileToProject = async function(event, projectId, existingRow = null) {
     const file = event.target.files[0];
     if (!file) return false;
     if (!selectedCategory) {
         Swal.fire('Erreur', 'Type de formulaire non s\u00e9lectionn\u00e9.', 'error');
         return false;
     }
-  //Upload file
-  const uploadResults = await OcrManager.sendOCRFile(projectId, file, selectedCategory);
-  if (!uploadResults[0]) return false;
+    const tableBody = document.querySelector('#projects-table tbody');
+    const tr = existingRow || document.createElement('tr');
+    tr.innerHTML = `
+        <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" disabled></td>
+        <td class="align-middle text-center" data-col="row-index"></td>
+        <td class="align-middle text-center" data-col="document-id">-</td>
+        <td class="align-middle text-center">${file.name}</td>
+        <td class="align-middle text-center">${FORM_TYPES[selectedCategory] || selectedCategory || '-'}</td>
+        <td class="align-middle text-center">-</td>
+        <td class="align-middle text-center">-</td>
+        <td class="align-middle text-center"><button class="btn btn-primary btn-sm" disabled><i class="fas fa-eye"></i></button></td>
+        <td class="align-middle text-center" data-col="status"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">En cours</span></td>
+        <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
+        <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
+    `;
+    if (!existingRow) {
+        tableBody.appendChild(tr);
+    }
+    refreshRowIndexes();
+    updateSelectAllState();
 
-  //start processing
-  const jobid = await OcrManager.processOCRFile(projectId, uploadResults[0], uploadResults[1], 0, file.name, selectedCategory);
+    //Upload file
+    const uploadResults = await OcrManager.sendOCRFile(projectId, file, selectedCategory);
+    if (!uploadResults[0]) {
+        const statusCell = tr.querySelector('td[data-col="status"]');
+        if (statusCell) {
+            statusCell.innerHTML = `<span class="badge px-3 py-2 bg-danger" style="display:inline-block;width:120px;">Erreur</span>`;
+        }
+        return false;
+    }
 
-  // Add a placeholder row at the end of the table immediately
-  const tableBody = document.querySelector('#projects-table tbody');
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" disabled></td>
-    <td class="align-middle text-center" data-col="row-index"></td>
-    <td class="align-middle text-center" data-col="document-id">${jobid}</td>
-    <td class="align-middle text-center">${file.name}</td>
-    <td class="align-middle text-center">${FORM_TYPES[selectedCategory] || selectedCategory || '-'}</td>
-    <td class="align-middle text-center">-</td>
-    <td class="align-middle text-center">-</td>
-    <td class="align-middle text-center"><button class="btn btn-primary btn-sm" disabled><i class="fas fa-eye"></i></button></td>
-    <td class="align-middle text-center" data-col="status"><span class="badge px-3 py-2 bg-info" style="display:inline-block;width:120px;">En cours</span></td>
-    <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
-    <td class="align-middle text-center"><input type="checkbox" class="form-check-input" disabled></td>
-  `;
-  tableBody.appendChild(tr);
-  refreshRowIndexes();
-  updateSelectAllState();
+    //start processing
+    const jobid = await OcrManager.processOCRFile(projectId, uploadResults[0], uploadResults[1], 0, file.name, selectedCategory);
+    if (!jobid) {
+        const statusCell = tr.querySelector('td[data-col="status"]');
+        if (statusCell) {
+            statusCell.innerHTML = `<span class="badge px-3 py-2 bg-danger" style="display:inline-block;width:120px;">Erreur</span>`;
+        }
+        return false;
+    }
 
-  //start polling et mise à jour du status
-  pollJob(jobid);
-  return true;
+    const idCell = tr.querySelector('td[data-col="document-id"]');
+    if (idCell) idCell.textContent = jobid;
+
+    //start polling et mise à jour du status
+    const finalStatus = await pollJob(jobid);
+    return finalStatus !== 'failed';
 };
 
 //Disable line in table
@@ -439,52 +479,58 @@ async function pollJob(jobId) {
         "completed": "Terminé",
         "running": "En cours",
         "cancelled": "Annulé",
+        "failed": "Erreur",
         "not_found": "Terminé"
     };
     disableLine(jobId);
 
-    let iterationCount = 0; // Compteur d'itérations
-    const intervalId = setInterval(() => {
-        pollStatusAsync(iterationCount);
-        iterationCount++;
-    }, 1000);
+    return new Promise((resolve) => {
+        let iterationCount = 0; // Compteur d'itérations
+        const intervalId = setInterval(() => {
+            pollStatusAsync(iterationCount);
+            iterationCount++;
+        }, 1000);
 
-    async function pollStatusAsync(iterationCount) {
+        async function pollStatusAsync(iterationCount) {
 
-        try {
-            const status_data = await OcrManager.checkStatus(jobId);
+            try {
+                const status_data = await OcrManager.checkStatus(jobId);
 
-            if (status_data && status_data.status) {
-                // Met à jour le badge de status dans la colonne du projet
-                const tableBody = document.querySelector('#projects-table tbody');
-                const rows = tableBody.querySelectorAll('tr');
-                for (const row of rows) {
-                    const idCell = row.querySelector('td[data-col="document-id"]');
-                    if (idCell && idCell.textContent === jobId) {
-                        const statusCell = row.querySelector('td[data-col="status"]');
-                        if (statusCell) {
-                            if(status_data.status=='running') {
-                                statusCell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><span class="badge px-3 py-2 bg-warning">${status_data.progress}</span><button class="btn btn-sm btn-outline-danger" onclick="cancelOCRJob('${jobId}')" title="Annuler"><i class="fas fa-times"></i></button></div>`;
-                            } else {
-                                const bgClass = status_data.status === 'completed' ? 'success' : (status_data.status === 'cancelled' ? 'secondary' : 'info');
-                                statusCell.innerHTML = `<span class="badge px-3 py-2 bg-${bgClass}" style="display:inline-block;width:120px;">${status_map[status_data.status] || status_data.status}</span>`;
+                if (status_data && status_data.status) {
+                    // Met à jour le badge de status dans la colonne du projet
+                    const tableBody = document.querySelector('#projects-table tbody');
+                    const rows = tableBody.querySelectorAll('tr');
+                    for (const row of rows) {
+                        const idCell = row.querySelector('td[data-col="document-id"]');
+                        if (idCell && idCell.textContent === jobId) {
+                            const statusCell = row.querySelector('td[data-col="status"]');
+                            if (statusCell) {
+                                if(status_data.status=='running') {
+                                    statusCell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><span class="badge px-3 py-2 bg-warning">${status_data.progress}</span><button class="btn btn-sm btn-outline-danger" onclick="cancelOCRJob('${jobId}')" title="Annuler"><i class="fas fa-times"></i></button></div>`;
+                                } else {
+                                    const bgClass = status_data.status === 'completed'
+                                        ? 'success'
+                                        : (status_data.status === 'cancelled'
+                                            ? 'secondary'
+                                            : (status_data.status === 'failed' ? 'danger' : 'info'));
+                                    statusCell.innerHTML = `<span class="badge px-3 py-2 bg-${bgClass}" style="display:inline-block;width:120px;">${status_map[status_data.status] || status_data.status}</span>`;
+                                }
                             }
-                        }
-                        // On arrête le polling si terminé ou annulé
-                        if (status_data.status === 'completed' || status_data.status === 'cancelled') {
-                            enableLine(jobId);
-                            clearInterval(intervalId);
-                            // Update the placeholder row with actual server data
-                            if (status_data.status === 'completed') {
-                                try {
-                                    const details = await ProjectManager.getProject(projectId);
-                                    if (Array.isArray(details)) {
-                                        const file = details.find(f => f.document_id === jobId);
-                                        if (file) {
-                                            const tbody = document.querySelector('#projects-table tbody');
-                                            for (const row of tbody.querySelectorAll('tr')) {
-                                                if (row.querySelector('td[data-col="document-id"]')?.textContent.trim() === jobId) {
-                                                    row.innerHTML = `
+                            // On arrête le polling si terminé, annulé, échoué ou introuvable
+                            if (status_data.status === 'completed' || status_data.status === 'cancelled' || status_data.status === 'failed' || status_data.status === 'not_found') {
+                                enableLine(jobId);
+                                clearInterval(intervalId);
+                                // Update the placeholder row with actual server data
+                                if (status_data.status === 'completed') {
+                                    try {
+                                        const details = await ProjectManager.getProject(projectId);
+                                        if (Array.isArray(details)) {
+                                            const file = details.find(f => f.document_id === jobId);
+                                            if (file) {
+                                                const tbody = document.querySelector('#projects-table tbody');
+                                                for (const row of tbody.querySelectorAll('tr')) {
+                                                    if (row.querySelector('td[data-col="document-id"]')?.textContent.trim() === jobId) {
+                                                        row.innerHTML = `
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input row-select" data-document-id="${file.document_id || ''}" data-nbr-pages="${file.nbr_pages || ''}" data-category="${file.category || ''}"></td>
                                                         <td class="align-middle text-center" data-col="row-index"></td>
                                                         <td class="align-middle text-center" data-col="document-id">${file.document_id || '-'}</td>
@@ -497,26 +543,32 @@ async function pollJob(jobId) {
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v1-${file.document_id}" ${file.v1=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v1',this.checked ? 'true' : 'false')"></td>
                                                         <td class="align-middle text-center"><input type="checkbox" class="form-check-input" name="v2-${file.document_id}" ${file.v2=='true' ? 'checked' : ''} onchange="verifyDocument('${projectId}','${file.document_id}','v2',this.checked ? 'true' : 'false')"></td>
                                                     `;
-                                                    refreshRowIndexes();
-                                                    updateSelectAllState();
-                                                    break;
+                                                        refreshRowIndexes();
+                                                        updateSelectAllState();
+                                                        break;
+                                                    }
                                                 }
                                             }
                                         }
+                                    } catch (e) {
+                                        console.error('Impossible de mettre à jour la ligne du document:', e);
                                     }
-                                } catch (e) { /* ignore */ }
+                                }
+                                resolve(status_data.status);
+                                return;
                             }
-                            return;
                         }
                     }
                 }
-            }
 
-        } catch (err) {
-            enableLine(jobId);
-            clearInterval(intervalId);
+            } catch (err) {
+                enableLine(jobId);
+                clearInterval(intervalId);
+                console.error(`Échec du suivi OCR pour ${jobId}:`, err);
+                resolve('failed');
+            }
         }
-    }
+    });
 }
 
 // === DOWNLOAD FINAL xls ===
