@@ -1,5 +1,15 @@
 import os
 import json
+import sys
+
+
+def _trace(msg):
+    line = f"[project-helpers] {msg}"
+    try:
+        sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
 
 
 def load_project_info(file_path):
@@ -36,6 +46,16 @@ def load_all_project_info(local_folder, project_id):
     for doc_folder in os.listdir(project_path):
         doc_path = os.path.join(project_path, doc_folder)
         if os.path.isdir(doc_path) and os.path.exists(os.path.join(doc_path, "info.json")):
-            doc_info = load_project_info(doc_path)
-            project_info.append(doc_info)
+            try:
+                doc_info = load_project_info(doc_path)
+            except json.JSONDecodeError as exc:
+                _trace(f"load_all_project_info: invalid JSON in {os.path.join(doc_path, 'info.json')}: {exc}")
+                continue
+            except Exception as exc:
+                _trace(f"load_all_project_info: failed reading {os.path.join(doc_path, 'info.json')}: {exc}")
+                continue
+            if isinstance(doc_info, dict):
+                project_info.append(doc_info)
+            else:
+                _trace(f"load_all_project_info: ignored non-dict payload in {os.path.join(doc_path, 'info.json')}")
     return project_info
