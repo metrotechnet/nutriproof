@@ -96,9 +96,21 @@ def list_projects():
         LOCAL_FOLDER = current_app.config['LOCAL_FOLDER']
         storage_backend = current_app.config['STORAGE_BACKEND']
         project_names = storage_backend.list_projects()
+        project_folders = {}
+        for project_name in project_names:
+            project_path = os.path.join(LOCAL_FOLDER, project_name)
+            if not os.path.isdir(project_path):
+                project_folders[project_name] = []
+                continue
+            project_folders[project_name] = [
+                name
+                for name in os.listdir(project_path)
+                if os.path.isdir(os.path.join(project_path, name))
+            ]
         return jsonify({
             "projects": project_names,
             "path": LOCAL_FOLDER,
+            "project_folders": project_folders,
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
