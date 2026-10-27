@@ -320,9 +320,12 @@ elif getattr(sys, 'frozen', False):
 else:
     LOCAL_FOLDER = os.path.join('.', 'uploads')
 print(LOCAL_FOLDER)
-STORAGE_MODE = os.environ.get("STORAGE_MODE", "local").strip().lower()
-GCS_BUCKET = os.environ.get("GCS_BUCKET", "").strip()
-GCS_PREFIX = os.environ.get("GCS_PREFIX", "uploads").strip()
+_requested_storage_mode = os.environ.get("STORAGE_MODE", "local").strip().lower()
+STORAGE_MODE = "local"
+GCS_BUCKET = ""
+GCS_PREFIX = "uploads"
+if _requested_storage_mode == "gcs":
+    _pyocr_log("[runtime-trace] STORAGE_MODE=gcs requested but ignored; forcing local-only storage.")
 _runtime_trace = {
     "platform": sys.platform,
     "frozen": getattr(sys, 'frozen', False),
@@ -331,16 +334,13 @@ _runtime_trace = {
     "UPLOAD_ROOT": _upload_root_override,
     "LOCAL_FOLDER": LOCAL_FOLDER,
     "STORAGE_MODE": STORAGE_MODE,
-    "GCS_BUCKET": GCS_BUCKET or "(unset)",
-    "GCS_PREFIX": GCS_PREFIX,
+    "STORAGE_MODE_REQUESTED": _requested_storage_mode,
     "CONFIG_PATH": CONFIG_PATH,
 }
 _pyocr_log("[runtime-trace] startup " + json.dumps(_runtime_trace, ensure_ascii=False))
-if STORAGE_MODE == "gcs" and not GCS_BUCKET:
-    raise RuntimeError("STORAGE_MODE=gcs requires GCS_BUCKET to be set; local storage is the default and only supported mode.")
 DEMO_MODE = False   # Set to True to limit page count
 DEMO_MAX_PAGES = 25
-APP_VERSION = '1.2.6'
+APP_VERSION = '1.2.7'
 
 def create_app():
 
@@ -364,7 +364,7 @@ def create_app():
         bucket_name=GCS_BUCKET,
         prefix=GCS_PREFIX
     )
-    _pyocr_log(f"[runtime-trace] storage_backend initialized: mode={STORAGE_MODE}, local_root={LOCAL_FOLDER}, bucket={GCS_BUCKET or '(unset)'}")
+    _pyocr_log(f"[runtime-trace] storage_backend initialized: mode={STORAGE_MODE}, local_root={LOCAL_FOLDER}")
     # Init local usage tracker for demo mode
     init_usage_tracker(LOCAL_FOLDER)
     # Management des fichiers temporaires

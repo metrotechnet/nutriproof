@@ -229,8 +229,13 @@ document.addEventListener('change', (event) => {
 async function loadProjects() {
     const tableBody = document.querySelector('#projects-table tbody');
     tableBody.innerHTML = '';
-    const data = await ProjectManager.listProjects();
-    if (!Array.isArray(data) || !data.length) {
+    const listPayload = await ProjectManager.listProjects();
+    const projects = Array.isArray(listPayload)
+        ? listPayload
+        : Array.isArray(listPayload?.projects)
+            ? listPayload.projects
+            : [];
+    if (!projects.length) {
         updateSelectAllState();
         return;
     }
